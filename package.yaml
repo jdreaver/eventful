@@ -1,0 +1,53 @@
+name: event-sourcing
+version: "0.1.0"
+maintainer: David Reaver
+
+dependencies:
+  - base
+  - aeson
+  - bytestring
+  - containers
+  - directory
+  # - esqueleto  # https://github.com/prowdsponsor/esqueleto/issues/137
+  - http-api-data
+  - persistent
+  - persistent-sqlite
+  - persistent-template
+  - lens
+  - mtl
+  - random
+  - safe
+  - split
+  - stm
+  - text
+  - time
+  - transformers
+  - uuid
+
+default-extensions:
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - MultiParamTypeClasses
+  - OverloadedStrings
+  - QuasiQuotes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TemplateHaskell
+  - TypeFamilies
+
+library:
+  source-dirs:
+    - src
+  ghc-options: -Wall
+
+tests:
+  style:
+    main: HLint.hs
+    ghc-options: -Wall -Werror
+    source-dirs:
+      - tests
+    dependencies:
+      - hlint
