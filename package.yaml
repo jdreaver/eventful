@@ -33,6 +33,7 @@ default-extensions:
   - MultiParamTypeClasses
   - OverloadedStrings
   - QuasiQuotes
+  - RecordWildCards
   - ScopedTypeVariables
   - StandaloneDeriving
   - TemplateHaskell
