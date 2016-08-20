@@ -31,8 +31,8 @@ share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 PersistedSqliteEvent
     aggregateId UUID
     eventJson ByteString
-    sequenceNumber SequenceNumber
-    Primary aggregateId sequenceNumber
+    version EventVersion
+    Primary aggregateId version
     deriving Show
 |]
 
@@ -40,14 +40,18 @@ getAggregateIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getAggregateIds =
   fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM persisted_sqlite_event" []
 
-getAggregateEvents :: (FromJSON a, MonadIO m) => UUID -> ReaderT SqlBackend m [a]
-getAggregateEvents uuid = do
-  entities <- selectList [PersistedSqliteEventAggregateId ==. uuid] [Asc PersistedSqliteEventSequenceNumber]
+getAggregateEvents :: (FromJSON a, MonadIO m) => UUID -> EventVersion -> ReaderT SqlBackend m [a]
+getAggregateEvents uuid seqNum = do
+  entities <- selectList
+    [ PersistedSqliteEventAggregateId ==. uuid
+    , PersistedSqliteEventVersion >=. seqNum
+    ]
+    [Asc PersistedSqliteEventVersion]
   return $ mapMaybe (decode . fromStrict . persistedSqliteEventEventJson . entityVal) entities
 
-maxSequenceNumber :: (MonadIO m) => UUID -> ReaderT SqlBackend m SequenceNumber
-maxSequenceNumber uuid =
-  let rawVals = rawSql "SELECT IFNULL(MAX(sequence_number), -1) FROM persisted_sqlite_event WHERE aggregate_id = ?" [toPersistValue uuid]
+maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
+maxEventVersion uuid =
+  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM persisted_sqlite_event WHERE aggregate_id = ?" [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
@@ -83,27 +87,29 @@ instance (MonadIO m, FromJSON event, ToJSON event) => EventStore (SqliteEventSto
   getUuids = sqliteEventStoreGetUuids
   getEvents = sqliteEventStoreGetEvents
   storeEvents = sqliteEventStoreStoreEvents
-  latestSequenceNumber = sqliteEventStoreLatestSequenceNumber
+  latestEventVersion = sqliteEventStoreLatestEventVersion
 
 sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore event -> m [UUID]
 sqliteEventStoreGetUuids (SqliteEventStore pool) =
   liftIO $ runSqlPool getAggregateIds pool
 
-sqliteEventStoreGetEvents :: (FromJSON event, MonadIO m) => SqliteEventStore event -> UUID -> m [event]
-sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
-  liftIO $ runSqlPool (getAggregateEvents uuid) pool
+sqliteEventStoreGetEvents
+  :: (FromJSON event, MonadIO m)
+  => SqliteEventStore event -> UUID -> EventVersion -> m [event]
+sqliteEventStoreGetEvents (SqliteEventStore pool) uuid seqNum =
+  liftIO $ runSqlPool (getAggregateEvents uuid seqNum) pool
 
 sqliteEventStoreStoreEvents
   :: (ToJSON event, MonadIO m)
   => SqliteEventStore event -> UUID -> [event] -> m ()
 sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events = do
-  sequenceNum <- liftIO $ runSqlPool (maxSequenceNumber uuid) pool
+  sequenceNum <- liftIO $ runSqlPool (maxEventVersion uuid) pool
   let eventsAndSeq = zip events [sequenceNum + 1..]
       entities = fmap (\(event, s) -> PersistedSqliteEvent uuid (toStrict $ encode event) s) eventsAndSeq
   liftIO $ void $ runSqlPool (bulkInsert entities) pool
 
-sqliteEventStoreLatestSequenceNumber
+sqliteEventStoreLatestEventVersion
   :: (MonadIO m)
-  => SqliteEventStore event -> UUID -> m SequenceNumber
-sqliteEventStoreLatestSequenceNumber (SqliteEventStore pool) uuid =
-  liftIO $ runSqlPool (maxSequenceNumber uuid) pool
+  => SqliteEventStore event -> UUID -> m EventVersion
+sqliteEventStoreLatestEventVersion (SqliteEventStore pool) uuid =
+  liftIO $ runSqlPool (maxEventVersion uuid) pool

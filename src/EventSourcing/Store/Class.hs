@@ -1,6 +1,7 @@
 module EventSourcing.Store.Class
   ( EventStore (..)
-  , SequenceNumber (..)
+  , getAllEvents
+  , EventVersion (..)
   , ProjectionStore (..)
   ) where
 
@@ -14,18 +15,21 @@ import EventSourcing.UUID
 -- type?
 class (Monad m) => EventStore store m event | store -> event where
   getUuids :: store -> m [UUID]
-  getEvents :: store -> UUID -> m [event]
+  getEvents :: store -> UUID -> EventVersion -> m [event]
   storeEvents :: store -> UUID -> [event] -> m ()
-  latestSequenceNumber :: store -> UUID -> m SequenceNumber
+  latestEventVersion :: store -> UUID -> m EventVersion
+
+getAllEvents :: (EventStore store m event) => store -> UUID -> m [event]
+getAllEvents store uuid = getEvents store uuid 0
 
 -- data StoredEvent event
 --   = StoredEvent
 --   { storedEventEvent :: event
---   , storedEventSequenceNumber :: SequenceNumber
+--   , storedEventEventVersion :: EventVersion
 --   , storedEventTime :: UTCTime
 --   }
 
-newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
+newtype EventVersion = EventVersion { unEventVersion :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql)
 
 
@@ -36,5 +40,5 @@ class (Projection proj, Monad m) => ProjectionStore store m proj | store -> proj
 -- data StoredProjection proj
 --   = StoredProjection
 --   { storedProjectionProjection :: proj
---   , storedProjectionSequenceNumber :: SequenceNumber
+--   , storedProjectionEventVersion :: EventVersion
 --   } deriving (Show)
