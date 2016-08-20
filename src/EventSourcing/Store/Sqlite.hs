@@ -30,7 +30,7 @@ import EventSourcing.UUID
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 PersistedSqliteEvent
     aggregateId UUID
-    eventJson ByteString
+    data ByteString
     version EventVersion
     Primary aggregateId version
     deriving Show
@@ -47,7 +47,7 @@ getAggregateEvents uuid seqNum = do
     , PersistedSqliteEventVersion >=. seqNum
     ]
     [Asc PersistedSqliteEventVersion]
-  return $ mapMaybe (decode . fromStrict . persistedSqliteEventEventJson . entityVal) entities
+  return $ mapMaybe (decode . fromStrict . persistedSqliteEventData . entityVal) entities
 
 maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
 maxEventVersion uuid =
