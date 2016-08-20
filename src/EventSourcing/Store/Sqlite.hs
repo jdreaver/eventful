@@ -82,6 +82,11 @@ sqliteEventStore pool = do
   -- Run migrations
   liftIO $ runSqlPool (runMigration migrateSqliteEvent) pool
 
+  -- Create index on aggregate_id so retrieval is very fast
+  liftIO $ runSqlPool
+    (rawExecute "CREATE INDEX IF NOT EXISTS aggregate_id_index ON persisted_sqlite_event (aggregate_id)" [])
+    pool
+
   return $ SqliteEventStore pool
 
 instance (MonadIO m, FromJSON event, ToJSON event) => EventStore (SqliteEventStore event) m event where
