@@ -29,10 +29,11 @@ import EventSourcing.UUID
 
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 PersistedSqliteEvent
+    Id sql=sequence_number
     aggregateId UUID
     data ByteString
     version EventVersion
-    Primary aggregateId version
+    UniqueAggregateVersion aggregateId version
     deriving Show
 |]
 
