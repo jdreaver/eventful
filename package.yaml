@@ -25,6 +25,7 @@ dependencies:
   - uuid
 
 default-extensions:
+  - DeriveGeneric
   - FlexibleContexts
   - FlexibleInstances
   - FunctionalDependencies

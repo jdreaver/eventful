@@ -32,9 +32,9 @@ nextRandom :: IO UUID
 nextRandom = UUID <$> UUID4.nextRandom
 
 instance PersistField UUID where
-  toPersistValue = PersistByteString . UUID.toASCIIBytes . unUUID
-  fromPersistValue (PersistByteString t) =
-    case UUID.fromASCIIBytes t of
+  toPersistValue = PersistText . UUID.toText . unUUID
+  fromPersistValue (PersistText t) =
+    case UUID.fromText t of
       Just x -> Right (UUID x)
       Nothing -> Left "Invalid UUID"
   fromPersistValue _ = Left "Not PersistDBSpecific"

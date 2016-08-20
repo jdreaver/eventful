@@ -1,8 +1,12 @@
 module EventSourcing.Store.Class
   ( EventStore (..)
+  , SequenceNumber (..)
   , ProjectionStore (..)
   ) where
 
+import Data.Aeson
+import Database.Persist (PersistField)
+import Database.Persist.Sql (PersistFieldSql)
 import EventSourcing.Projection
 import EventSourcing.UUID
 
@@ -12,7 +16,7 @@ class (Monad m) => EventStore store m event | store -> event where
   getUuids :: store -> m [UUID]
   getEvents :: store -> UUID -> m [event]
   storeEvents :: store -> UUID -> [event] -> m ()
-
+  latestSequenceNumber :: store -> UUID -> m SequenceNumber
 
 -- data StoredEvent event
 --   = StoredEvent
@@ -21,8 +25,8 @@ class (Monad m) => EventStore store m event | store -> event where
 --   , storedEventTime :: UTCTime
 --   }
 
--- newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
---   deriving (Show, Ord, Eq)
+newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
+  deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql)
 
 
 class (Projection proj, Monad m) => ProjectionStore store m proj | store -> proj where
