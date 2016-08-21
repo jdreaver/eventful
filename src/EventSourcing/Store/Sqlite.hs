@@ -28,7 +28,7 @@ import EventSourcing.Store.Class
 import EventSourcing.UUID
 
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
-PersistedSqliteEvent
+PersistedSqliteEvent sql=events
     Id SequenceNumber sql=sequence_number
     aggregateId UUID
     data ByteString
@@ -39,7 +39,7 @@ PersistedSqliteEvent
 
 getAggregateIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getAggregateIds =
-  fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM persisted_sqlite_event" []
+  fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM events" []
 
 getAggregateEvents :: (FromJSON a, MonadIO m) => UUID -> ReaderT SqlBackend m [a]
 getAggregateEvents uuid = do
@@ -54,7 +54,7 @@ getAllEventsFromSequence seqNum = do
 
 maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
 maxEventVersion uuid =
-  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM persisted_sqlite_event WHERE aggregate_id = ?" [toPersistValue uuid]
+  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE aggregate_id = ?" [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
@@ -86,7 +86,7 @@ sqliteEventStore pool = do
 
   -- Create index on aggregate_id so retrieval is very fast
   liftIO $ runSqlPool
-    (rawExecute "CREATE INDEX IF NOT EXISTS aggregate_id_index ON persisted_sqlite_event (aggregate_id)" [])
+    (rawExecute "CREATE INDEX IF NOT EXISTS aggregate_id_index ON events (aggregate_id)" [])
     pool
 
   return $ SqliteEventStore pool
