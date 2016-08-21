@@ -11,6 +11,7 @@ dependencies:
   - directory
   # - esqueleto  # https://github.com/prowdsponsor/esqueleto/issues/137
   - http-api-data
+  - monad-logger
   - persistent
   - persistent-sqlite
   - persistent-template
