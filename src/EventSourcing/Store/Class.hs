@@ -1,6 +1,5 @@
 module EventSourcing.Store.Class
   ( EventStore (..)
-  , getAllEvents
   , EventVersion (..)
   , ProjectionStore (..)
   ) where
@@ -15,12 +14,10 @@ import EventSourcing.UUID
 -- type?
 class (Monad m) => EventStore store m event | store -> event where
   getUuids :: store -> m [UUID]
-  getEvents :: store -> UUID -> EventVersion -> m [event]
+  getEvents :: store -> UUID -> m [event]
+  getAllEvents :: store -> m [(UUID, event)]
   storeEvents :: store -> UUID -> [event] -> m ()
   latestEventVersion :: store -> UUID -> m EventVersion
-
-getAllEvents :: (EventStore store m event) => store -> UUID -> m [event]
-getAllEvents store uuid = getEvents store uuid 0
 
 -- data StoredEvent event
 --   = StoredEvent

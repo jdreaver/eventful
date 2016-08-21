@@ -28,11 +28,12 @@ eventBus :: IO (EventBus event)
 eventBus = EventBus <$> atomically (newTVar [])
 
 -- TODO: Pass event store here too and hydrate pipe with previous events
-registerHandler :: EventBus event -> Handler event IO -> IO ()
-registerHandler (EventBus queuesTVar) handler = do
+registerHandler :: (EventStore store IO event) => store -> EventBus event -> Handler event IO -> IO ()
+registerHandler store (EventBus queuesTVar) handler = do
+  events <- getAllEvents store
   (output, input) <- spawn unbounded
   _ <- async $ do
-    runEffect $ fromInput input >-> handlerConsumer handler
+    runEffect $ (mapM_ yield events >> fromInput input) >-> handlerConsumer handler
     performGC
   atomically $ modifyTVar' queuesTVar ((:) output)
 

@@ -41,14 +41,16 @@ getAggregateIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getAggregateIds =
   fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM persisted_sqlite_event" []
 
-getAggregateEvents :: (FromJSON a, MonadIO m) => UUID -> EventVersion -> ReaderT SqlBackend m [a]
-getAggregateEvents uuid seqNum = do
-  entities <- selectList
-    [ PersistedSqliteEventAggregateId ==. uuid
-    , PersistedSqliteEventVersion >=. seqNum
-    ]
-    [Asc PersistedSqliteEventVersion]
+getAggregateEvents :: (FromJSON a, MonadIO m) => UUID -> ReaderT SqlBackend m [a]
+getAggregateEvents uuid = do
+  entities <- selectList [PersistedSqliteEventAggregateId ==. uuid] [Asc PersistedSqliteEventVersion]
   return $ mapMaybe (decode . fromStrict . persistedSqliteEventData . entityVal) entities
+
+getAllEventsFromId :: (FromJSON a, MonadIO m) => PersistedSqliteEventId -> ReaderT SqlBackend m [(UUID, a)]
+getAllEventsFromId seqNum = do
+  entities <- selectList [PersistedSqliteEventId >=. seqNum] [Asc PersistedSqliteEventId]
+  return $ mapMaybe (mkPair . entityVal) entities
+  where mkPair (PersistedSqliteEvent uuid data' _) = (uuid,) <$> decode (fromStrict data')
 
 maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
 maxEventVersion uuid =
@@ -92,6 +94,7 @@ sqliteEventStore pool = do
 instance (MonadIO m, FromJSON event, ToJSON event) => EventStore (SqliteEventStore event) m event where
   getUuids = sqliteEventStoreGetUuids
   getEvents = sqliteEventStoreGetEvents
+  getAllEvents = sqliteEventStoreGetAllEvents
   storeEvents = sqliteEventStoreStoreEvents
   latestEventVersion = sqliteEventStoreLatestEventVersion
 
@@ -101,9 +104,15 @@ sqliteEventStoreGetUuids (SqliteEventStore pool) =
 
 sqliteEventStoreGetEvents
   :: (FromJSON event, MonadIO m)
-  => SqliteEventStore event -> UUID -> EventVersion -> m [event]
-sqliteEventStoreGetEvents (SqliteEventStore pool) uuid seqNum =
-  liftIO $ runSqlPool (getAggregateEvents uuid seqNum) pool
+  => SqliteEventStore event -> UUID -> m [event]
+sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
+  liftIO $ runSqlPool (getAggregateEvents uuid) pool
+
+sqliteEventStoreGetAllEvents
+  :: (FromJSON event, MonadIO m)
+  => SqliteEventStore event -> m [(UUID, event)]
+sqliteEventStoreGetAllEvents (SqliteEventStore pool) =
+  liftIO $ runSqlPool (getAllEventsFromId (PersistedSqliteEventKey 0)) pool
 
 sqliteEventStoreStoreEvents
   :: (ToJSON event, MonadIO m)

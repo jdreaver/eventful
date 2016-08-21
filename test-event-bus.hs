@@ -26,8 +26,8 @@ main = do
 
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   bus <- eventBus
-  registerHandler bus (\uuid event -> putStrLn $ "Recieved: " ++ show (uuid, event :: String))
-  registerHandler bus (\uuid event -> applyEvents projectionStore uuid [AddItem event])
+  registerHandler eventStore bus (\uuid event -> putStrLn $ "Recieved: " ++ show (uuid, event :: String))
+  registerHandler eventStore bus (\uuid event -> applyEvents projectionStore uuid [AddItem event])
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -39,7 +39,7 @@ main = do
 
     threadDelay 100000
 
-    es <- getAllEvents eventStore uuid
+    es <- getEvents eventStore uuid
     print es
 
     p <- getProjection projectionStore uuid
