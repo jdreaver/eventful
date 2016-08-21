@@ -3,8 +3,6 @@ module EventSourcing.EventBus
   , EventBus (..)
   , newEventBus
   , publishEvent
-  , runEventBus
-  , startEventBus
   , storeAndPublishEvent
   ) where
 
@@ -18,29 +16,29 @@ import EventSourcing.UUID
 
 type Handler event m = UUID -> event -> m ()
 
-data EventBus event m =
+data EventBus event =
   EventBus
-  { eventBusHandlers :: [Handler event m]
-  , eventBusQueue :: TChan (UUID, event)
+  { eventBusQueues :: [TChan (UUID, event)]
   }
 
-newEventBus :: [Handler event m] -> IO (EventBus event m)
+newEventBus :: [Handler event IO] -> IO (EventBus event)
 newEventBus handlers = do
-  chan <- newTChanIO
-  return $ EventBus handlers chan
+  tchans <- forM handlers $ \handler -> do
+    chan <- newTChanIO
+    void . forkIO $ runHandler handler chan
+    return chan
+  return $ EventBus tchans
 
-publishEvent :: (MonadIO m) => EventBus event m -> UUID -> event -> m ()
-publishEvent EventBus{..} uuid event = liftIO . atomically $ writeTChan eventBusQueue (uuid, event)
+runHandler :: Handler event IO -> TChan (UUID, event) -> IO ()
+runHandler handler chan = forever $ do
+  (uuid, event) <- liftIO $ atomically $ readTChan chan
+  handler uuid event
 
-runEventBus :: (MonadIO m) => EventBus event m -> m ()
-runEventBus EventBus{..} = forever $ do
-  (uuid, event) <- liftIO $ atomically $ readTChan eventBusQueue
-  mapM_ (\handler -> handler uuid event) eventBusHandlers
-
-startEventBus :: EventBus event IO -> IO ()
-startEventBus bus = void . forkIO $ runEventBus bus
+publishEvent :: (MonadIO m) => EventBus event -> UUID -> event -> m ()
+publishEvent EventBus{..} uuid event =
+  liftIO $ forM_ eventBusQueues $ \chan -> atomically $ writeTChan chan (uuid, event)
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore store m event) => store -> EventBus event m -> UUID -> event -> m ()
+  :: (MonadIO m, EventStore store m event) => store -> EventBus event -> UUID -> event -> m ()
 storeAndPublishEvent store bus uuid event =
   storeEvents store uuid [event] >> publishEvent bus uuid event
