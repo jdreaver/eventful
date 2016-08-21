@@ -29,7 +29,7 @@ import EventSourcing.UUID
 
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 PersistedSqliteEvent
-    Id sql=sequence_number
+    Id SequenceNumber sql=sequence_number
     aggregateId UUID
     data ByteString
     version EventVersion
@@ -46,9 +46,9 @@ getAggregateEvents uuid = do
   entities <- selectList [PersistedSqliteEventAggregateId ==. uuid] [Asc PersistedSqliteEventVersion]
   return $ mapMaybe (decode . fromStrict . persistedSqliteEventData . entityVal) entities
 
-getAllEventsFromId :: (FromJSON a, MonadIO m) => PersistedSqliteEventId -> ReaderT SqlBackend m [(UUID, a)]
-getAllEventsFromId seqNum = do
-  entities <- selectList [PersistedSqliteEventId >=. seqNum] [Asc PersistedSqliteEventId]
+getAllEventsFromSequence :: (FromJSON a, MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [(UUID, a)]
+getAllEventsFromSequence seqNum = do
+  entities <- selectList [PersistedSqliteEventId >=. PersistedSqliteEventKey seqNum] [Asc PersistedSqliteEventId]
   return $ mapMaybe (mkPair . entityVal) entities
   where mkPair (PersistedSqliteEvent uuid data' _) = (uuid,) <$> decode (fromStrict data')
 
@@ -112,7 +112,7 @@ sqliteEventStoreGetAllEvents
   :: (FromJSON event, MonadIO m)
   => SqliteEventStore event -> m [(UUID, event)]
 sqliteEventStoreGetAllEvents (SqliteEventStore pool) =
-  liftIO $ runSqlPool (getAllEventsFromId (PersistedSqliteEventKey 0)) pool
+  liftIO $ runSqlPool (getAllEventsFromSequence 0) pool
 
 sqliteEventStoreStoreEvents
   :: (ToJSON event, MonadIO m)

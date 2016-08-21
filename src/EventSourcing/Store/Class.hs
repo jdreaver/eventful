@@ -1,12 +1,16 @@
 module EventSourcing.Store.Class
   ( EventStore (..)
   , EventVersion (..)
+  , SequenceNumber (..)
   , ProjectionStore (..)
   ) where
 
 import Data.Aeson
 import Database.Persist (PersistField)
 import Database.Persist.Sql (PersistFieldSql)
+import Web.HttpApiData
+import Web.PathPieces
+
 import EventSourcing.Projection
 import EventSourcing.UUID
 
@@ -29,6 +33,9 @@ class (Monad m) => EventStore store m event | store -> event where
 newtype EventVersion = EventVersion { unEventVersion :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql)
 
+newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
+  deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql,
+            PathPiece, ToHttpApiData, FromHttpApiData)
 
 class (Projection proj, Monad m) => ProjectionStore store m proj | store -> proj where
   getProjection :: store -> UUID -> m proj
