@@ -37,20 +37,28 @@ SqliteEvent sql=events
     deriving Show
 |]
 
+sqliteEventToStored :: (FromJSON event) => Entity SqliteEvent -> Maybe (StoredEvent event)
+sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)) =
+  StoredEvent uuid version seqNum <$> decode (fromStrict data')
+
+-- sqliteEventFromStored :: (ToJSON event) => StoredEvent event -> Entity SqliteEvent
+-- sqliteEventFromStored (StoredEvent uuid version seqNum event) =
+--   Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)
+--   where data' = toStrict (encode event)
+
 getAggregateIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getAggregateIds =
   fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM events" []
 
-getAggregateEvents :: (FromJSON a, MonadIO m) => UUID -> ReaderT SqlBackend m [a]
+getAggregateEvents :: (FromJSON event, MonadIO m) => UUID -> ReaderT SqlBackend m [StoredEvent event]
 getAggregateEvents uuid = do
   entities <- selectList [SqliteEventAggregateId ==. uuid] [Asc SqliteEventVersion]
-  return $ mapMaybe (decode . fromStrict . sqliteEventData . entityVal) entities
+  return $ mapMaybe sqliteEventToStored entities
 
-getAllEventsFromSequence :: (FromJSON a, MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [(UUID, a)]
+getAllEventsFromSequence :: (FromJSON event, MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [StoredEvent event]
 getAllEventsFromSequence seqNum = do
   entities <- selectList [SqliteEventId >=. SqliteEventKey seqNum] [Asc SqliteEventId]
-  return $ mapMaybe (mkPair . entityVal) entities
-  where mkPair (SqliteEvent uuid data' _) = (uuid,) <$> decode (fromStrict data')
+  return $ mapMaybe sqliteEventToStored entities
 
 maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
 maxEventVersion uuid =
@@ -65,8 +73,8 @@ bulkInsert
      , PersistEntity val
      )
   => [val]
-  -> ReaderT (PersistEntityBackend val) m [[Key val]]
-bulkInsert items = forM (chunksOf sqliteMaxVariableNumber items) insertMany
+  -> ReaderT (PersistEntityBackend val) m [Key val]
+bulkInsert items = concat <$> forM (chunksOf sqliteMaxVariableNumber items) insertMany
 
 -- | Search for SQLITE_MAX_VARIABLE_NUMBER here:
 -- https://www.sqlite.org/limits.html
@@ -104,24 +112,29 @@ sqliteEventStoreGetUuids (SqliteEventStore pool) =
 
 sqliteEventStoreGetEvents
   :: (FromJSON event, MonadIO m)
-  => SqliteEventStore event -> UUID -> m [event]
+  => SqliteEventStore event -> UUID -> m [StoredEvent event]
 sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
   liftIO $ runSqlPool (getAggregateEvents uuid) pool
 
 sqliteEventStoreGetAllEvents
   :: (FromJSON event, MonadIO m)
-  => SqliteEventStore event -> SequenceNumber -> m [(UUID, event)]
+  => SqliteEventStore event -> SequenceNumber -> m [StoredEvent event]
 sqliteEventStoreGetAllEvents (SqliteEventStore pool) seqNum =
   liftIO $ runSqlPool (getAllEventsFromSequence seqNum) pool
 
 sqliteEventStoreStoreEvents
   :: (ToJSON event, MonadIO m)
-  => SqliteEventStore event -> UUID -> [event] -> m ()
-sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events = do
-  sequenceNum <- liftIO $ runSqlPool (maxEventVersion uuid) pool
-  let eventsAndSeq = zip events [sequenceNum + 1..]
-      entities = fmap (\(event, s) -> SqliteEvent uuid (toStrict $ encode event) s) eventsAndSeq
-  liftIO $ void $ runSqlPool (bulkInsert entities) pool
+  => SqliteEventStore event -> UUID -> [event] -> m [StoredEvent event]
+sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
+  liftIO $ runSqlPool doInsert pool
+  where
+    doInsert = do
+      versionNum <- maxEventVersion uuid
+      let eventsAndVers = zip events [versionNum + 1..]
+          entities = fmap (\(event, vers) -> SqliteEvent uuid (toStrict $ encode event) vers) eventsAndVers
+      sequenceNums <- bulkInsert entities
+      let eventsAndSeqNums = zip sequenceNums eventsAndVers
+      return $ fmap (\(SqliteEventKey seqNum, (event, vers)) -> StoredEvent uuid vers seqNum event) eventsAndSeqNums
 
 sqliteEventStoreLatestEventVersion
   :: (MonadIO m)

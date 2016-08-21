@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -26,8 +27,9 @@ main = do
 
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   bus <- eventBus
-  registerHandler eventStore bus (\uuid event -> putStrLn $ "Recieved: " ++ show (uuid, event :: String))
-  registerProjection eventStore bus projectionStore AddItem
+  registerHandler eventStore bus (\event -> putStrLn $ "Recieved: " ++ show event)
+  registerProjection eventStore bus projectionStore
+    (\event -> event { storedEventEvent = AddItem (storedEventEvent event) })
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -62,7 +64,9 @@ newtype MemoryProjectionStore p = MemoryProjectionStore { unMemoryProjectionStor
 instance (Projection p) => ProjectionStore (MemoryProjectionStore p) IO p where
   latestApplied _ = return 0
   getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
-  applyEvents (MemoryProjectionStore tvar) _ events = atomically $ modifyTVar' tvar (\p -> foldl' apply p events)
+  applyEvents (MemoryProjectionStore tvar) storedEvents =
+    let events = storedEventEvent <$> storedEvents
+    in atomically $ modifyTVar' tvar (\p -> foldl' apply p events)
 
 newMemoryProjectionStore :: (Projection p) => IO (MemoryProjectionStore p)
 newMemoryProjectionStore = do
@@ -74,6 +78,7 @@ newtype ListProjection = ListProjection { unListProjection :: [String] }
   deriving (Show)
 
 data ListProjectionEvent = AddItem String
+  deriving (Show)
 
 instance Projection ListProjection where
   type Event ListProjection = ListProjectionEvent

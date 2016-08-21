@@ -19,11 +19,11 @@ import EventSourcing.Projection
 import EventSourcing.Store
 import EventSourcing.UUID
 
-type Handler event m = UUID -> event -> m ()
+type Handler event m = StoredEvent event -> m ()
 
 data EventBus event =
   EventBus
-  { eventBusQueues :: TVar [Output (UUID, event)]
+  { eventBusQueues :: TVar [Output (StoredEvent event)]
   }
 
 eventBus :: IO (EventBus event)
@@ -45,24 +45,24 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
 
 registerProjection
   :: (ProjectionStore projstore IO proj, EventStore store IO event)
-  => store -> EventBus event -> projstore -> (event -> Event proj) -> IO ()
+  => store -> EventBus event -> projstore -> (StoredEvent event -> StoredEvent (Event proj)) -> IO ()
 registerProjection eventStore bus projStore transformer = do
   seqNum <- latestApplied projStore
-  let handler uuid event = applyEvents projStore uuid [transformer event]
+  let handler event = applyEvents projStore [transformer event]
   registerHandlerStart seqNum eventStore bus handler
 
-handlerConsumer :: (Monad m) => Handler event m -> Consumer (UUID, event) m ()
-handlerConsumer handler = forever $ do
-  (uuid, event) <- await
-  lift $ handler uuid event
+handlerConsumer :: (Monad m) => Handler event m -> Consumer (StoredEvent event) m ()
+handlerConsumer handler = forever $ await >>= lift . handler
 
-publishEvent :: (MonadIO m) => EventBus event -> UUID -> event -> m ()
-publishEvent EventBus{..} uuid event =
+publishEvent :: (MonadIO m) => EventBus event -> StoredEvent event -> m ()
+publishEvent EventBus{..} event =
   liftIO $ void $ atomically $ do
     queues <- readTVar eventBusQueues
-    mapM_ (`send` (uuid, event)) queues
+    mapM_ (`send` event) queues
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore store m event) => store -> EventBus event -> UUID -> event -> m ()
-storeAndPublishEvent store bus uuid event =
-  storeEvents store uuid [event] >> publishEvent bus uuid event
+  :: (MonadIO m, EventStore store m event)
+  => store -> EventBus event -> UUID -> event -> m ()
+storeAndPublishEvent store bus uuid event = do
+  storedEvents <- storeEvents store uuid [event]
+  mapM_ (publishEvent bus) storedEvents
