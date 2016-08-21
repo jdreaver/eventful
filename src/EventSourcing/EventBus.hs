@@ -1,7 +1,8 @@
 module EventSourcing.EventBus
   ( Handler
   , EventBus (..)
-  , newEventBus
+  , eventBus
+  , registerHandler
   , publishEvent
   , storeAndPublishEvent
   ) where
@@ -20,32 +21,32 @@ type Handler event m = UUID -> event -> m ()
 
 data EventBus event =
   EventBus
-  { eventBusQueues :: Output (UUID, event)
+  { eventBusQueues :: TVar [Output (UUID, event)]
   }
 
-newEventBus :: [Handler event IO] -> IO (EventBus event)
-newEventBus handlers = do
-  outputs <- forM handlers $ \handler -> do
-    (output, input) <- spawn unbounded
-    _ <- async $ do
-      runEffect $ fromInput input >-> handlerConsumer handler
-      performGC
-    return output
-  return $ EventBus (mconcat outputs)
+eventBus :: IO (EventBus event)
+eventBus = EventBus <$> atomically (newTVar [])
+
+-- TODO: Pass event store here too and hydrate pipe with previous events
+registerHandler :: EventBus event -> Handler event IO -> IO ()
+registerHandler (EventBus queuesTVar) handler = do
+  (output, input) <- spawn unbounded
+  _ <- async $ do
+    runEffect $ fromInput input >-> handlerConsumer handler
+    performGC
+  atomically $ modifyTVar' queuesTVar ((:) output)
 
 handlerConsumer :: (Monad m) => Handler event m -> Consumer (UUID, event) m ()
 handlerConsumer handler = forever $ do
   (uuid, event) <- await
   lift $ handler uuid event
 
--- runHandler :: Handler event IO -> TChan (UUID, event) -> IO ()
--- runHandler handler chan = do
---   (uuid, event) <- liftIO $ atomically $ readTChan chan
---   handler uuid event
 
 publishEvent :: (MonadIO m) => EventBus event -> UUID -> event -> m ()
 publishEvent EventBus{..} uuid event =
-  liftIO $ void $ atomically $ send eventBusQueues (uuid, event)
+  liftIO $ void $ atomically $ do
+    queues <- readTVar eventBusQueues
+    mapM_ (`send` (uuid, event)) queues
 
 storeAndPublishEvent
   :: (MonadIO m, EventStore store m event) => store -> EventBus event -> UUID -> event -> m ()
