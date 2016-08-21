@@ -5,6 +5,7 @@ maintainer: David Reaver
 dependencies:
   - base
   - aeson
+  - async
   - bytestring
   - containers
   - directory
@@ -13,6 +14,8 @@ dependencies:
   - persistent
   - persistent-sqlite
   - persistent-template
+  - pipes
+  - pipes-concurrency
   - lens
   - mtl
   - random
