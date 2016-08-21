@@ -110,9 +110,9 @@ sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
 
 sqliteEventStoreGetAllEvents
   :: (FromJSON event, MonadIO m)
-  => SqliteEventStore event -> m [(UUID, event)]
-sqliteEventStoreGetAllEvents (SqliteEventStore pool) =
-  liftIO $ runSqlPool (getAllEventsFromSequence 0) pool
+  => SqliteEventStore event -> SequenceNumber -> m [(UUID, event)]
+sqliteEventStoreGetAllEvents (SqliteEventStore pool) seqNum =
+  liftIO $ runSqlPool (getAllEventsFromSequence seqNum) pool
 
 sqliteEventStoreStoreEvents
   :: (ToJSON event, MonadIO m)

@@ -27,7 +27,7 @@ main = do
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   bus <- eventBus
   registerHandler eventStore bus (\uuid event -> putStrLn $ "Recieved: " ++ show (uuid, event :: String))
-  registerHandler eventStore bus (\uuid event -> applyEvents projectionStore uuid [AddItem event])
+  registerProjection eventStore bus projectionStore AddItem
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -60,6 +60,7 @@ main = do
 newtype MemoryProjectionStore p = MemoryProjectionStore { unMemoryProjectionStore :: TVar p }
 
 instance (Projection p) => ProjectionStore (MemoryProjectionStore p) IO p where
+  latestApplied _ = return 0
   getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
   applyEvents (MemoryProjectionStore tvar) _ events = atomically $ modifyTVar' tvar (\p -> foldl' apply p events)
 

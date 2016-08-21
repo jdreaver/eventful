@@ -20,10 +20,10 @@ import EventSourcing.UUID
 class (Monad m) => EventStore store m event | store -> event where
   getUuids :: store -> m [UUID]
   getEvents :: store -> UUID -> m [event]
-  getAllEvents :: store -> m [(UUID, event)]
+  getAllEvents :: store -> SequenceNumber -> m [(UUID, event)]
 
-  getAllEventsPipe :: store -> m (Producer (UUID, event) m ())
-  getAllEventsPipe store = mapM_ yield <$> getAllEvents store
+  getAllEventsPipe :: store -> SequenceNumber -> m (Producer (UUID, event) m ())
+  getAllEventsPipe store = fmap (mapM_ yield) . getAllEvents store
 
   storeEvents :: store -> UUID -> [event] -> m ()
   latestEventVersion :: store -> UUID -> m EventVersion
@@ -43,6 +43,7 @@ newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
             PathPiece, ToHttpApiData, FromHttpApiData)
 
 class (Projection proj, Monad m) => ProjectionStore store m proj | store -> proj where
+  latestApplied :: store -> m SequenceNumber
   getProjection :: store -> UUID -> m proj
   applyEvents :: store -> UUID -> [Event proj] -> m ()
 
