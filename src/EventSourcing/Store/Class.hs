@@ -8,6 +8,7 @@ module EventSourcing.Store.Class
 import Data.Aeson
 import Database.Persist (PersistField)
 import Database.Persist.Sql (PersistFieldSql)
+import Pipes
 import Web.HttpApiData
 import Web.PathPieces
 
@@ -20,6 +21,10 @@ class (Monad m) => EventStore store m event | store -> event where
   getUuids :: store -> m [UUID]
   getEvents :: store -> UUID -> m [event]
   getAllEvents :: store -> m [(UUID, event)]
+
+  getAllEventsPipe :: store -> m (Producer (UUID, event) m ())
+  getAllEventsPipe store = mapM_ yield <$> getAllEvents store
+
   storeEvents :: store -> UUID -> [event] -> m ()
   latestEventVersion :: store -> UUID -> m EventVersion
 
