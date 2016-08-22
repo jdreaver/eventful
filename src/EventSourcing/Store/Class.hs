@@ -16,23 +16,27 @@ import Web.PathPieces
 import EventSourcing.Projection
 import EventSourcing.UUID
 
-class (Monad m) => EventStore store m event | store -> event where
+class (Monad m) => EventStore store m where
   getUuids :: store -> m [UUID]
-  getEvents :: store -> UUID -> m [StoredEvent event]
-  getAllEvents :: store -> SequenceNumber -> m [StoredEvent event]
+  getEvents :: (FromJSON event) => store -> UUID -> m [StoredEvent event]
+  getAllEvents :: (FromJSON event) => store -> SequenceNumber -> m [StoredEvent event]
 
   -- Some implementations might have a more efficient way to do this.
-  getAllEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
+  getAllEventsPipe
+    :: (FromJSON event)
+    => store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
   getAllEventsPipe store = fmap (mapM_ yield) . getAllEvents store
 
   -- This can be made way more efficient if the implementation supports
   -- snapshots.
-  getLatestProjection :: (Projection proj, Event proj ~ event) => store -> UUID -> m proj
+  getLatestProjection
+    :: (Projection proj, Event proj ~ event, FromJSON event)
+    => store -> UUID -> m proj
   getLatestProjection store uuid = do
     events <- getEvents store uuid
     return $ latestProjection (storedEventEvent <$> events)
 
-  storeEvents :: store -> UUID -> [event] -> m [StoredEvent event]
+  storeEvents :: (ToJSON event) => store -> UUID -> [event] -> m [StoredEvent event]
   latestEventVersion :: store -> UUID -> m EventVersion
 
 data StoredEvent event

@@ -12,6 +12,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Aeson
 import Pipes
 import Pipes.Concurrent
 
@@ -29,11 +30,13 @@ data EventBus event =
 eventBus :: IO (EventBus event)
 eventBus = EventBus <$> atomically (newTVar [])
 
-registerHandler :: (EventStore store IO event) => store -> EventBus event -> Handler event IO -> IO ()
+registerHandler
+  :: (FromJSON event, EventStore store IO)
+  => store -> EventBus event -> Handler event IO -> IO ()
 registerHandler = registerHandlerStart 0
 
 registerHandlerStart
-  :: (EventStore store IO event)
+  :: (FromJSON event, EventStore store IO)
   => SequenceNumber -> store -> EventBus event -> Handler event IO -> IO ()
 registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   (output, input) <- spawn unbounded
@@ -44,7 +47,7 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   atomically $ modifyTVar' queuesTVar ((:) output)
 
 registerProjection
-  :: (ProjectionStore projstore IO proj, EventStore store IO event)
+  :: (ProjectionStore projstore IO proj, EventStore store IO, FromJSON event)
   => store -> EventBus event -> projstore -> (StoredEvent event -> StoredEvent (Event proj)) -> IO ()
 registerProjection eventStore bus projStore transformer = do
   seqNum <- latestApplied projStore
@@ -61,7 +64,7 @@ publishEvent EventBus{..} event =
     mapM_ (`send` event) queues
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore store m event)
+  :: (ToJSON event, MonadIO m, EventStore store m)
   => store -> EventBus event -> UUID -> event -> m ()
 storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]

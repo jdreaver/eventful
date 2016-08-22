@@ -82,12 +82,12 @@ sqliteMaxVariableNumber :: Int
 sqliteMaxVariableNumber = 999
 
 
-data SqliteEventStore event
+data SqliteEventStore
   = SqliteEventStore
   { _sqliteEventStoreConnectionPool :: ConnectionPool
   }
 
-sqliteEventStore :: (MonadIO m) => ConnectionPool -> m (SqliteEventStore event)
+sqliteEventStore :: (MonadIO m) => ConnectionPool -> m SqliteEventStore
 sqliteEventStore pool = do
   -- Run migrations
   liftIO $ runSqlPool (runMigration migrateSqliteEvent) pool
@@ -99,32 +99,32 @@ sqliteEventStore pool = do
 
   return $ SqliteEventStore pool
 
-instance (MonadIO m, FromJSON event, ToJSON event) => EventStore (SqliteEventStore event) m event where
+instance (MonadIO m) => EventStore SqliteEventStore m where
   getUuids = sqliteEventStoreGetUuids
   getEvents = sqliteEventStoreGetEvents
   getAllEvents = sqliteEventStoreGetAllEvents
   storeEvents = sqliteEventStoreStoreEvents
   latestEventVersion = sqliteEventStoreLatestEventVersion
 
-sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore event -> m [UUID]
+sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore -> m [UUID]
 sqliteEventStoreGetUuids (SqliteEventStore pool) =
   liftIO $ runSqlPool getAggregateIds pool
 
 sqliteEventStoreGetEvents
   :: (FromJSON event, MonadIO m)
-  => SqliteEventStore event -> UUID -> m [StoredEvent event]
+  => SqliteEventStore -> UUID -> m [StoredEvent event]
 sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
   liftIO $ runSqlPool (getAggregateEvents uuid) pool
 
 sqliteEventStoreGetAllEvents
   :: (FromJSON event, MonadIO m)
-  => SqliteEventStore event -> SequenceNumber -> m [StoredEvent event]
+  => SqliteEventStore -> SequenceNumber -> m [StoredEvent event]
 sqliteEventStoreGetAllEvents (SqliteEventStore pool) seqNum =
   liftIO $ runSqlPool (getAllEventsFromSequence seqNum) pool
 
 sqliteEventStoreStoreEvents
   :: (ToJSON event, MonadIO m)
-  => SqliteEventStore event -> UUID -> [event] -> m [StoredEvent event]
+  => SqliteEventStore -> UUID -> [event] -> m [StoredEvent event]
 sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
   liftIO $ runSqlPool doInsert pool
   where
@@ -138,6 +138,6 @@ sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
 
 sqliteEventStoreLatestEventVersion
   :: (MonadIO m)
-  => SqliteEventStore event -> UUID -> m EventVersion
+  => SqliteEventStore -> UUID -> m EventVersion
 sqliteEventStoreLatestEventVersion (SqliteEventStore pool) uuid =
   liftIO $ runSqlPool (maxEventVersion uuid) pool

@@ -41,7 +41,7 @@ main = do
 
     threadDelay 100000
 
-    es <- getEvents eventStore uuid
+    es <- getEvents eventStore uuid :: IO [StoredEvent String]
     print es
 
     p <- getProjection projectionStore uuid
