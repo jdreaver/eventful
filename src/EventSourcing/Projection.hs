@@ -1,8 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Defines an Aggregate type-class from DDD parlance.
-
 module EventSourcing.Projection
   ( Projection (..)
   , latestProjection
