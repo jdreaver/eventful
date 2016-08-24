@@ -7,7 +7,6 @@ import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 import Data.List (foldl')
 
 import EventSourcing.Projection
@@ -28,9 +27,19 @@ memorySnapshotStore store = do
   tvar <- liftIO . atomically $ newTVar Map.empty
   return $ MemorySnapshotStore store tvar
 
-getSnapshotProjection :: (Projection proj) => MemorySnapshotStore m store serialized proj -> UUID -> STM proj
-getSnapshotProjection (MemorySnapshotStore _ tvar) uuid =
-    fromMaybe seed . Map.lookup uuid <$> readTVar tvar
+getSnapshotProjection
+  :: (MonadIO m, Projection proj, SerializedEventStore m store serialized (Event proj))
+  => MemorySnapshotStore m store serialized proj -> UUID -> m proj
+getSnapshotProjection (MemorySnapshotStore store tvar) uuid = do
+  proj <- liftIO . atomically $ Map.lookup uuid <$> readTVar tvar
+  case proj of
+    -- Cache hit, we're good
+    (Just p) -> return p
+    -- Cache miss, check the store
+    Nothing -> do
+      proj' <- getAggregateFromSerialized store (AggregateId uuid)
+      liftIO . atomically $ modifyTVar' tvar (Map.insert uuid proj')
+      return proj'
 
 instance
   (Projection proj, Event proj ~ event, MonadIO m, SerializedEventStore m store serialized event)
@@ -38,14 +47,14 @@ instance
   getSerializedEvents (MemorySnapshotStore store _) = getSerializedEvents store
   getAllSerializedEvents (MemorySnapshotStore store _) = getAllSerializedEvents store
   storeSerializedEvents mstore@(MemorySnapshotStore store tvar) uuid events = do
+    proj <- getSnapshotProjection mstore uuid
     storedEvents <- storeSerializedEvents store uuid events
     liftIO . atomically $ do
-      proj <- getSnapshotProjection mstore uuid
       let proj' = foldl' apply proj events
-      modifyTVar' tvar (Map.insert uuid (serialize proj'))
+      modifyTVar' tvar (Map.insert uuid proj')
     return storedEvents
 
 instance
   (MonadIO m, Projection proj, SerializedEventStore m store serialized (Event proj))
   => CachedEventStore m (MemorySnapshotStore m store serialized proj) serialized proj where
-  getAggregate store (AggregateId uuid) = liftIO . atomically $ getSnapshotProjection store uuid
+  getAggregate store (AggregateId uuid) = getSnapshotProjection store uuid

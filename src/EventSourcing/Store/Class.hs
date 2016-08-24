@@ -2,6 +2,7 @@ module EventSourcing.Store.Class
   ( RawEventStore (..)
   , SerializedEventStore (..)
   , CachedEventStore (..)
+  , getAggregateFromSerialized
   , AggregateId (..)
   , Serializable (..)
   , StoredEvent (..)
@@ -62,8 +63,13 @@ class (Monad m) => SerializedEventStore m store serialized event | store -> seri
 class (Projection proj, SerializedEventStore m store serialized (Event proj))
       => CachedEventStore m store serialized proj where
   getAggregate :: store -> AggregateId proj -> m proj
-  getAggregate store (AggregateId uuid) =
-    latestProjection . fmap storedEventEvent <$> getSerializedEvents store uuid
+  getAggregate = getAggregateFromSerialized
+
+getAggregateFromSerialized
+  :: (Monad m, Projection proj, SerializedEventStore m store serialized (Event proj))
+  => store -> AggregateId proj -> m proj
+getAggregateFromSerialized store (AggregateId uuid) =
+  latestProjection . fmap storedEventEvent <$> getSerializedEvents store uuid
 
 -- | This type ensures our stored events have the correct type, but it also
 -- allows us to avoid type ambiguity errors in event stores by providing the
