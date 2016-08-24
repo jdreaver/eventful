@@ -32,34 +32,26 @@ instance (FromJSON a, ToJSON a) => Serializable a ByteString where
   serialize = encode
   deserialize = decode
 
--- | An event store is anything that stores events in some order based on UUID.
-class (Monad m) => EventStore store m storage | store -> storage where
+-- | An event store is anything that stores serialized events in some order
+-- based on UUID. This class knows nothing about Projections or how the events
+-- are used, it just marshals them around.
+class (Monad m) => EventStore store m event | store -> event where
   getUuids :: store -> m [UUID]
-  getEvents
-    :: (Serializable event storage)
-    => store -> UUID -> m [StoredEvent event]
-  getAllEvents
-    :: (Serializable event storage)
-    => store -> SequenceNumber -> m [StoredEvent event]
+  getEvents :: store -> UUID -> m [StoredEvent event]
+  getAllEvents :: store -> SequenceNumber -> m [StoredEvent event]
 
   -- Some implementations might have a more efficient way to do this.
-  getAllEventsPipe
-    :: (Serializable event storage)
-    => store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
+  getAllEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
   getAllEventsPipe store = fmap (mapM_ yield) . getAllEvents store
 
   -- This can be made way more efficient if the implementation supports
   -- snapshots.
-  getLatestProjection
-    :: (Projection proj, Serializable (Event proj) storage)
-    => store -> UUID -> m proj
-  getLatestProjection store uuid = do
-    events <- getEvents store uuid
-    return $ latestProjection (storedEventEvent <$> events)
+  -- getLatestProjection :: store -> UUID -> m proj
+  -- getLatestProjection store uuid = do
+  --   events <- getEvents store uuid
+  --   return $ latestProjection (storedEventEvent <$> events)
 
-  storeEvents
-    :: (Serializable event storage)
-    => store -> UUID -> [event] -> m [StoredEvent event]
+  storeEvents :: store -> UUID -> [event] -> m [StoredEvent event]
   latestEventVersion :: store -> UUID -> m EventVersion
 
 data StoredEvent event
