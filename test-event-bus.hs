@@ -28,8 +28,7 @@ main = do
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   bus <- eventBus
   registerHandler eventStore bus (\event -> putStrLn $ "Recieved: " ++ show event)
-  registerProjection eventStore bus projectionStore
-    (\event -> event { storedEventEvent = AddItem (storedEventEvent event) })
+  registerProjection eventStore bus projectionStore (fmap AddItem)
   putStrLn "Enter events:"
   forever $ do
     line <- getLine

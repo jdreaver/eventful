@@ -45,7 +45,7 @@ data StoredEvent event
   , storedEventVersion :: EventVersion
   , storedEventSequenceNumber :: SequenceNumber
   , storedEventEvent :: event
-  } deriving (Show, Read, Eq)
+  } deriving (Show, Read, Eq, Functor)
 
 newtype EventVersion = EventVersion { unEventVersion :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql)
