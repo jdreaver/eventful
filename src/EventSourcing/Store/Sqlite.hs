@@ -23,6 +23,7 @@ import Database.Persist
 import Database.Persist.Sql
 import Database.Persist.TH
 
+import EventSourcing.Projection
 import EventSourcing.Store.Class
 import EventSourcing.UUID
 
@@ -116,6 +117,10 @@ instance (FromJSON event, ToJSON event, MonadIO m) => SerializedEventStore m Sql
     let serialized = toStrict . encode <$> events
     rawStoredEvents <- storeEvents store uuid serialized
     return $ (\(event, StoredEvent uuid' vers seqn _) -> StoredEvent uuid' vers seqn event) <$> zip events rawStoredEvents
+
+instance (MonadIO m, Projection proj, ToJSON (Event proj), FromJSON (Event proj))
+         => CachedEventStore m SqliteEventStore ByteString proj where
+  -- TODO: Add projection snapshots!
 
 decodeStoredEvent :: (FromJSON event) => StoredEvent ByteString -> Maybe (StoredEvent event)
 decodeStoredEvent (StoredEvent uuid' vers seqn bs) = StoredEvent uuid' vers seqn <$> decode (fromStrict bs)
