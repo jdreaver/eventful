@@ -6,7 +6,6 @@ module EventSourcing.Aggregate
   ) where
 
 import Control.Monad.IO.Class
-import Data.Aeson
 
 import EventSourcing.EventBus
 import EventSourcing.Projection
@@ -25,7 +24,7 @@ class (Projection a) => Aggregate a where
 -- aggregate root (same UUID) at once. There is a race condition between
 -- getting the projection and validating the command.
 eventStoreCommand
-  :: (MonadIO m, EventStore store m, Aggregate a, FromJSON (Event a), ToJSON (Event a))
+  :: (MonadIO m, EventStore store m storage, Aggregate a, Serializable (Event a) storage)
   => store -> EventBus (Event a) -> UUID -> Command a -> m (Maybe (CommandError a))
 eventStoreCommand store bus uuid cmd = do
   proj <- getLatestProjection store uuid

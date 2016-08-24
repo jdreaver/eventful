@@ -15,9 +15,8 @@ module EventSourcing.Store.Sqlite
   ) where
 
 import Control.Monad.Reader
-import Data.Aeson
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (fromStrict, toStrict)
+import qualified Data.ByteString as BS (ByteString)
+import Data.ByteString.Lazy (ByteString, fromStrict, toStrict)
 import Data.List.Split (chunksOf)
 import Data.Maybe (listToMaybe, mapMaybe, maybe)
 import Database.Persist
@@ -31,17 +30,17 @@ share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 SqliteEvent sql=events
     Id SequenceNumber sql=sequence_number
     aggregateId UUID
-    data ByteString
+    data BS.ByteString
     version EventVersion
     UniqueAggregateVersion aggregateId version
     deriving Show
 |]
 
-sqliteEventToStored :: (FromJSON event) => Entity SqliteEvent -> Maybe (StoredEvent event)
+sqliteEventToStored :: (Serializable event ByteString) => Entity SqliteEvent -> Maybe (StoredEvent event)
 sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)) =
-  StoredEvent uuid version seqNum <$> decode (fromStrict data')
+  StoredEvent uuid version seqNum <$> deserialize (fromStrict data')
 
--- sqliteEventFromStored :: (ToJSON event) => StoredEvent event -> Entity SqliteEvent
+-- sqliteEventFromStored :: (Serializable event ByteString) => StoredEvent event -> Entity SqliteEvent
 -- sqliteEventFromStored (StoredEvent uuid version seqNum event) =
 --   Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)
 --   where data' = toStrict (encode event)
@@ -50,12 +49,12 @@ getAggregateIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getAggregateIds =
   fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM events" []
 
-getAggregateEvents :: (FromJSON event, MonadIO m) => UUID -> ReaderT SqlBackend m [StoredEvent event]
+getAggregateEvents :: (Serializable event ByteString, MonadIO m) => UUID -> ReaderT SqlBackend m [StoredEvent event]
 getAggregateEvents uuid = do
   entities <- selectList [SqliteEventAggregateId ==. uuid] [Asc SqliteEventVersion]
   return $ mapMaybe sqliteEventToStored entities
 
-getAllEventsFromSequence :: (FromJSON event, MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [StoredEvent event]
+getAllEventsFromSequence :: (Serializable event ByteString, MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [StoredEvent event]
 getAllEventsFromSequence seqNum = do
   entities <- selectList [SqliteEventId >=. SqliteEventKey seqNum] [Asc SqliteEventId]
   return $ mapMaybe sqliteEventToStored entities
@@ -99,7 +98,7 @@ sqliteEventStore pool = do
 
   return $ SqliteEventStore pool
 
-instance (MonadIO m) => EventStore SqliteEventStore m where
+instance (MonadIO m) => EventStore SqliteEventStore m ByteString where
   getUuids = sqliteEventStoreGetUuids
   getEvents = sqliteEventStoreGetEvents
   getAllEvents = sqliteEventStoreGetAllEvents
@@ -111,19 +110,19 @@ sqliteEventStoreGetUuids (SqliteEventStore pool) =
   liftIO $ runSqlPool getAggregateIds pool
 
 sqliteEventStoreGetEvents
-  :: (FromJSON event, MonadIO m)
+  :: (Serializable event ByteString, MonadIO m)
   => SqliteEventStore -> UUID -> m [StoredEvent event]
 sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
   liftIO $ runSqlPool (getAggregateEvents uuid) pool
 
 sqliteEventStoreGetAllEvents
-  :: (FromJSON event, MonadIO m)
+  :: (Serializable event ByteString, MonadIO m)
   => SqliteEventStore -> SequenceNumber -> m [StoredEvent event]
 sqliteEventStoreGetAllEvents (SqliteEventStore pool) seqNum =
   liftIO $ runSqlPool (getAllEventsFromSequence seqNum) pool
 
 sqliteEventStoreStoreEvents
-  :: (ToJSON event, MonadIO m)
+  :: (Serializable event ByteString, MonadIO m)
   => SqliteEventStore -> UUID -> [event] -> m [StoredEvent event]
 sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
   liftIO $ runSqlPool doInsert pool
@@ -131,7 +130,7 @@ sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
     doInsert = do
       versionNum <- maxEventVersion uuid
       let eventsAndVers = zip events [versionNum + 1..]
-          entities = fmap (\(event, vers) -> SqliteEvent uuid (toStrict $ encode event) vers) eventsAndVers
+          entities = fmap (\(event, vers) -> SqliteEvent uuid (toStrict $ serialize event) vers) eventsAndVers
       sequenceNums <- bulkInsert entities
       let eventsAndSeqNums = zip sequenceNums eventsAndVers
       return $ fmap (\(SqliteEventKey seqNum, (event, vers)) -> StoredEvent uuid vers seqNum event) eventsAndSeqNums
