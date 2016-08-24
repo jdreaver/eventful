@@ -30,23 +30,23 @@ eventBus :: IO (EventBus event)
 eventBus = EventBus <$> atomically (newTVar [])
 
 registerHandler
-  :: (EventStore store IO event)
+  :: (SerializedEventStore IO store serialized event)
   => store -> EventBus event -> Handler event IO -> IO ()
 registerHandler = registerHandlerStart 0
 
 registerHandlerStart
-  :: (EventStore store IO event)
+  :: (SerializedEventStore IO store serialized event)
   => SequenceNumber -> store -> EventBus event -> Handler event IO -> IO ()
 registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   (output, input) <- spawn unbounded
   _ <- async $ do
-    startPipe <- getAllEventsPipe store seqNum
+    startPipe <- getAllSerializedEventsPipe store seqNum
     runEffect $ (startPipe >> fromInput input) >-> handlerConsumer handler
     performGC
   atomically $ modifyTVar' queuesTVar ((:) output)
 
 registerProjection
-  :: (ProjectionStore projstore IO proj, EventStore store IO event)
+  :: (ProjectionStore IO projstore proj, SerializedEventStore IO store serialized event)
   => store -> EventBus event -> projstore -> (StoredEvent event -> StoredEvent (Event proj)) -> IO ()
 registerProjection eventStore bus projStore transformer = do
   seqNum <- latestApplied projStore
@@ -63,8 +63,8 @@ publishEvent EventBus{..} event =
     mapM_ (`send` event) queues
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore store m event)
+  :: (MonadIO m, SerializedEventStore m store serialized event)
   => store -> EventBus event -> UUID -> event -> m ()
 storeAndPublishEvent store bus uuid event = do
-  storedEvents <- storeEvents store uuid [event]
+  storedEvents <- storeSerializedEvents store uuid [event]
   mapM_ (publishEvent bus) storedEvents

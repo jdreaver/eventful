@@ -40,7 +40,7 @@ main = do
 
     threadDelay 100000
 
-    es <- getEvents eventStore uuid :: IO [StoredEvent String]
+    es <- getSerializedEvents eventStore uuid :: IO [StoredEvent String]
     print es
 
     p <- getProjection projectionStore uuid
@@ -60,7 +60,7 @@ main = do
 
 newtype MemoryProjectionStore p = MemoryProjectionStore { unMemoryProjectionStore :: TVar p }
 
-instance (Projection p) => ProjectionStore (MemoryProjectionStore p) IO p where
+instance (Projection p) => ProjectionStore IO (MemoryProjectionStore p) p where
   latestApplied _ = return 0
   getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
   applyEvents (MemoryProjectionStore tvar) storedEvents =

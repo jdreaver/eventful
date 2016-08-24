@@ -1,7 +1,6 @@
 module EventSourcing.Store.Class
   ( RawEventStore (..)
-  , SequencedEventStore (..)
-  , TypedEventStore (..)
+  , SerializedEventStore (..)
   , AggregateId (..)
   , Serializable (..)
   , StoredEvent (..)
@@ -38,28 +37,32 @@ instance (FromJSON a, ToJSON a) => Serializable a ByteString where
 -- | An raw event store is anything that stores serialized events in some order
 -- based on UUID. This class knows nothing about Projections or how the events
 -- are used, it just marshals them around.
-class (Monad m) => RawEventStore m store where
+class (Monad m) => RawEventStore m store serialized | store -> serialized where
   getUuids :: store -> m [UUID]
-  getEvents :: store -> UUID -> m [StoredEvent event]
-  storeEvents :: store -> UUID -> [event] -> m [StoredEvent event]
-
--- | An event store with some global ordering of events. This is very useful to
--- help synchronize and/or replay read models without concurrency concerns.
-class (Monad m) => SequencedEventStore store m where
-  getAllEvents :: store -> SequenceNumber -> m [StoredEvent event]
+  getEvents :: store -> UUID -> m [StoredEvent serialized]
+  storeEvents :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
+  latestEventVersion :: store -> UUID -> m EventVersion
+  getAllEvents :: store -> SequenceNumber -> m [StoredEvent serialized]
 
   -- Some implementations might have a more efficient way to do this.
-  getAllEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
+  getAllEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent serialized) m ())
   getAllEventsPipe store = fmap (mapM_ yield) . getAllEvents store
 
-class (Monad m, RawEventStore m store) => TypedEventStore m store where
-  getAggregateEvents :: store -> AggregateId proj -> m [StoredEvent (Event proj)]
-  storeAggregateEvents :: store -> AggregateId proj -> [Event proj] -> m [StoredEvent (Event proj)]
+-- | A serialized event store can serialize/deserialize events from a raw event store.
+class (RawEventStore m store serialized) => SerializedEventStore m store serialized event | store -> serialized where
+  getSerializedEvents :: store -> UUID -> m [StoredEvent event]
+  getAllSerializedEvents :: store -> SequenceNumber -> m [StoredEvent event]
+  storeSerializedEvents :: store -> UUID -> [event] -> m [StoredEvent event]
 
-  getAggregate :: (Projection proj) => store -> AggregateId proj -> m proj
-  getAggregate store (AggregateId uuid) = do
-    events <- getEvents store uuid
-    return $ latestProjection (storedEventEvent <$> events)
+  -- Some implementations might have a more efficient way to do this.
+  getAllSerializedEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
+  getAllSerializedEventsPipe store = fmap (mapM_ yield) . getAllSerializedEvents store
+
+--class (SerializedEventStore m store serialized event) => TypedEventStore m store serialized event where
+  -- getAggregate :: (Projection proj, Serializable (Event proj) serialized) => store -> AggregateId proj -> m proj
+  -- getAggregate store (AggregateId uuid) = do
+  --   events <- getEvents store uuid
+  --   return $ latestProjection (mapMaybe deserialize $ storedEventEvent <$> events)
 
 -- | This type ensures our stored events have the correct type, but it also
 -- allows us to avoid type ambiguity errors in event stores by providing the
