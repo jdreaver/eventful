@@ -1,7 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- | Throwaway program to test event bus, store, etc
@@ -12,6 +15,9 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad (forever)
 import Control.Monad.Logger (runStderrLoggingT)
+import Data.Aeson
+import Data.Aeson.TH
+import Data.ByteString (ByteString)
 import Data.List (foldl')
 import Database.Persist.Sqlite (createSqlitePool)
 import Database.Persist
@@ -22,13 +28,14 @@ import EventSourcing
 main :: IO ()
 main = do
   pool <- runStderrLoggingT $ createSqlitePool "database.db" 2
-  eventStore <- sqliteEventStore pool
+  sqlEventStore <- sqliteEventStore pool
+  (eventStore :: MemorySnapshotStore IO SqliteEventStore ByteString ListProjection) <- memorySnapshotStore sqlEventStore
   --eventStore <- newMemoryEventStore
 
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   bus <- eventBus
   registerHandler eventStore bus (\event -> putStrLn $ "Recieved: " ++ show event)
-  registerProjection eventStore bus projectionStore (fmap AddItem)
+  registerProjection eventStore bus projectionStore id
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -36,15 +43,18 @@ main = do
     --publishEvent bus nil line
     --uuid <- nextRandom
     let uuid = nil
-    storeAndPublishEvent eventStore bus uuid line
+    storeAndPublishEvent eventStore bus uuid (AddItem line)
 
     threadDelay 100000
 
-    es <- getSerializedEvents eventStore uuid :: IO [StoredEvent String]
+    es <- getSerializedEvents eventStore uuid :: IO [StoredEvent (Event ListProjection)]
     print es
 
     p <- getProjection projectionStore uuid
     print p
+
+    p' <- getAggregate eventStore (AggregateId uuid :: AggregateId ListProjection)
+    print p'
 
 -- newtype MemoryEventStore e = MemoryEventStore { unMemoryEventStore :: TVar [e] }
 
@@ -74,10 +84,12 @@ newMemoryProjectionStore = do
 
 
 newtype ListProjection = ListProjection { unListProjection :: [String] }
-  deriving (Show)
+  deriving (Show, ToJSON, FromJSON)
 
 data ListProjectionEvent = AddItem String
   deriving (Show)
+
+deriveJSON defaultOptions ''ListProjectionEvent
 
 instance Projection ListProjection where
   type Event ListProjection = ListProjectionEvent

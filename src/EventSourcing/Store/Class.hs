@@ -50,7 +50,7 @@ class (Monad m) => RawEventStore m store serialized | store -> serialized where
   getAllEventsPipe store = fmap (mapM_ yield) . getAllEvents store
 
 -- | A serialized event store can serialize/deserialize events from a raw event store.
-class (RawEventStore m store serialized) => SerializedEventStore m store serialized event | store -> serialized where
+class (Monad m) => SerializedEventStore m store serialized event | store -> serialized where
   getSerializedEvents :: store -> UUID -> m [StoredEvent event]
   getAllSerializedEvents :: store -> SequenceNumber -> m [StoredEvent event]
   storeSerializedEvents :: store -> UUID -> [event] -> m [StoredEvent event]
