@@ -24,7 +24,7 @@ class Serializable a b where
   serialize :: a -> b
   deserialize :: b -> Maybe a
 
-instance Serializable a a where
+instance (a ~ b) => Serializable a b where
   serialize = id
   deserialize = Just
 
