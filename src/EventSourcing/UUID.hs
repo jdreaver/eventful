@@ -22,8 +22,6 @@ import System.Random (Random)
 import Text.Printf (printf)
 import Web.HttpApiData
 
-import Debug.Trace
-
 -- | Wrapper around UUID from uuid package.
 newtype UUID = UUID { unUUID :: UUID.UUID }
   deriving (Eq, Ord, Read, Show, Storable, Random)
