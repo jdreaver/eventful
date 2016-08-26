@@ -54,6 +54,15 @@ library:
   ghc-options: -Wall
 
 tests:
+  spec:
+    main: Spec.hs
+    ghc-options: -Wall
+    source-dirs:
+      - tests
+      - src
+    dependencies:
+      - hspec
+      - HUnit
   style:
     main: HLint.hs
     ghc-options: -Wall -Werror

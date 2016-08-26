@@ -90,7 +90,7 @@ data SqliteEventStore
 sqliteEventStore :: (MonadIO m) => ConnectionPool -> m SqliteEventStore
 sqliteEventStore pool = do
   -- Run migrations
-  liftIO $ runSqlPool (runMigration migrateSqliteEvent) pool
+  _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqliteEvent) pool
 
   -- Create index on aggregate_id so retrieval is very fast
   liftIO $ runSqlPool
