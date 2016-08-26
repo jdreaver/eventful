@@ -1,12 +1,14 @@
 module EventSourcing.Store.Memory
   ( EventStoreMap (..)
   , eventStoreMapTVar
+  , eventStoreMapIORef
   ) where
 
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Data.Dynamic
 import Data.Foldable (toList)
+import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
@@ -19,6 +21,9 @@ newtype EventStoreMap = EventStoreMap { unEventStoreMap :: Map UUID [Dynamic] }
 
 eventStoreMapTVar :: IO (TVar EventStoreMap)
 eventStoreMapTVar = newTVarIO (EventStoreMap Map.empty)
+
+eventStoreMapIORef :: IO (IORef EventStoreMap)
+eventStoreMapIORef = newIORef (EventStoreMap Map.empty)
 
 lookupEventStoreMapRaw :: EventStoreMap -> UUID -> [StoredEvent Dynamic]
 lookupEventStoreMapRaw (EventStoreMap esmap) uuid =
@@ -65,4 +70,26 @@ instance (Typeable event, MonadIO m) => SerializedEventStore m (TVar EventStoreM
     store <- readTVar tvar
     let (newMap, storedEvents) = storeEventStoreMap store uuid events
     writeTVar tvar newMap
+    return storedEvents
+
+instance (MonadIO m) => RawEventStore m (IORef EventStoreMap) Dynamic where
+  getUuids ref = liftIO $ Map.keys . unEventStoreMap <$> readIORef ref
+  getEvents ref uuid = liftIO $ flip lookupEventStoreMapRaw uuid <$> readIORef ref
+  storeEvents ref uuid events = liftIO $ do
+    store <- readIORef ref
+    let (newMap, storedEvents) = storeEventStoreMapRaw store uuid events
+    writeIORef ref newMap
+    return storedEvents
+  latestEventVersion ref uuid = liftIO $ do
+    store <- readIORef ref
+    return $ EventVersion . (+) (-1) . length $ lookupEventStoreMapRaw store uuid
+
+instance (MonadIO m, Typeable event) => SerializedEventStore m (IORef EventStoreMap) Dynamic event where
+  getSerializedEvents ref uuid = liftIO $ do
+    store <- readIORef ref
+    return $ lookupEventStoreMap store uuid
+  storeSerializedEvents ref uuid events = liftIO $ do
+    store <- readIORef ref
+    let (newMap, storedEvents) = storeEventStoreMap store uuid events
+    writeIORef ref newMap
     return storedEvents
