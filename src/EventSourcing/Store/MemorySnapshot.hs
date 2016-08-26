@@ -45,7 +45,6 @@ instance
   (Projection proj, Event proj ~ event, MonadIO m, SerializedEventStore m store serialized event)
   => SerializedEventStore m (MemorySnapshotStore m store serialized proj) serialized event where
   getSerializedEvents (MemorySnapshotStore store _) = getSerializedEvents store
-  getAllSerializedEvents (MemorySnapshotStore store _) = getAllSerializedEvents store
   storeSerializedEvents mstore@(MemorySnapshotStore store tvar) uuid events = do
     proj <- getSnapshotProjection mstore uuid
     storedEvents <- storeSerializedEvents store uuid events
@@ -53,6 +52,15 @@ instance
       let proj' = foldl' apply proj events
       modifyTVar' tvar (Map.insert uuid proj')
     return storedEvents
+
+instance
+  ( Event proj ~ event
+  , MonadIO m
+  , SerializedEventStore m store serialized event
+  , SequencedSerializedEventStore m store serialized event
+  )
+  => SequencedSerializedEventStore m (MemorySnapshotStore m store serialized proj) serialized event where
+  getAllSerializedEvents (MemorySnapshotStore store _) = getAllSerializedEvents store
 
 instance
   (MonadIO m, Projection proj, SerializedEventStore m store serialized (Event proj))

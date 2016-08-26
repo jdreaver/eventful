@@ -31,15 +31,15 @@ share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 SqliteEvent sql=events
     Id SequenceNumber sql=sequence_number
     aggregateId UUID
-    data ByteString
     version EventVersion
+    data ByteString
     UniqueAggregateVersion aggregateId version
     deriving Show
 |]
 
 sqliteEventToStored :: Entity SqliteEvent -> StoredEvent ByteString
-sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)) =
-  StoredEvent uuid version seqNum data'
+sqliteEventToStored (Entity _ (SqliteEvent uuid version data')) =
+  StoredEvent uuid version data'
 
 -- sqliteEventFromStored :: (Serializable event ByteString) => StoredEvent event -> Entity SqliteEvent
 -- sqliteEventFromStored (StoredEvent uuid version seqNum event) =
@@ -104,26 +104,30 @@ instance (MonadIO m) => RawEventStore m SqliteEventStore ByteString where
   getEvents = sqliteEventStoreGetEvents
   storeEvents = sqliteEventStoreStoreEvents
   latestEventVersion = sqliteEventStoreLatestEventVersion
+
+instance (MonadIO m) => SequencedRawEventStore m SqliteEventStore ByteString where
   getAllEvents = sqliteEventStoreGetAllEvents
 
 instance (FromJSON event, ToJSON event, MonadIO m) => SerializedEventStore m SqliteEventStore ByteString event where
   getSerializedEvents store uuid = do
     rawEvents <- getEvents store uuid
     return $ mapMaybe decodeStoredEvent rawEvents
-  getAllSerializedEvents store seqNum = do
-    rawEvents <- getAllEvents store seqNum
-    return $ mapMaybe decodeStoredEvent rawEvents
   storeSerializedEvents store uuid events = do
     let serialized = toStrict . encode <$> events
     rawStoredEvents <- storeEvents store uuid serialized
-    return $ (\(event, StoredEvent uuid' vers seqn _) -> StoredEvent uuid' vers seqn event) <$> zip events rawStoredEvents
+    return $ (\(event, StoredEvent uuid' vers _) -> StoredEvent uuid' vers event) <$> zip events rawStoredEvents
+
+instance (FromJSON event, MonadIO m) => SequencedSerializedEventStore m SqliteEventStore ByteString event where
+  getAllSerializedEvents store seqNum = do
+    rawEvents <- getAllEvents store seqNum
+    return $ mapMaybe decodeStoredEvent rawEvents
 
 instance (MonadIO m, Projection proj, ToJSON (Event proj), FromJSON (Event proj))
          => CachedEventStore m SqliteEventStore ByteString proj where
   -- TODO: Add projection snapshots!
 
 decodeStoredEvent :: (FromJSON event) => StoredEvent ByteString -> Maybe (StoredEvent event)
-decodeStoredEvent (StoredEvent uuid' vers seqn bs) = StoredEvent uuid' vers seqn <$> decode (fromStrict bs)
+decodeStoredEvent (StoredEvent uuid' vers bs) = StoredEvent uuid' vers <$> decode (fromStrict bs)
 
 sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore -> m [UUID]
 sqliteEventStoreGetUuids (SqliteEventStore pool) =
@@ -143,11 +147,10 @@ sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
   where
     doInsert = do
       versionNum <- maxEventVersion uuid
-      let eventsAndVers = zip events [versionNum + 1..]
+      let eventsAndVers = zip [versionNum + 1..] events
           entities = fmap (uncurry (SqliteEvent uuid)) eventsAndVers
-      sequenceNums <- bulkInsert entities
-      let eventsAndSeqNums = zip sequenceNums eventsAndVers
-      return $ fmap (\(SqliteEventKey seqNum, (event, vers)) -> StoredEvent uuid vers seqNum event) eventsAndSeqNums
+      _ <- bulkInsert entities
+      return $ fmap (uncurry (StoredEvent uuid)) eventsAndVers
 
 sqliteEventStoreLatestEventVersion
   :: (MonadIO m)

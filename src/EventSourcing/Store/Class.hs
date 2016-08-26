@@ -1,6 +1,8 @@
 module EventSourcing.Store.Class
   ( RawEventStore (..)
+  , SequencedRawEventStore (..)
   , SerializedEventStore (..)
+  , SequencedSerializedEventStore (..)
   , CachedEventStore (..)
   , getAggregateFromSerialized
   , AggregateId (..)
@@ -44,6 +46,9 @@ class (Monad m) => RawEventStore m store serialized | store -> serialized where
   getEvents :: store -> UUID -> m [StoredEvent serialized]
   storeEvents :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
   latestEventVersion :: store -> UUID -> m EventVersion
+
+-- | An raw event store that supports a global ordering of events.
+class (Monad m) => SequencedRawEventStore m store serialized | store -> serialized where
   getAllEvents :: store -> SequenceNumber -> m [StoredEvent serialized]
 
   -- Some implementations might have a more efficient way to do this.
@@ -53,8 +58,12 @@ class (Monad m) => RawEventStore m store serialized | store -> serialized where
 -- | A serialized event store can serialize/deserialize events from a raw event store.
 class (Monad m) => SerializedEventStore m store serialized event | store -> serialized where
   getSerializedEvents :: store -> UUID -> m [StoredEvent event]
-  getAllSerializedEvents :: store -> SequenceNumber -> m [StoredEvent event]
+
   storeSerializedEvents :: store -> UUID -> [event] -> m [StoredEvent event]
+
+-- | An serialized event store that supports a global ordering of events.
+class (Monad m) => SequencedSerializedEventStore m store serialized event | store -> serialized where
+  getAllSerializedEvents :: store -> SequenceNumber -> m [StoredEvent event]
 
   -- Some implementations might have a more efficient way to do this.
   getAllSerializedEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent event) m ())
@@ -81,7 +90,7 @@ data StoredEvent event
   = StoredEvent
   { storedEventAggregateId :: UUID
   , storedEventVersion :: EventVersion
-  , storedEventSequenceNumber :: SequenceNumber
+  --, storedEventSequenceNumber :: SequenceNumber
   , storedEventEvent :: event
   } deriving (Show, Read, Eq, Functor)
 

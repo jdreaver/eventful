@@ -30,12 +30,12 @@ eventBus :: IO (EventBus event)
 eventBus = EventBus <$> atomically (newTVar [])
 
 registerHandler
-  :: (SerializedEventStore IO store serialized event)
+  :: (SequencedSerializedEventStore IO store serialized event)
   => store -> EventBus event -> Handler event IO -> IO ()
 registerHandler = registerHandlerStart 0
 
 registerHandlerStart
-  :: (SerializedEventStore IO store serialized event)
+  :: (SequencedSerializedEventStore IO store serialized event)
   => SequenceNumber -> store -> EventBus event -> Handler event IO -> IO ()
 registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   (output, input) <- spawn unbounded
@@ -46,7 +46,7 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   atomically $ modifyTVar' queuesTVar ((:) output)
 
 registerProjection
-  :: (ProjectionStore IO projstore proj, SerializedEventStore IO store serialized event)
+  :: (ProjectionStore IO projstore proj, SequencedSerializedEventStore IO store serialized event)
   => store -> EventBus event -> projstore -> (StoredEvent event -> StoredEvent (Event proj)) -> IO ()
 registerProjection eventStore bus projStore transformer = do
   seqNum <- latestApplied projStore
