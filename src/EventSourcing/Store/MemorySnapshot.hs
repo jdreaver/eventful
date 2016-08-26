@@ -61,7 +61,8 @@ instance
   , SequencedSerializedEventStore m store serialized event
   )
   => SequencedSerializedEventStore m (MemorySnapshotStore m store serialized proj) serialized event where
-  getAllSerializedEvents (MemorySnapshotStore store _) = getAllSerializedEvents store
+  getSequencedSerializedEvents (MemorySnapshotStore store _) = getSequencedSerializedEvents store
+  storeSequencedSerializedEvents (MemorySnapshotStore store _) = storeSequencedSerializedEvents store
 
 instance
   (MonadIO m, Projection proj, SerializedEventStore m store serialized (Event proj))

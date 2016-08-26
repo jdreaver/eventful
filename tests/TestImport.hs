@@ -83,7 +83,7 @@ sequencedRawStoreSpec createStore = do
     store <- runIO createStore
 
     it "shouldn't have any events" $ do
-      getAllEvents store 0 `shouldReturn` []
+      getSequencedEvents store 0 `shouldReturn` []
 
 serializedStoreSpec :: (SerializedEventStore IO store serialized (Event Counter)) => IO store -> Spec
 serializedStoreSpec createStore = do
@@ -125,11 +125,11 @@ sequencedSerializedStoreSpec createStore = do
     (uuid1, uuid2) <- runIO $ insertExampleEvents store
 
     it "should have the correct events in global order" $ do
-      events' <- getAllSerializedEvents store 0
-      (storedEventEvent <$> events') `shouldBe` Added <$> [1..5]
-      (storedEventAggregateId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (storedEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
-      --(storedEventSequenceNumber <$> events') `shouldBe` [1..5]
+      events' <- getSequencedSerializedEvents store 0
+      (sequencedEventEvent <$> events') `shouldBe` Added <$> [1..5]
+      (sequencedEventAggregateId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (sequencedEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
+      (sequencedEventSequenceNumber <$> events') `shouldBe` [1..5]
 
 insertExampleEvents :: (SerializedEventStore IO store serialized (Event Counter)) => store -> IO (UUID, UUID)
 insertExampleEvents store = do

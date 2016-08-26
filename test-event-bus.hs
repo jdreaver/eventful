@@ -50,6 +50,9 @@ main = do
     es <- getSerializedEvents eventStore uuid :: IO [StoredEvent (Event ListProjection)]
     print es
 
+    es' <- getSequencedSerializedEvents eventStore 0 :: IO [SequencedEvent (Event ListProjection)]
+    print es'
+
     p <- getProjection projectionStore uuid
     print p
 
@@ -74,7 +77,7 @@ instance (Projection p) => ProjectionStore IO (MemoryProjectionStore p) p where
   latestApplied _ = return 0
   getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
   applyEvents (MemoryProjectionStore tvar) storedEvents =
-    let events = storedEventEvent <$> storedEvents
+    let events = sequencedEventEvent <$> storedEvents
     in atomically $ modifyTVar' tvar (\p -> foldl' apply p events)
 
 newMemoryProjectionStore :: (Projection p) => IO (MemoryProjectionStore p)
