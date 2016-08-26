@@ -62,7 +62,8 @@ class (Monad m) => SerializedEventStore m store serialized event | store -> seri
   storeSerializedEvents :: store -> UUID -> [event] -> m [StoredEvent event]
 
 -- | An serialized event store that supports a global ordering of events.
-class (Monad m) => SequencedSerializedEventStore m store serialized event | store -> serialized where
+class (Monad m, SerializedEventStore m store serialized event)
+  => SequencedSerializedEventStore m store serialized event | store -> serialized where
   getAllSerializedEvents :: store -> SequenceNumber -> m [StoredEvent event]
 
   -- Some implementations might have a more efficient way to do this.

@@ -117,7 +117,7 @@ instance (FromJSON event, ToJSON event, MonadIO m) => SerializedEventStore m Sql
     rawStoredEvents <- storeEvents store uuid serialized
     return $ (\(event, StoredEvent uuid' vers _) -> StoredEvent uuid' vers event) <$> zip events rawStoredEvents
 
-instance (FromJSON event, MonadIO m) => SequencedSerializedEventStore m SqliteEventStore ByteString event where
+instance (FromJSON event, ToJSON event, MonadIO m) => SequencedSerializedEventStore m SqliteEventStore ByteString event where
   getAllSerializedEvents store seqNum = do
     rawEvents <- getAllEvents store seqNum
     return $ mapMaybe decodeStoredEvent rawEvents

@@ -54,7 +54,8 @@ instance
     return storedEvents
 
 instance
-  ( Event proj ~ event
+  ( Projection proj
+  , Event proj ~ event
   , MonadIO m
   , SerializedEventStore m store serialized event
   , SequencedSerializedEventStore m store serialized event

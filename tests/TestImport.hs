@@ -6,6 +6,9 @@ module TestImport
   , CounterEvent (..)
   , Command (..)
   , CommandError (..)
+  , rawStoreSpec
+  , serializedStoreSpec
+  , sequencedSerializedStoreSpec
   ) where
 
 import Control.Monad as X
@@ -15,6 +18,7 @@ import Database.Persist.Sqlite as X
 
 import Data.Aeson
 import Data.Aeson.TH
+import Test.Hspec
 
 import EventSourcing
 
@@ -60,3 +64,70 @@ instance Aggregate Counter where
 deriveJSON defaultOptions ''CounterEvent
 deriveJSON defaultOptions 'Increment
 deriveJSON defaultOptions 'OutOfBounds
+
+
+-- Test harness for stores
+
+rawStoreSpec :: (RawEventStore IO store serialized) => IO store -> Spec
+rawStoreSpec createStore = do
+  context "when the event store is empty" $ do
+    store <- runIO createStore
+
+    it "shouldn't have UUIDs" $ do
+      getUuids store `shouldReturn` []
+
+serializedStoreSpec :: (SerializedEventStore IO store serialized (Event Counter)) => IO store -> Spec
+serializedStoreSpec createStore = do
+  context "when a few events are inserted" $ do
+    store <- runIO createStore
+    let events = [Added 1, Added 4, Added (-3)]
+    _ <- runIO $ storeSerializedEvents store nil events
+
+    it "should return events" $ do
+      events' <- getSerializedEvents store nil
+      (storedEventEvent <$> events') `shouldBe` events
+      --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
+
+    it "should return the latest projection" $ do
+      getAggregateFromSerialized store (AggregateId nil) `shouldReturn` Counter 2
+
+  context "when events from multiple UUIDs are inserted" $ do
+    store <- runIO createStore
+    (uuid1, uuid2) <- runIO $ insertExampleEvents store
+
+    it "should have the correct events for each aggregate" $ do
+      events1 <- getSerializedEvents store uuid1
+      events2 <- getSerializedEvents store uuid2
+      (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
+      (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
+      (storedEventAggregateId <$> events1) `shouldBe` [uuid1, uuid1]
+      (storedEventAggregateId <$> events2) `shouldBe` [uuid2, uuid2, uuid2]
+      (storedEventVersion <$> events1) `shouldBe` [0, 1]
+      (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
+
+    it "should produce the correct projections" $ do
+      getAggregateFromSerialized store (AggregateId uuid1) `shouldReturn` Counter 5
+      getAggregateFromSerialized store (AggregateId uuid2) `shouldReturn` Counter 10
+
+sequencedSerializedStoreSpec :: (SequencedSerializedEventStore IO store serialized (Event Counter)) => IO store -> Spec
+sequencedSerializedStoreSpec createStore = do
+  context "when events from multiple UUIDs are inserted" $ do
+    store <- runIO createStore
+    (uuid1, uuid2) <- runIO $ insertExampleEvents store
+
+    it "should have the correct events in global order" $ do
+      events' <- getAllSerializedEvents store 0
+      (storedEventEvent <$> events') `shouldBe` Added <$> [1..5]
+      (storedEventAggregateId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (storedEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
+      --(storedEventSequenceNumber <$> events') `shouldBe` [1..5]
+
+insertExampleEvents :: (SerializedEventStore IO store serialized (Event Counter)) => store -> IO (UUID, UUID)
+insertExampleEvents store = do
+  let uuid1 = uuidFromInteger 1
+      uuid2 = uuidFromInteger 2
+  void $ storeSerializedEvents store uuid1 [Added 1]
+  void $ storeSerializedEvents store uuid2 [Added 2, Added 3]
+  void $ storeSerializedEvents store uuid1 [Added 4]
+  void $ storeSerializedEvents store uuid2 [Added 5]
+  return (uuid1, uuid2)
