@@ -3,5 +3,6 @@ module EventSourcing.Store
   ) where
 
 import EventSourcing.Store.Class as X
+import EventSourcing.Store.Memory as X
 import EventSourcing.Store.MemorySnapshot as X
 import EventSourcing.Store.Sqlite as X
