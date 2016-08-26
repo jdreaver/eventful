@@ -7,6 +7,7 @@ module TestImport
   , Command (..)
   , CommandError (..)
   , rawStoreSpec
+  , sequencedRawStoreSpec
   , serializedStoreSpec
   , sequencedSerializedStoreSpec
   ) where
@@ -75,6 +76,14 @@ rawStoreSpec createStore = do
 
     it "shouldn't have UUIDs" $ do
       getUuids store `shouldReturn` []
+
+sequencedRawStoreSpec :: (Show serialized, Eq serialized, SequencedRawEventStore IO store serialized) => IO store -> Spec
+sequencedRawStoreSpec createStore = do
+  context "when the event store is empty" $ do
+    store <- runIO createStore
+
+    it "shouldn't have any events" $ do
+      getAllEvents store 0 `shouldReturn` []
 
 serializedStoreSpec :: (SerializedEventStore IO store serialized (Event Counter)) => IO store -> Spec
 serializedStoreSpec createStore = do

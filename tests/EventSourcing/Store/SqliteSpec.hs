@@ -13,5 +13,6 @@ spec :: Spec
 spec = do
   describe "Sqlite event store" $ do
     rawStoreSpec makeStore
+    sequencedRawStoreSpec makeStore
     serializedStoreSpec makeStore
     sequencedSerializedStoreSpec makeStore

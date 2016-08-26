@@ -6,7 +6,6 @@ module EventSourcing.Store.Class
   , CachedEventStore (..)
   , getAggregateFromSerialized
   , AggregateId (..)
-  , Serializable (..)
   , StoredEvent (..)
   , EventVersion (..)
   , SequenceNumber (..)
@@ -14,7 +13,6 @@ module EventSourcing.Store.Class
   ) where
 
 import Data.Aeson
-import Data.ByteString.Lazy (ByteString)
 import Database.Persist (PersistField)
 import Database.Persist.Sql (PersistFieldSql)
 import Pipes
@@ -23,20 +21,6 @@ import Web.PathPieces
 
 import EventSourcing.Projection
 import EventSourcing.UUID
-
--- | The 'Serializable' class is used to abstract away the common parts of
--- event storage.
-class Serializable a b where
-  serialize :: a -> b
-  deserialize :: b -> Maybe a
-
-instance (a ~ b) => Serializable a b where
-  serialize = id
-  deserialize = Just
-
-instance (FromJSON a, ToJSON a) => Serializable a ByteString where
-  serialize = encode
-  deserialize = decode
 
 -- | An raw event store is anything that stores serialized events in some order
 -- based on UUID. This class knows nothing about Projections or how the events

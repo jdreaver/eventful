@@ -41,7 +41,7 @@ sqliteEventToStored :: Entity SqliteEvent -> StoredEvent ByteString
 sqliteEventToStored (Entity _ (SqliteEvent uuid version data')) =
   StoredEvent uuid version data'
 
--- sqliteEventFromStored :: (Serializable event ByteString) => StoredEvent event -> Entity SqliteEvent
+-- sqliteEventFromStored :: StoredEvent event -> Entity SqliteEvent
 -- sqliteEventFromStored (StoredEvent uuid version seqNum event) =
 --   Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)
 --   where data' = toStrict (encode event)
