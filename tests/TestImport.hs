@@ -91,8 +91,8 @@ eventStoreSpec createStore = do
     (uuid1, uuid2) <- runIO $ insertExampleEvents store
 
     it "should have the correct events for each aggregate" $ do
-      events1 <- getEvents store (AggregateId uuid1)
-      events2 <- getEvents store (AggregateId uuid2)
+      events1 <- getEvents store uuid1
+      events2 <- getEvents store uuid2
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
       (storedEventAggregateId <$> events1) `shouldBe` [uuid1, uuid1]
@@ -101,8 +101,8 @@ eventStoreSpec createStore = do
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
     it "should produce the correct projections" $ do
-      getAggregate store (AggregateId uuid1) `shouldReturn` Counter 5
-      getAggregate store (AggregateId uuid2) `shouldReturn` Counter 10
+      getAggregate store uuid1 `shouldReturn` Counter 5
+      getAggregate store uuid2 `shouldReturn` Counter 10
 
 
 sequencedEventStoreSpec :: (EventStore IO store Counter, SequencedEventStore IO store (Event Counter)) => IO store -> Spec
@@ -111,25 +111,25 @@ sequencedEventStoreSpec createStore = do
     store <- runIO createStore
 
     it "shouldn't have any events" $ do
-      getSequencedEvents store 0 `shouldReturn` ([] :: [StoredEvent (Event Counter)])
+      getSequencedEvents store 0 `shouldReturn` ([] :: [DynamicStoredEvent (Event Counter)])
 
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO createStore
-    (uuid1, uuid2) <- runIO $ insertExampleEvents store
+    (AggregateId uuid1, AggregateId uuid2) <- runIO $ insertExampleEvents store
 
     it "should have the correct events in global order" $ do
       events' <- getSequencedEvents store 0
-      (storedEventEvent <$> events') `shouldBe` Added <$> [1..5]
-      (storedEventAggregateId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (storedEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
-      (storedEventSequenceNumber <$> events') `shouldBe` [1..5]
+      (dynamicStoredEventEvent <$> events') `shouldBe` Added <$> [1..5]
+      (dynamicStoredEventAggregateId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (dynamicStoredEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
+      (dynamicStoredEventSequenceNumber <$> events') `shouldBe` [1..5]
 
-insertExampleEvents :: (EventStore IO store Counter) => store -> IO (UUID, UUID)
+insertExampleEvents :: (EventStore IO store Counter) => store -> IO (AggregateId Counter, AggregateId Counter)
 insertExampleEvents store = do
-  let uuid1 = uuidFromInteger 1
-      uuid2 = uuidFromInteger 2
-  void $ storeEvents store (AggregateId uuid1) [Added 1]
-  void $ storeEvents store (AggregateId uuid2) [Added 2, Added 3]
-  void $ storeEvents store (AggregateId uuid1) [Added 4]
-  void $ storeEvents store (AggregateId uuid2) [Added 5]
+  let uuid1 = AggregateId (uuidFromInteger 1)
+      uuid2 = AggregateId (uuidFromInteger 2)
+  void $ storeEvents store uuid1 [Added 1]
+  void $ storeEvents store uuid2 [Added 2, Added 3]
+  void $ storeEvents store uuid1 [Added 4]
+  void $ storeEvents store uuid2 [Added 5]
   return (uuid1, uuid2)
