@@ -11,25 +11,24 @@ import Data.List (foldl')
 
 import EventSourcing.Projection
 import EventSourcing.Store.Class
-import EventSourcing.UUID
 
 -- | Wraps a given event store and stores the latest projections in memory.
-data MemorySnapshotStore m store serialized proj
+data MemorySnapshotStore m store proj
   = MemorySnapshotStore
-  { _memorySnapshotStoreEventStore :: SerializedEventStore m store serialized (Event proj) => store
+  { _memorySnapshotStoreEventStore :: EventStore m store proj => store
   -- TODO: Make the value type (EventVersion, ByteString) and use this for
   -- latestEventVersion.
-  , _memorySnapshotStoreProjections :: TVar (Map UUID proj)
+  , _memorySnapshotStoreProjections :: TVar (Map (AggregateId proj) proj)
   }
 
-memorySnapshotStore :: (MonadIO m) => store -> m (MemorySnapshotStore m store serialized proj)
+memorySnapshotStore :: (MonadIO m) => store -> m (MemorySnapshotStore m store proj)
 memorySnapshotStore store = do
   tvar <- liftIO . atomically $ newTVar Map.empty
   return $ MemorySnapshotStore store tvar
 
 getSnapshotProjection
-  :: (MonadIO m, Projection proj, SerializedEventStore m store serialized (Event proj))
-  => MemorySnapshotStore m store serialized proj -> UUID -> m proj
+  :: (MonadIO m, Projection proj, EventStore m store proj)
+  => MemorySnapshotStore m store proj -> AggregateId proj -> m proj
 getSnapshotProjection (MemorySnapshotStore store tvar) uuid = do
   proj <- liftIO . atomically $ Map.lookup uuid <$> readTVar tvar
   case proj of
@@ -37,34 +36,27 @@ getSnapshotProjection (MemorySnapshotStore store tvar) uuid = do
     (Just p) -> return p
     -- Cache miss, check the store
     Nothing -> do
-      proj' <- getAggregateFromSerialized store (AggregateId uuid)
+      proj' <- getAggregate store uuid
       liftIO . atomically $ modifyTVar' tvar (Map.insert uuid proj')
       return proj'
 
 instance
-  (Projection proj, Event proj ~ event, MonadIO m, SerializedEventStore m store serialized event)
-  => SerializedEventStore m (MemorySnapshotStore m store serialized proj) serialized event where
-  getSerializedEvents (MemorySnapshotStore store _) = getSerializedEvents store
-  storeSerializedEvents mstore@(MemorySnapshotStore store tvar) uuid events = do
+  (Projection proj, Event proj ~ event, MonadIO m, EventStore m store proj)
+  => EventStore m (MemorySnapshotStore m store proj) proj where
+  getEvents (MemorySnapshotStore store _) = getEvents store
+  storeEvents mstore@(MemorySnapshotStore store tvar) uuid events = do
     proj <- getSnapshotProjection mstore uuid
-    storedEvents <- storeSerializedEvents store uuid events
+    storedEvents <- storeEvents store uuid events
     liftIO . atomically $ do
       let proj' = foldl' apply proj events
       modifyTVar' tvar (Map.insert uuid proj')
     return storedEvents
+  latestEventVersion (MemorySnapshotStore store _) = latestEventVersion store
 
 instance
-  ( Projection proj
-  , Event proj ~ event
-  , MonadIO m
-  , SerializedEventStore m store serialized event
-  , SequencedSerializedEventStore m store serialized event
+  ( MonadIO m
+  , EventStore m store proj
+  , SequencedEventStore m store event
   )
-  => SequencedSerializedEventStore m (MemorySnapshotStore m store serialized proj) serialized event where
-  getSequencedSerializedEvents (MemorySnapshotStore store _) = getSequencedSerializedEvents store
-  storeSequencedSerializedEvents (MemorySnapshotStore store _) = storeSequencedSerializedEvents store
-
-instance
-  (MonadIO m, Projection proj, SerializedEventStore m store serialized (Event proj))
-  => CachedEventStore m (MemorySnapshotStore m store serialized proj) serialized proj where
-  getAggregate store (AggregateId uuid) = getSnapshotProjection store uuid
+  => SequencedEventStore m (MemorySnapshotStore m store proj) event where
+  getSequencedEvents (MemorySnapshotStore store _) = getSequencedEvents store

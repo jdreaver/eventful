@@ -1,7 +1,7 @@
 module EventSourcing.Store.Memory
-  ( EventStoreMap (..)
-  , eventStoreMapTVar
-  , eventStoreMapIORef
+  ( MemoryEventStore (..)
+  , memoryEventStoreTVar
+  , memoryEventStoreIORef
   ) where
 
 import Control.Concurrent.STM
@@ -9,87 +9,82 @@ import Control.Monad.IO.Class
 import Data.Dynamic
 import Data.Foldable (toList)
 import Data.IORef
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Maybe (mapMaybe)
+import Data.Sequence (Seq, (><))
+import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
+import Safe (maximumDef)
 
+import EventSourcing.Projection
 import EventSourcing.Store.Class
 import EventSourcing.UUID
 
-newtype EventStoreMap = EventStoreMap { unEventStoreMap :: Map UUID [Dynamic] }
+data MemoryEventStore
+  = MemoryEventStore { unMemoryEventStore :: Seq (StoredEvent Dynamic)}
   deriving (Show)
 
-eventStoreMapTVar :: IO (TVar EventStoreMap)
-eventStoreMapTVar = newTVarIO (EventStoreMap Map.empty)
+memoryEventStoreTVar :: IO (TVar MemoryEventStore)
+memoryEventStoreTVar = newTVarIO (MemoryEventStore Seq.empty)
 
-eventStoreMapIORef :: IO (IORef EventStoreMap)
-eventStoreMapIORef = newIORef (EventStoreMap Map.empty)
+memoryEventStoreIORef :: IO (IORef MemoryEventStore)
+memoryEventStoreIORef = newIORef (MemoryEventStore Seq.empty)
 
-lookupEventStoreMapRaw :: EventStoreMap -> UUID -> [StoredEvent Dynamic]
-lookupEventStoreMapRaw (EventStoreMap esmap) uuid =
-  let dynEvents = maybe [] toList $ Map.lookup uuid esmap
-  in zipWith (StoredEvent uuid) [0..] dynEvents
+lookupMemoryEventStoreRaw :: MemoryEventStore -> UUID -> [StoredEvent Dynamic]
+lookupMemoryEventStoreRaw (MemoryEventStore seq') uuid =
+  filter ((==) uuid . storedEventAggregateId) $ toList seq'
+
+latestEventVersion' :: MemoryEventStore -> UUID -> EventVersion
+latestEventVersion' store uuid = maximumDef (-1) $ storedEventVersion <$> lookupMemoryEventStoreRaw store uuid
+
+lookupMemoryEventStore :: (Typeable event) => MemoryEventStore -> UUID -> [StoredEvent event]
+lookupMemoryEventStore store uuid =
+  mapMaybe storedEventFromDyn $ lookupMemoryEventStoreRaw store uuid
+
+lookupMemoryEventStoreSeq :: (Typeable event) => MemoryEventStore -> SequenceNumber -> [StoredEvent event]
+lookupMemoryEventStoreSeq (MemoryEventStore seq') (SequenceNumber i) =
+  mapMaybe storedEventFromDyn . toList $ Seq.drop i seq'
 
 storedEventFromDyn :: (Typeable event) => StoredEvent Dynamic -> Maybe (StoredEvent event)
-storedEventFromDyn (StoredEvent uuid version dynEvent) = StoredEvent uuid version <$> fromDynamic dynEvent
+storedEventFromDyn (StoredEvent uuid version seqNum dynEvent) = StoredEvent uuid version seqNum <$> fromDynamic dynEvent
 
-lookupEventStoreMap :: (Typeable event) => EventStoreMap -> UUID -> [StoredEvent event]
-lookupEventStoreMap store uuid = mapMaybe storedEventFromDyn (lookupEventStoreMapRaw store uuid)
+storeMemoryEventStore :: (Typeable event) => MemoryEventStore -> UUID -> [event] -> (MemoryEventStore, [StoredEvent event])
+storeMemoryEventStore store@(MemoryEventStore seq') uuid events =
+  let versStart = latestEventVersion' store uuid + 1
+      seqStart = SequenceNumber (Seq.length seq') + 1
+      storedEvents = zipWith3 (StoredEvent uuid) [versStart..] [seqStart..] events
+      newSeq = seq' >< Seq.fromList (map (fmap toDyn) storedEvents)
+  in (MemoryEventStore newSeq, storedEvents)
 
-storeEventStoreMapRaw :: EventStoreMap -> UUID -> [Dynamic] -> (EventStoreMap, [StoredEvent Dynamic])
-storeEventStoreMapRaw (EventStoreMap esmap) uuid events =
-  let oldEvents = maybe [] toList $ Map.lookup uuid esmap
-      newMap = EventStoreMap $ Map.insert uuid (oldEvents ++ events) esmap
-      versStart = EventVersion (length oldEvents)
-      storedEvents = zipWith (StoredEvent uuid) [versStart..] events
-  in (newMap, storedEvents)
-
-storeEventStoreMap :: (Typeable event) => EventStoreMap -> UUID -> [event] -> (EventStoreMap, [StoredEvent event])
-storeEventStoreMap store uuid events =
-  let (newMap, rawStoredEvents) = storeEventStoreMapRaw store uuid (toDyn <$> events)
-      storedEvents = mapMaybe storedEventFromDyn rawStoredEvents
-  in (newMap, storedEvents)
-
-instance (MonadIO m) => RawEventStore m (TVar EventStoreMap) Dynamic where
-  getUuids tvar = liftIO $ Map.keys . unEventStoreMap <$> readTVarIO tvar
-  getEvents tvar uuid = liftIO $ flip lookupEventStoreMapRaw uuid <$> readTVarIO tvar
-  storeEvents tvar uuid events = liftIO . atomically $ do
+instance (MonadIO m, Typeable (Event proj)) => EventStore m (TVar MemoryEventStore) proj where
+  getEvents tvar (AggregateId uuid) = liftIO $ flip lookupMemoryEventStore uuid <$> readTVarIO tvar
+  storeEvents tvar (AggregateId uuid) events = liftIO . atomically $ do
     store <- readTVar tvar
-    let (newMap, storedEvents) = storeEventStoreMapRaw store uuid events
+    let (newMap, storedEvents) = storeMemoryEventStore store uuid events
     writeTVar tvar newMap
     return storedEvents
-  latestEventVersion tvar uuid = liftIO $ do
-    store <- readTVarIO tvar
-    return $ EventVersion . (+) (-1) . length $ lookupEventStoreMapRaw store uuid
+  latestEventVersion tvar (AggregateId uuid) = liftIO $ flip latestEventVersion' uuid <$> readTVarIO tvar
 
-instance (Typeable event, MonadIO m) => SerializedEventStore m (TVar EventStoreMap) Dynamic event where
-  getSerializedEvents tvar uuid = liftIO $ do
+instance (Typeable event, MonadIO m) => SequencedEventStore m (TVar MemoryEventStore) event where
+  getSequencedEvents tvar seqNum = liftIO $ do
     store <- readTVarIO tvar
-    return $ lookupEventStoreMap store uuid
-  storeSerializedEvents tvar uuid events = liftIO . atomically $ do
-    store <- readTVar tvar
-    let (newMap, storedEvents) = storeEventStoreMap store uuid events
-    writeTVar tvar newMap
-    return storedEvents
+    return $ lookupMemoryEventStoreSeq store seqNum
 
-instance (MonadIO m) => RawEventStore m (IORef EventStoreMap) Dynamic where
-  getUuids ref = liftIO $ Map.keys . unEventStoreMap <$> readIORef ref
-  getEvents ref uuid = liftIO $ flip lookupEventStoreMapRaw uuid <$> readIORef ref
-  storeEvents ref uuid events = liftIO $ do
+instance (MonadIO m) => EventStoreInfo m (TVar MemoryEventStore) where
+  getAllUuids tvar = liftIO $ toList . Set.fromList . map storedEventAggregateId . toList . unMemoryEventStore <$> readTVarIO tvar
+
+instance (MonadIO m, Typeable (Event proj)) => EventStore m (IORef MemoryEventStore) proj where
+  getEvents ref (AggregateId uuid) = liftIO $ flip lookupMemoryEventStore uuid <$> readIORef ref
+  storeEvents ref (AggregateId uuid) events = liftIO $ do
     store <- readIORef ref
-    let (newMap, storedEvents) = storeEventStoreMapRaw store uuid events
+    let (newMap, storedEvents) = storeMemoryEventStore store uuid events
     writeIORef ref newMap
     return storedEvents
-  latestEventVersion ref uuid = liftIO $ do
-    store <- readIORef ref
-    return $ EventVersion . (+) (-1) . length $ lookupEventStoreMapRaw store uuid
+  latestEventVersion ref (AggregateId uuid) = liftIO $ flip latestEventVersion' uuid <$> readIORef ref
 
-instance (MonadIO m, Typeable event) => SerializedEventStore m (IORef EventStoreMap) Dynamic event where
-  getSerializedEvents ref uuid = liftIO $ do
+instance (Typeable event, MonadIO m) => SequencedEventStore m (IORef MemoryEventStore) event where
+  getSequencedEvents ref seqNum = liftIO $ do
     store <- readIORef ref
-    return $ lookupEventStoreMap store uuid
-  storeSerializedEvents ref uuid events = liftIO $ do
-    store <- readIORef ref
-    let (newMap, storedEvents) = storeEventStoreMap store uuid events
-    writeIORef ref newMap
-    return storedEvents
+    return $ lookupMemoryEventStoreSeq store seqNum
+
+instance (MonadIO m) => EventStoreInfo m (IORef MemoryEventStore) where
+  getAllUuids ref = liftIO $ toList . Set.fromList . map storedEventAggregateId . toList . unMemoryEventStore <$> readIORef ref

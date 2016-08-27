@@ -12,7 +12,5 @@ makeStore = liftIO $ runNoLoggingT (createSqlitePool ":memory:" 1) >>= sqliteEve
 spec :: Spec
 spec = do
   describe "Sqlite event store" $ do
-    rawStoreSpec makeStore
-    sequencedRawStoreSpec makeStore
-    serializedStoreSpec makeStore
-    sequencedSerializedStoreSpec makeStore
+    eventStoreSpec makeStore
+    sequencedEventStoreSpec makeStore

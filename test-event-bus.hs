@@ -17,11 +17,8 @@ import Control.Monad (forever)
 import Control.Monad.Logger (runStderrLoggingT)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.ByteString (ByteString)
 import Data.List (foldl')
 import Database.Persist.Sqlite (createSqlitePool)
-import Database.Persist
-import Database.Persist.Sql
 
 import EventSourcing
 
@@ -29,7 +26,7 @@ main :: IO ()
 main = do
   pool <- runStderrLoggingT $ createSqlitePool "database.db" 2
   sqlEventStore <- sqliteEventStore pool
-  (eventStore :: MemorySnapshotStore IO SqliteEventStore ByteString ListProjection) <- memorySnapshotStore sqlEventStore
+  (eventStore :: MemorySnapshotStore IO SqliteEventStore ListProjection) <- memorySnapshotStore sqlEventStore
   --eventStore <- newMemoryEventStore
 
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
@@ -43,14 +40,14 @@ main = do
     --publishEvent bus nil line
     --uuid <- nextRandom
     let uuid = nil
-    storeAndPublishEvent eventStore bus uuid (AddItem line)
+    storeAndPublishEvent eventStore bus (AggregateId uuid) (AddItem line)
 
     threadDelay 100000
 
-    es <- getSerializedEvents eventStore uuid :: IO [StoredEvent (Event ListProjection)]
+    es <- getEvents eventStore (AggregateId uuid) :: IO [StoredEvent (Event ListProjection)]
     print es
 
-    es' <- getSequencedSerializedEvents eventStore 0 :: IO [SequencedEvent (Event ListProjection)]
+    es' <- getSequencedEvents eventStore 0 :: IO [StoredEvent (Event ListProjection)]
     print es'
 
     p <- getProjection projectionStore uuid
@@ -77,7 +74,7 @@ instance (Projection p) => ProjectionStore IO (MemoryProjectionStore p) p where
   latestApplied _ = return 0
   getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
   applyEvents (MemoryProjectionStore tvar) storedEvents =
-    let events = sequencedEventEvent <$> storedEvents
+    let events = storedEventEvent <$> storedEvents
     in atomically $ modifyTVar' tvar (\p -> foldl' apply p events)
 
 newMemoryProjectionStore :: (Projection p) => IO (MemoryProjectionStore p)
@@ -89,12 +86,11 @@ newMemoryProjectionStore = do
 newtype ListProjection = ListProjection { unListProjection :: [String] }
   deriving (Show, ToJSON, FromJSON)
 
-data ListProjectionEvent = AddItem String
-  deriving (Show)
-
-deriveJSON defaultOptions ''ListProjectionEvent
-
 instance Projection ListProjection where
-  type Event ListProjection = ListProjectionEvent
+  data Event ListProjection
+    = AddItem String
+    deriving (Show)
   seed = ListProjection []
   apply (ListProjection xs) (AddItem x) = ListProjection (xs ++ [x])
+
+deriveJSON defaultOptions 'AddItem
