@@ -3,7 +3,7 @@
 module TestImport
   ( module X
   , Counter (..)
-  , CounterEvent (..)
+  , Event (..)
   , Command (..)
   , CommandError (..)
   , rawStoreSpec
@@ -27,14 +27,12 @@ import EventSourcing
 newtype Counter = Counter { unCounter :: Int }
   deriving (Eq, Show, FromJSON, ToJSON)
 
-data CounterEvent
-  = Added
+instance Projection Counter where
+  data Event Counter
+    = Added
     { _counterEventAmount :: Int
     }
-  deriving (Eq, Show)
-
-instance Projection Counter where
-  type Event Counter = CounterEvent
+    deriving (Eq, Show)
   seed = Counter 0
   apply (Counter k) (Added x) = Counter (k + x)
 
@@ -62,7 +60,7 @@ instance Aggregate Counter where
     then Right $ Added (-n)
     else Left OutOfBounds
 
-deriveJSON defaultOptions ''CounterEvent
+deriveJSON defaultOptions 'Added
 deriveJSON defaultOptions 'Increment
 deriveJSON defaultOptions 'OutOfBounds
 
