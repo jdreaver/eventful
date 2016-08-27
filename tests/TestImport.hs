@@ -58,9 +58,9 @@ instance Aggregate Counter where
     then Right $ Added (-n)
     else Left OutOfBounds
 
-deriveJSON defaultOptions 'Added
-deriveJSON defaultOptions 'Increment
-deriveJSON defaultOptions 'OutOfBounds
+deriveJSON (unPrefix "_counterEvent") 'Added
+deriveJSON (unPrefix "_counterCommand") 'Increment
+deriveJSON (unPrefix "_counterCommandError") 'OutOfBounds
 
 
 -- Test harness for stores
