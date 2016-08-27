@@ -30,6 +30,7 @@ dependencies:
   - uuid
 
 default-extensions:
+  - ConstraintKinds
   - DeriveFunctor
   - DeriveGeneric
   - FlexibleContexts

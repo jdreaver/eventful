@@ -1,23 +1,25 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE UndecidableInstances #-}
-
 module EventSourcing.Projection
   ( Projection (..)
   , latestProjection
   , allProjections
+  , eventProjectionName
   )
   where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
+import Data.Typeable
 
 -- | A state object is 'Projection' when it is created as the result of
 -- applying events.
-class Projection s where
-  data Event s :: *
+class (Typeable proj) => Projection proj where
+  data Event proj :: *
 
-  seed :: s
-  apply :: s -> Event s -> s
+  projectionName :: proj -> String
+  projectionName = show . typeOf
+
+  seed :: proj
+  apply :: proj -> Event proj -> proj
 
 -- | Computes the latest state of a Projection from some Events.
 latestProjection :: (Foldable t, Projection a) => t (Event a) -> a
@@ -27,3 +29,9 @@ latestProjection = foldl' apply seed
 -- produced.
 allProjections :: (Projection a) => [Event a] -> [a]
 allProjections = scanl' apply seed
+
+
+eventProjectionName :: (Projection proj) => Event proj -> String
+eventProjectionName = projectionName . mkProj
+  where mkProj :: (Projection proj) => Event proj -> proj
+        mkProj _ = undefined
