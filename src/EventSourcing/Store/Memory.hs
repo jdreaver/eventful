@@ -68,7 +68,7 @@ instance (MonadIO m, Typeable (Event proj)) => EventStore m (TVar MemoryEventSto
     return storedEvents
   latestEventVersion tvar (AggregateId uuid) = liftIO $ flip latestEventVersion' uuid <$> readTVarIO tvar
 
-instance (Typeable event, MonadIO m) => SequencedEventStore m (TVar MemoryEventStore) event where
+instance (MonadIO m) => SequencedEventStore m (TVar MemoryEventStore) Dynamic where
   getSequencedEvents tvar seqNum = liftIO $ do
     store <- readTVarIO tvar
     return $ lookupMemoryEventStoreSeq store seqNum
@@ -85,7 +85,7 @@ instance (MonadIO m, Typeable (Event proj)) => EventStore m (IORef MemoryEventSt
     return storedEvents
   latestEventVersion ref (AggregateId uuid) = liftIO $ flip latestEventVersion' uuid <$> readIORef ref
 
-instance (Typeable event, MonadIO m) => SequencedEventStore m (IORef MemoryEventStore) event where
+instance (MonadIO m) => SequencedEventStore m (IORef MemoryEventStore) Dynamic where
   getSequencedEvents ref seqNum = liftIO $ do
     store <- readIORef ref
     return $ lookupMemoryEventStoreSeq store seqNum

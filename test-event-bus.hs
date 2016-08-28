@@ -26,13 +26,13 @@ main :: IO ()
 main = do
   pool <- runStderrLoggingT $ createSqlitePool "database.db" 2
   sqlEventStore <- sqliteEventStore pool
-  (eventStore :: MemorySnapshotStore IO SqliteEventStore ListProjection) <- memorySnapshotStore sqlEventStore
+  (eventStore :: MemorySnapshotStore IO SqliteEventStore ListProjection JSONString) <- memorySnapshotStore sqlEventStore
   --eventStore <- newMemoryEventStore
 
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
-  bus <- eventBus
+  (bus :: EventBus JSONString) <- eventBus
   registerHandler eventStore bus (\event -> putStrLn $ "Recieved: " ++ show event)
-  registerProjection eventStore bus projectionStore id
+  registerProjection eventStore bus projectionStore decodeJSON
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -40,14 +40,14 @@ main = do
     --publishEvent bus nil line
     --uuid <- nextRandom
     let uuid = nil
-    storeAndPublishEvent eventStore bus (AggregateId uuid) (AddItem line)
+    storeAndPublishEvent eventStore encodeJSON bus (AggregateId uuid) (AddItem line)
 
     threadDelay 100000
 
-    es <- getEvents eventStore (AggregateId uuid) :: IO [StoredEvent (Event ListProjection)]
-    print es
+    es <- getEvents eventStore (AggregateId uuid) :: IO [StoredEvent ListProjection]
+    print (storedEventEvent <$> es)
 
-    es' <- getSequencedEvents eventStore 0 :: IO [StoredEvent (Event ListProjection)]
+    es' <- getSequencedEvents eventStore 0 :: IO [DynamicStoredEvent JSONString]
     print es'
 
     p <- getProjection projectionStore uuid

@@ -106,9 +106,8 @@ instance (MonadIO m, FromJSON (Event proj), ToJSON (Event proj)) => EventStore m
 
   latestEventVersion store (AggregateId uuid) = sqliteEventStoreLatestEventVersion store uuid
 
-instance (MonadIO m, FromJSON event) => SequencedEventStore m SqliteEventStore event where
-  getSequencedEvents store seqNum =
-    mapMaybe decodeDynamicStoredEvent <$> sqliteEventStoreGetSequencedEvents store seqNum
+instance (MonadIO m) => SequencedEventStore m SqliteEventStore JSONString where
+  getSequencedEvents = sqliteEventStoreGetSequencedEvents
 
 instance (MonadIO m) => EventStoreInfo m SqliteEventStore where
   getAllUuids = sqliteEventStoreGetUuids

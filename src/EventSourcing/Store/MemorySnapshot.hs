@@ -13,22 +13,22 @@ import EventSourcing.Projection
 import EventSourcing.Store.Class
 
 -- | Wraps a given event store and stores the latest projections in memory.
-data MemorySnapshotStore m store proj
+data MemorySnapshotStore m store proj serialized
   = MemorySnapshotStore
-  { _memorySnapshotStoreEventStore :: EventStore m store proj => store
+  { _memorySnapshotStoreEventStore :: (SequencedEventStore m store serialized, EventStore m store proj) => store
   -- TODO: Make the value type (EventVersion, ByteString) and use this for
   -- latestEventVersion.
   , _memorySnapshotStoreProjections :: TVar (Map (AggregateId proj) proj)
   }
 
-memorySnapshotStore :: (MonadIO m) => store -> m (MemorySnapshotStore m store proj)
+memorySnapshotStore :: (MonadIO m) => store -> m (MemorySnapshotStore m store proj serialized)
 memorySnapshotStore store = do
   tvar <- liftIO . atomically $ newTVar Map.empty
   return $ MemorySnapshotStore store tvar
 
 getSnapshotProjection
-  :: (MonadIO m, Projection proj, EventStore m store proj)
-  => MemorySnapshotStore m store proj -> AggregateId proj -> m proj
+  :: (MonadIO m, Projection proj, EventStore m store proj, SequencedEventStore m store serialized)
+  => MemorySnapshotStore m store proj serialized -> AggregateId proj -> m proj
 getSnapshotProjection (MemorySnapshotStore store tvar) uuid = do
   proj <- liftIO . atomically $ Map.lookup uuid <$> readTVar tvar
   case proj of
@@ -41,8 +41,8 @@ getSnapshotProjection (MemorySnapshotStore store tvar) uuid = do
       return proj'
 
 instance
-  (Projection proj, Event proj ~ event, MonadIO m, EventStore m store proj)
-  => EventStore m (MemorySnapshotStore m store proj) proj where
+  (Projection proj, Event proj ~ event, MonadIO m, EventStore m store proj, SequencedEventStore m store serialized)
+  => EventStore m (MemorySnapshotStore m store proj serialized) proj where
   getEvents (MemorySnapshotStore store _) = getEvents store
   storeEvents mstore@(MemorySnapshotStore store tvar) uuid events = do
     proj <- getSnapshotProjection mstore uuid
@@ -56,7 +56,7 @@ instance
 instance
   ( MonadIO m
   , EventStore m store proj
-  , SequencedEventStore m store event
+  , SequencedEventStore m store serialized
   )
-  => SequencedEventStore m (MemorySnapshotStore m store proj) event where
+  => SequencedEventStore m (MemorySnapshotStore m store proj serialized) serialized where
   getSequencedEvents (MemorySnapshotStore store _) = getSequencedEvents store

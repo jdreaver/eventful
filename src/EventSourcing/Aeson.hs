@@ -15,10 +15,8 @@ import Data.ByteString
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Char (toLower)
 import Data.Monoid ((<>))
-import Data.Text (Text, pack)
 import Database.Persist
 import Database.Persist.Sqlite
-import Web.HttpApiData
 
 import Prelude
 
@@ -54,7 +52,10 @@ dropPrefix prefix input = go prefix input
 
 -- | A more specific type than just ByteString for JSON data.
 newtype JSONString = JSONString { unJSONString :: ByteString }
-  deriving (Show, Eq, PersistField, PersistFieldSql)
+  deriving (Eq, PersistField, PersistFieldSql)
+
+instance Show JSONString where
+  show = show . unJSONString
 
 encodeJSON :: (ToJSON a) => a -> JSONString
 encodeJSON = JSONString . toStrict . encode
