@@ -4,12 +4,21 @@ module EventSourcing.Aeson
   ( module X
   , sumRecordOptions
   , unPrefix
+  , JSONString
+  , encodeJSON
+  , decodeJSON
   ) where
 
 import Data.Aeson as X (FromJSON(..), ToJSON(..), encode, decode)
 import Data.Aeson.TH as X
+import Data.ByteString
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Char (toLower)
 import Data.Monoid ((<>))
+import Data.Text (Text, pack)
+import Database.Persist
+import Database.Persist.Sqlite
+import Web.HttpApiData
 
 import Prelude
 
@@ -42,3 +51,13 @@ dropPrefix prefix input = go prefix input
       | otherwise = error $ contextual $ "not equal: " <>  (p:preRest)  <> " " <> (c:cRest)
 
     contextual msg = "dropPrefix: " <> msg <> ". " <> prefix <> " " <> input
+
+-- | A more specific type than just ByteString for JSON data.
+newtype JSONString = JSONString { unJSONString :: ByteString }
+  deriving (Show, Eq, PersistField, PersistFieldSql)
+
+encodeJSON :: (ToJSON a) => a -> JSONString
+encodeJSON = JSONString . toStrict . encode
+
+decodeJSON :: (FromJSON a) => JSONString -> Maybe a
+decodeJSON = decode . fromStrict . unJSONString
