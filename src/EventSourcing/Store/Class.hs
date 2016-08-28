@@ -10,15 +10,18 @@ module EventSourcing.Store.Class
   , EventVersion (..)
   , SequenceNumber (..)
   , ProjectionStore (..)
+  , Serializable (..)
   ) where
 
 import Data.Aeson
+import Data.Dynamic
 import Database.Persist (PersistField)
 import Database.Persist.Sql (PersistFieldSql)
 import Pipes
 import Web.HttpApiData
 import Web.PathPieces
 
+import EventSourcing.Aeson
 import EventSourcing.Projection
 import EventSourcing.UUID
 
@@ -63,12 +66,12 @@ data DynamicStoredEvent a
   , dynamicStoredEventEvent :: a
   } deriving (Show, Eq, Functor)
 
-dynamicEventToStored :: (serialized -> Maybe (Event proj)) -> DynamicStoredEvent serialized -> Maybe (StoredEvent proj)
-dynamicEventToStored deserialize (DynamicStoredEvent uuid vers seqNum event) =
+dynamicEventToStored :: (Serializable (Event proj) serialized) => DynamicStoredEvent serialized -> Maybe (StoredEvent proj)
+dynamicEventToStored (DynamicStoredEvent uuid vers seqNum event) =
   StoredEvent (AggregateId uuid) vers seqNum <$> deserialize event
 
-storedEventToDynamic :: (Event proj -> serialized) -> StoredEvent proj -> DynamicStoredEvent serialized
-storedEventToDynamic serialize (StoredEvent (AggregateId uuid) vers seqNum event) =
+storedEventToDynamic :: (Serializable (Event proj) serialized) => StoredEvent proj -> DynamicStoredEvent serialized
+storedEventToDynamic (StoredEvent (AggregateId uuid) vers seqNum event) =
   DynamicStoredEvent uuid vers seqNum (serialize event)
 
 newtype EventVersion = EventVersion { unEventVersion :: Int }
@@ -88,3 +91,16 @@ class (Projection proj, Monad m) => ProjectionStore m store proj | store -> proj
 --   { storedProjectionProjection :: proj
 --   , storedProjectionEventVersion :: EventVersion
 --   } deriving (Show)
+
+
+class Serializable a b where
+  serialize :: a -> b
+  deserialize :: b -> Maybe a
+
+instance (Typeable a) => Serializable a Dynamic where
+  serialize = toDyn
+  deserialize = fromDynamic
+
+instance (ToJSON a, FromJSON a) => Serializable a JSONString where
+  serialize = encodeJSON
+  deserialize = decodeJSON

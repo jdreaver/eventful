@@ -32,7 +32,7 @@ main = do
   projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   (bus :: EventBus JSONString) <- eventBus
   registerHandler eventStore bus (\event -> putStrLn $ "Recieved: " ++ show event)
-  registerProjection eventStore bus projectionStore decodeJSON
+  registerProjection eventStore bus projectionStore
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -40,7 +40,7 @@ main = do
     --publishEvent bus nil line
     --uuid <- nextRandom
     let uuid = nil
-    storeAndPublishEvent eventStore encodeJSON bus (AggregateId uuid) (AddItem line)
+    storeAndPublishEvent eventStore bus (AggregateId uuid) (AddItem line)
 
     threadDelay 100000
 

@@ -46,11 +46,11 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   atomically $ modifyTVar' queuesTVar ((:) output)
 
 registerProjection
-  :: (ProjectionStore IO projstore proj, SequencedEventStore IO store serialized)
-  => store -> EventBus serialized -> projstore -> (serialized -> Maybe (Event proj)) -> IO ()
-registerProjection eventStore bus projStore deserialize = do
+  :: (ProjectionStore IO projstore proj, SequencedEventStore IO store serialized, Serializable (Event proj) serialized)
+  => store -> EventBus serialized -> projstore -> IO ()
+registerProjection eventStore bus projStore = do
   seqNum <- latestApplied projStore
-  let handler event = applyEvents projStore (maybeToList $ dynamicEventToStored deserialize event)
+  let handler event = applyEvents projStore (maybeToList $ dynamicEventToStored event)
   registerHandlerStart seqNum eventStore bus handler
 
 handlerConsumer :: (Monad m) => Handler serialized m -> Consumer (DynamicStoredEvent serialized) m ()
@@ -63,8 +63,8 @@ publishEvent EventBus{..} event =
     mapM_ (`send` event) queues
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore m store proj)
-  => store -> (Event proj -> serialized) -> EventBus serialized -> AggregateId proj -> Event proj -> m ()
-storeAndPublishEvent store serialize bus uuid event = do
+  :: (MonadIO m, EventStore m store proj, Serializable (Event proj) serialized)
+  => store -> EventBus serialized -> AggregateId proj -> Event proj -> m ()
+storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]
-  mapM_ (publishEvent bus) (storedEventToDynamic serialize <$> storedEvents)
+  mapM_ (publishEvent bus) (storedEventToDynamic <$> storedEvents)

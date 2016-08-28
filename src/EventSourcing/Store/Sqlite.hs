@@ -101,7 +101,7 @@ sqliteEventStore pool = do
 instance (MonadIO m, FromJSON (Event proj), ToJSON (Event proj)) => EventStore m SqliteEventStore proj where
   getEvents store (AggregateId uuid) = do
     rawEvents <- sqliteEventStoreGetEvents store uuid
-    return $ mapMaybe (dynamicEventToStored decodeJSON) rawEvents
+    return $ mapMaybe dynamicEventToStored rawEvents
   storeEvents = sqliteEventStoreStoreEvents
 
   latestEventVersion store (AggregateId uuid) = sqliteEventStoreLatestEventVersion store uuid

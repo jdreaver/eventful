@@ -38,7 +38,7 @@ latestEventVersion' store uuid = maximumDef (-1) $ dynamicStoredEventVersion <$>
 
 lookupMemoryEventStore :: (Typeable (Event proj)) => MemoryEventStore -> UUID -> [StoredEvent proj]
 lookupMemoryEventStore store uuid =
-  mapMaybe (dynamicEventToStored fromDynamic) $ lookupMemoryEventStoreRaw store uuid
+  mapMaybe dynamicEventToStored $ lookupMemoryEventStoreRaw store uuid
 
 lookupMemoryEventStoreSeq :: (Typeable event) => MemoryEventStore -> SequenceNumber -> [DynamicStoredEvent event]
 lookupMemoryEventStoreSeq (MemoryEventStore seq') (SequenceNumber i) =
