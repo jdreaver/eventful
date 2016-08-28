@@ -44,10 +44,10 @@ main = do
 
     threadDelay 100000
 
-    es <- getEvents eventStore (AggregateId uuid) :: IO [StoredEvent ListProjection]
-    print (storedEventEvent <$> es)
+    es <- getEvents eventStore (AggregateId uuid) :: IO [StoredEvent (Event ListProjection)]
+    print es
 
-    es' <- getSequencedEvents eventStore 0 :: IO [DynamicStoredEvent JSONString]
+    es' <- getSequencedEvents eventStore 0 :: IO [StoredEvent JSONString]
     print es'
 
     p <- getProjection projectionStore uuid

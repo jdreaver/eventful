@@ -4,9 +4,8 @@ module EventSourcing.Store.Class
   , EventStoreInfo (..)
   , AggregateId (..)
   , StoredEvent (..)
-  , DynamicStoredEvent (..)
-  , dynamicEventToStored
-  , storedEventToDynamic
+  , serializeEvent
+  , deserializeEvent
   , EventVersion (..)
   , SequenceNumber (..)
   , ProjectionStore (..)
@@ -26,8 +25,8 @@ import EventSourcing.Projection
 import EventSourcing.UUID
 
 class (Monad m) => EventStore m store proj where
-  getEvents :: store -> AggregateId proj -> m [StoredEvent proj]
-  storeEvents :: store -> AggregateId proj -> [Event proj] -> m [StoredEvent proj]
+  getEvents :: store -> AggregateId proj -> m [StoredEvent (Event proj)]
+  storeEvents :: store -> AggregateId proj -> [Event proj] -> m [StoredEvent (Event proj)]
   latestEventVersion :: store -> AggregateId proj -> m EventVersion
 
   -- Some implementations might have a more efficient ways to do the this
@@ -35,10 +34,10 @@ class (Monad m) => EventStore m store proj where
   getAggregate store uuid = latestProjection . fmap storedEventEvent <$> getEvents store uuid
 
 class (Monad m) => SequencedEventStore m store serialized | store -> serialized where
-  getSequencedEvents :: store -> SequenceNumber -> m [DynamicStoredEvent serialized]
+  getSequencedEvents :: store -> SequenceNumber -> m [StoredEvent serialized]
 
   -- Some implementations might have a more efficient ways to do the this
-  getSequencedEventsPipe :: store -> SequenceNumber -> m (Producer (DynamicStoredEvent serialized) m ())
+  getSequencedEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent serialized) m ())
   getSequencedEventsPipe store = fmap (mapM_ yield) . getSequencedEvents store
 
 class (Monad m) => EventStoreInfo m store where
@@ -50,29 +49,20 @@ class (Monad m) => EventStoreInfo m store where
 newtype AggregateId proj = AggregateId { unAggregateId :: UUID }
   deriving (Show, Eq, Ord, ToJSON, FromJSON, PersistField, PersistFieldSql, FromHttpApiData)
 
-data StoredEvent proj
+data StoredEvent event
   = StoredEvent
-  { storedEventAggregateId :: AggregateId proj
+  { storedEventAggregateId :: UUID
   , storedEventVersion :: EventVersion
   , storedEventSequenceNumber :: SequenceNumber
-  , storedEventEvent :: Event proj
-  }
-
-data DynamicStoredEvent a
-  = DynamicStoredEvent
-  { dynamicStoredEventAggregateId :: UUID
-  , dynamicStoredEventVersion :: EventVersion
-  , dynamicStoredEventSequenceNumber :: SequenceNumber
-  , dynamicStoredEventEvent :: a
+  , storedEventEvent :: event
   } deriving (Show, Eq, Functor)
 
-dynamicEventToStored :: (Serializable (Event proj) serialized) => DynamicStoredEvent serialized -> Maybe (StoredEvent proj)
-dynamicEventToStored (DynamicStoredEvent uuid vers seqNum event) =
-  StoredEvent (AggregateId uuid) vers seqNum <$> deserialize event
+serializeEvent :: (Serializable event serialized) => StoredEvent event -> StoredEvent serialized
+serializeEvent = fmap serialize
 
-storedEventToDynamic :: (Serializable (Event proj) serialized) => StoredEvent proj -> DynamicStoredEvent serialized
-storedEventToDynamic (StoredEvent (AggregateId uuid) vers seqNum event) =
-  DynamicStoredEvent uuid vers seqNum (serialize event)
+deserializeEvent :: (Serializable event serialized) => StoredEvent serialized -> Maybe (StoredEvent event)
+deserializeEvent (StoredEvent uuid vers seqNum event) =
+  StoredEvent uuid vers seqNum <$> deserialize event
 
 newtype EventVersion = EventVersion { unEventVersion :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql)
@@ -84,7 +74,7 @@ newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
 class (Projection proj, Monad m) => ProjectionStore m store proj | store -> proj where
   latestApplied :: store -> m SequenceNumber
   getProjection :: store -> UUID -> m proj
-  applyEvents :: store -> [StoredEvent proj] -> m ()
+  applyEvents :: store -> [StoredEvent (Event proj)] -> m ()
 
 -- data StoredProjection proj
 --   = StoredProjection

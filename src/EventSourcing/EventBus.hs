@@ -19,11 +19,11 @@ import Pipes.Concurrent
 import EventSourcing.Projection
 import EventSourcing.Store
 
-type Handler serialized m = DynamicStoredEvent serialized -> m ()
+type Handler serialized m = StoredEvent serialized -> m ()
 
 data EventBus event =
   EventBus
-  { eventBusQueues :: TVar [Output (DynamicStoredEvent event)]
+  { eventBusQueues :: TVar [Output (StoredEvent event)]
   }
 
 eventBus :: IO (EventBus event)
@@ -50,13 +50,13 @@ registerProjection
   => store -> EventBus serialized -> projstore -> IO ()
 registerProjection eventStore bus projStore = do
   seqNum <- latestApplied projStore
-  let handler event = applyEvents projStore (maybeToList $ dynamicEventToStored event)
+  let handler event = applyEvents projStore (maybeToList $ deserializeEvent event)
   registerHandlerStart seqNum eventStore bus handler
 
-handlerConsumer :: (Monad m) => Handler serialized m -> Consumer (DynamicStoredEvent serialized) m ()
+handlerConsumer :: (Monad m) => Handler serialized m -> Consumer (StoredEvent serialized) m ()
 handlerConsumer handler = forever $ await >>= lift . handler
 
-publishEvent :: (MonadIO m) => EventBus serialized -> DynamicStoredEvent serialized -> m ()
+publishEvent :: (MonadIO m) => EventBus serialized -> StoredEvent serialized -> m ()
 publishEvent EventBus{..} event =
   liftIO $ void $ atomically $ do
     queues <- readTVar eventBusQueues
@@ -67,4 +67,4 @@ storeAndPublishEvent
   => store -> EventBus serialized -> AggregateId proj -> Event proj -> m ()
 storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]
-  mapM_ (publishEvent bus) (storedEventToDynamic <$> storedEvents)
+  mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
