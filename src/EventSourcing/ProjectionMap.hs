@@ -25,7 +25,7 @@ applyProjectionMap uuid event (ProjectionMap map') =
   ProjectionMap (Map.insert uuid newAP map')
   where
     newAP = case Map.lookup uuid map' of
-      Nothing -> seed
+      Nothing -> apply seed event
       Just ap -> apply ap event
 
 lookupProjectionMap :: (Projection proj) => UUID -> ProjectionMap proj -> proj

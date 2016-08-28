@@ -81,3 +81,7 @@ instance (Typeable a) => Serializable a Dynamic where
 instance (ToJSON a, FromJSON a) => Serializable a JSONString where
   serialize = encodeJSON
   deserialize = decodeJSON
+
+instance (Serializable a b) => Serializable (StoredEvent a) (StoredEvent b) where
+  serialize = serializeEvent
+  deserialize = deserializeEvent

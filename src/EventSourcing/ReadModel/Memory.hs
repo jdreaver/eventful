@@ -1,0 +1,39 @@
+module EventSourcing.ReadModel.Memory
+  ( MemoryReadModel (..)
+  , memoryReadModel
+  , projectionMemoryReadModel
+  ) where
+
+import Control.Concurrent.STM
+import Control.Monad.IO.Class
+
+import EventSourcing.Projection
+import EventSourcing.ProjectionMap
+import EventSourcing.ReadModel.Class
+import EventSourcing.Store
+
+data MemoryReadModel m serialized
+  = MemoryReadModel
+  { memoryReadModelLatestApplied :: TVar SequenceNumber
+  , memoryReadModelHandler :: StoredEvent serialized -> m ()
+  }
+
+instance (MonadIO m) => ReadModel m (MemoryReadModel m serialized) serialized where
+  latestApplied (MemoryReadModel appliedTVar _) = liftIO $ readTVarIO appliedTVar
+  applyEvents (MemoryReadModel appliedTVar handler) events = do
+    liftIO $ atomically $ modifyTVar appliedTVar $ \currentMax -> maximum (currentMax : (storedEventSequenceNumber <$> events))
+    mapM_ handler events
+
+memoryReadModel :: (Monad m) => [EventHandler m (StoredEvent serialized)] -> IO (MemoryReadModel m serialized)
+memoryReadModel handlers =
+  MemoryReadModel <$> newTVarIO 0 <*> return (combineHandlers handlers)
+
+
+projectionMemoryReadModel
+  :: (MonadIO m, Projection proj, Serializable (Event proj) serialized)
+  => IO (MemoryReadModel m serialized, TVar (ProjectionMap proj))
+projectionMemoryReadModel = do
+  tvar <- newTVarIO projectionMap
+  let handler (StoredEvent uuid _ _ event) = liftIO $ atomically $ modifyTVar' tvar (applyProjectionMap uuid event)
+  model <- memoryReadModel [EventHandler handler]
+  return (model, tvar)

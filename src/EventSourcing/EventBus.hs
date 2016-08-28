@@ -3,7 +3,7 @@ module EventSourcing.EventBus
   , EventBus (..)
   , eventBus
   , registerHandler
-  , registerProjection
+  , registerReadModel
   , publishEvent
   , storeAndPublishEvent
   ) where
@@ -12,7 +12,6 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Maybe (maybeToList)
 import Pipes
 import Pipes.Concurrent
 
@@ -46,12 +45,12 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
     performGC
   atomically $ modifyTVar' queuesTVar ((:) output)
 
-registerProjection
-  :: (ProjectionReadModel IO projstore proj, SequencedEventStore IO store serialized, Serializable (Event proj) serialized)
-  => store -> EventBus serialized -> projstore -> IO ()
-registerProjection eventStore bus projStore = do
-  seqNum <- latestApplied projStore
-  let handler event = applyEvents projStore (maybeToList $ deserializeEvent event)
+registerReadModel
+  :: (ReadModel IO model serialized, SequencedEventStore IO store serialized)
+  => store -> EventBus serialized -> model -> IO ()
+registerReadModel eventStore bus model = do
+  seqNum <- latestApplied model
+  let handler event = applyEvents model [event]
   registerHandlerStart seqNum eventStore bus handler
 
 handlerConsumer :: (Monad m) => Handler serialized m -> Consumer (StoredEvent serialized) m ()

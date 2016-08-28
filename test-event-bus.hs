@@ -17,7 +17,6 @@ import Control.Monad (forever)
 import Control.Monad.Logger (runStderrLoggingT)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.List (foldl')
 import Database.Persist.Sqlite (createSqlitePool)
 
 import EventSourcing
@@ -29,10 +28,10 @@ main = do
   (eventStore :: MemorySnapshotStore IO SqliteEventStore ListProjection JSONString) <- memorySnapshotStore sqlEventStore
   --eventStore <- newMemoryEventStore
 
-  projectionStore <- newMemoryProjectionStore :: IO (MemoryProjectionStore ListProjection)
   (bus :: EventBus JSONString) <- eventBus
+  (projectionReadModel, projectionTVar) <- projectionMemoryReadModel
   registerHandler eventStore bus (\event -> putStrLn $ "Recieved: " ++ show event)
-  registerProjection eventStore bus projectionStore
+  registerReadModel eventStore bus (projectionReadModel :: MemoryReadModel IO JSONString)
   putStrLn "Enter events:"
   forever $ do
     line <- getLine
@@ -50,37 +49,11 @@ main = do
     es' <- getSequencedEvents eventStore 0 :: IO [StoredEvent JSONString]
     print es'
 
-    p <- getProjection projectionStore uuid
+    (p :: ListProjection) <- lookupProjectionMap uuid <$> readTVarIO projectionTVar
     print p
 
     p' <- getAggregate eventStore (AggregateId uuid :: AggregateId ListProjection)
     print p'
-
--- newtype MemoryEventStore e = MemoryEventStore { unMemoryEventStore :: TVar [e] }
-
--- instance EventStore (MemoryEventStore e) IO e where
---   getUuids _ = return []
---   getEvents (MemoryEventStore tvar) _ = atomically $ readTVar tvar
---   storeEvents (MemoryEventStore tvar) _ events = atomically $ modifyTVar' tvar (++ events)
-
--- newMemoryEventStore :: IO (MemoryEventStore e)
--- newMemoryEventStore = do
---   tvar <- atomically $ newTVar []
---   return (MemoryEventStore tvar)
-
-newtype MemoryProjectionStore p = MemoryProjectionStore { unMemoryProjectionStore :: TVar p }
-
-instance (Projection p) => ProjectionReadModel IO (MemoryProjectionStore p) p where
-  latestApplied _ = return 0
-  getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
-  applyEvents (MemoryProjectionStore tvar) storedEvents =
-    let events = storedEventEvent <$> storedEvents
-    in atomically $ modifyTVar' tvar (\p -> foldl' apply p events)
-
-newMemoryProjectionStore :: (Projection p) => IO (MemoryProjectionStore p)
-newMemoryProjectionStore = do
-  tvar <- atomically $ newTVar seed
-  return (MemoryProjectionStore tvar)
 
 
 newtype ListProjection = ListProjection { unListProjection :: [String] }

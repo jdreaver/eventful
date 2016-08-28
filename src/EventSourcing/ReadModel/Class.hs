@@ -1,18 +1,21 @@
 module EventSourcing.ReadModel.Class
-  ( ProjectionReadModel (..)
+  ( ReadModel (..)
+  , EventHandler (..)
+  , combineHandlers
   ) where
 
-import EventSourcing.Projection
+import Control.Monad (mapM_)
+
 import EventSourcing.Store
-import EventSourcing.UUID
 
-class (Projection proj, Monad m) => ProjectionReadModel m store proj | store -> proj where
-  latestApplied :: store -> m SequenceNumber
-  getProjection :: store -> UUID -> m proj
-  applyEvents :: store -> [StoredEvent (Event proj)] -> m ()
+class (Monad m) => ReadModel m model serialized | model -> serialized where
+  latestApplied :: model -> m SequenceNumber
+  applyEvents :: model -> [StoredEvent serialized] -> m ()
 
--- data StoredProjection proj
---   = StoredProjection
---   { storedProjectionProjection :: proj
---   , storedProjectionEventVersion :: EventVersion
---   } deriving (Show)
+data EventHandler m serialized = forall event. (Serializable event serialized, Monad m) => EventHandler (event -> m ())
+
+combineHandlers :: (Monad m) => [EventHandler m serialized] -> (serialized -> m ())
+combineHandlers handlers event = mapM_ ($ event) (mkHandler <$> handlers)
+
+mkHandler :: EventHandler m serialized -> (serialized -> m ())
+mkHandler (EventHandler handler) event = maybe (return ()) handler (deserialize event)

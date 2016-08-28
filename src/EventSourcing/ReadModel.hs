@@ -3,3 +3,4 @@ module EventSourcing.ReadModel
   ) where
 
 import EventSourcing.ReadModel.Class as X
+import EventSourcing.ReadModel.Memory as X
