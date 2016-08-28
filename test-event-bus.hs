@@ -70,7 +70,7 @@ main = do
 
 newtype MemoryProjectionStore p = MemoryProjectionStore { unMemoryProjectionStore :: TVar p }
 
-instance (Projection p) => ProjectionStore IO (MemoryProjectionStore p) p where
+instance (Projection p) => ProjectionReadModel IO (MemoryProjectionStore p) p where
   latestApplied _ = return 0
   getProjection (MemoryProjectionStore tvar) _ = atomically $ readTVar tvar
   applyEvents (MemoryProjectionStore tvar) storedEvents =

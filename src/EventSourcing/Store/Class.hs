@@ -8,7 +8,6 @@ module EventSourcing.Store.Class
   , deserializeEvent
   , EventVersion (..)
   , SequenceNumber (..)
-  , ProjectionStore (..)
   , Serializable (..)
   ) where
 
@@ -70,18 +69,6 @@ newtype EventVersion = EventVersion { unEventVersion :: Int }
 newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql,
             PathPiece, ToHttpApiData, FromHttpApiData)
-
-class (Projection proj, Monad m) => ProjectionStore m store proj | store -> proj where
-  latestApplied :: store -> m SequenceNumber
-  getProjection :: store -> UUID -> m proj
-  applyEvents :: store -> [StoredEvent (Event proj)] -> m ()
-
--- data StoredProjection proj
---   = StoredProjection
---   { storedProjectionProjection :: proj
---   , storedProjectionEventVersion :: EventVersion
---   } deriving (Show)
-
 
 class Serializable a b where
   serialize :: a -> b

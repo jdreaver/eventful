@@ -16,6 +16,7 @@ import Data.Maybe (maybeToList)
 import Pipes
 import Pipes.Concurrent
 
+import EventSourcing.ReadModel
 import EventSourcing.Projection
 import EventSourcing.Store
 
@@ -46,7 +47,7 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   atomically $ modifyTVar' queuesTVar ((:) output)
 
 registerProjection
-  :: (ProjectionStore IO projstore proj, SequencedEventStore IO store serialized, Serializable (Event proj) serialized)
+  :: (ProjectionReadModel IO projstore proj, SequencedEventStore IO store serialized, Serializable (Event proj) serialized)
   => store -> EventBus serialized -> projstore -> IO ()
 registerProjection eventStore bus projStore = do
   seqNum <- latestApplied projStore
