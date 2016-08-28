@@ -40,13 +40,8 @@ lookupMemoryEventStore :: (Typeable (Event proj)) => MemoryEventStore -> UUID ->
 lookupMemoryEventStore store uuid =
   mapMaybe deserializeEvent $ lookupMemoryEventStoreRaw store uuid
 
-lookupMemoryEventStoreSeq :: (Typeable event) => MemoryEventStore -> SequenceNumber -> [StoredEvent event]
-lookupMemoryEventStoreSeq (MemoryEventStore seq') (SequenceNumber i) =
-  mapMaybe dynamicEventFromDyn . toList $ Seq.drop i seq'
-
-dynamicEventFromDyn :: (Typeable event) => StoredEvent Dynamic -> Maybe (StoredEvent event)
-dynamicEventFromDyn (StoredEvent uuid version seqNum dynEvent) =
-  StoredEvent uuid version seqNum <$> fromDynamic dynEvent
+lookupMemoryEventStoreSeq :: MemoryEventStore -> SequenceNumber -> [StoredEvent Dynamic]
+lookupMemoryEventStoreSeq (MemoryEventStore seq') (SequenceNumber i) = toList $ Seq.drop i seq'
 
 storeMemoryEventStore
   :: (Typeable (Event proj))

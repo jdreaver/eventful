@@ -17,6 +17,7 @@ import Database.Persist.Sqlite as X
 
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Maybe
 import Test.Hspec
 
 import EventSourcing
@@ -89,14 +90,15 @@ eventStoreSpec createStore = do
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO createStore
     (uuid1, uuid2) <- runIO $ insertExampleEvents store
+    let (AggregateId uuid1', AggregateId uuid2') = (uuid1, uuid2)
 
     it "should have the correct events for each aggregate" $ do
       events1 <- getEvents store uuid1
       events2 <- getEvents store uuid2
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
-      (storedEventAggregateId <$> events1) `shouldBe` [uuid1, uuid1]
-      (storedEventAggregateId <$> events2) `shouldBe` [uuid2, uuid2, uuid2]
+      (storedEventAggregateId <$> events1) `shouldBe` [uuid1', uuid1']
+      (storedEventAggregateId <$> events2) `shouldBe` [uuid2', uuid2', uuid2']
       (storedEventVersion <$> events1) `shouldBe` [0, 1]
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
@@ -105,13 +107,15 @@ eventStoreSpec createStore = do
       getAggregate store uuid2 `shouldReturn` Counter 10
 
 
-sequencedEventStoreSpec :: (EventStore IO store Counter, SequencedEventStore IO store (Event Counter)) => IO store -> Spec
+sequencedEventStoreSpec
+  :: (Serializable (Event Counter) serialized, EventStore IO store Counter, SequencedEventStore IO store serialized)
+  => IO store -> Spec
 sequencedEventStoreSpec createStore = do
   context "when the event store is empty" $ do
     store <- runIO createStore
 
     it "shouldn't have any events" $ do
-      getSequencedEvents store 0 `shouldReturn` ([] :: [DynamicStoredEvent (Event Counter)])
+      length <$> getSequencedEvents store 0 `shouldReturn` 0
 
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO createStore
@@ -119,10 +123,11 @@ sequencedEventStoreSpec createStore = do
 
     it "should have the correct events in global order" $ do
       events' <- getSequencedEvents store 0
-      (dynamicStoredEventEvent <$> events') `shouldBe` Added <$> [1..5]
-      (dynamicStoredEventAggregateId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (dynamicStoredEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
-      (dynamicStoredEventSequenceNumber <$> events') `shouldBe` [1..5]
+      let deserializedEvents = mapMaybe deserializeEvent events'
+      (storedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
+      (storedEventAggregateId <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (storedEventVersion <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]
+      (storedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
 
 insertExampleEvents :: (EventStore IO store Counter) => store -> IO (AggregateId Counter, AggregateId Counter)
 insertExampleEvents store = do
