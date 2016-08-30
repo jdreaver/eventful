@@ -30,12 +30,12 @@ eventBus :: IO (EventBus event)
 eventBus = EventBus <$> atomically (newTVar [])
 
 registerHandler
-  :: (SequencedEventStore IO store serialized)
+  :: (EventStore IO store serialized)
   => store -> EventBus serialized -> Handler serialized IO -> IO ()
 registerHandler = registerHandlerStart 0
 
 registerHandlerStart
-  :: (SequencedEventStore IO store serialized)
+  :: (EventStore IO store serialized)
   => SequenceNumber -> store -> EventBus serialized -> Handler serialized IO -> IO ()
 registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   (output, input) <- spawn unbounded
@@ -46,7 +46,7 @@ registerHandlerStart seqNum store (EventBus queuesTVar) handler = do
   atomically $ modifyTVar' queuesTVar ((:) output)
 
 registerReadModel
-  :: (ReadModel IO model serialized, SequencedEventStore IO store serialized)
+  :: (ReadModel IO model serialized, EventStore IO store serialized)
   => store -> EventBus serialized -> model -> IO ()
 registerReadModel eventStore bus model = do
   seqNum <- latestApplied model
@@ -63,7 +63,7 @@ publishEvent EventBus{..} event =
     mapM_ (`send` event) queues
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore m store proj, Serializable (Event proj) serialized)
+  :: (MonadIO m, EventStore m store serialized, Serializable (Event proj) serialized)
   => store -> EventBus serialized -> AggregateId proj -> Event proj -> m ()
 storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]

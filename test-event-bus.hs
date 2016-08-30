@@ -24,8 +24,7 @@ import EventSourcing
 main :: IO ()
 main = do
   pool <- runStderrLoggingT $ createSqlitePool "database.db" 2
-  sqlEventStore <- sqliteEventStore pool
-  (eventStore :: MemorySnapshotStore IO SqliteEventStore ListProjection JSONString) <- memorySnapshotStore sqlEventStore
+  eventStore <- sqliteEventStore pool
   --eventStore <- newMemoryEventStore
 
   (bus :: EventBus JSONString) <- eventBus

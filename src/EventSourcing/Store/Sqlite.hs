@@ -14,15 +14,13 @@ module EventSourcing.Store.Sqlite
   ) where
 
 import Control.Monad.Reader
-import Data.Aeson
 import Data.List.Split (chunksOf)
-import Data.Maybe (listToMaybe, mapMaybe, maybe)
+import Data.Maybe (listToMaybe, maybe)
 import Database.Persist
 import Database.Persist.Sql
 import Database.Persist.TH
 
 import EventSourcing.Aeson
-import EventSourcing.Projection
 import EventSourcing.Store.Class
 import EventSourcing.UUID
 
@@ -98,19 +96,12 @@ sqliteEventStore pool = do
 
   return $ SqliteEventStore pool
 
-instance (MonadIO m, FromJSON (Event proj), ToJSON (Event proj)) => EventStore m SqliteEventStore proj where
-  getEvents store (AggregateId uuid) = do
-    rawEvents <- sqliteEventStoreGetEvents store uuid
-    return $ mapMaybe deserializeEvent rawEvents
-  storeEvents = sqliteEventStoreStoreEvents
-
-  latestEventVersion store (AggregateId uuid) = sqliteEventStoreLatestEventVersion store uuid
-
-instance (MonadIO m) => SequencedEventStore m SqliteEventStore JSONString where
-  getSequencedEvents = sqliteEventStoreGetSequencedEvents
-
-instance (MonadIO m) => EventStoreInfo m SqliteEventStore where
+instance (MonadIO m) => EventStore m SqliteEventStore JSONString where
   getAllUuids = sqliteEventStoreGetUuids
+  getEventsRaw = sqliteEventStoreGetEvents
+  storeEventsRaw = sqliteEventStoreStoreEvents
+  latestEventVersion = sqliteEventStoreLatestEventVersion
+  getSequencedEvents = sqliteEventStoreGetSequencedEvents
 
 sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore -> m [UUID]
 sqliteEventStoreGetUuids (SqliteEventStore pool) =
@@ -125,15 +116,14 @@ sqliteEventStoreGetSequencedEvents (SqliteEventStore pool) seqNum =
   liftIO $ runSqlPool (getAllEventsFromSequence seqNum) pool
 
 sqliteEventStoreStoreEvents
-  :: (MonadIO m, ToJSON (Event proj))
-  => SqliteEventStore -> AggregateId proj -> [Event proj] -> m [StoredEvent (Event proj)]
-sqliteEventStoreStoreEvents (SqliteEventStore pool) (AggregateId uuid) events =
+  :: (MonadIO m)
+  => SqliteEventStore -> UUID -> [JSONString] -> m [StoredEvent JSONString]
+sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
   liftIO $ runSqlPool doInsert pool
   where
     doInsert = do
       versionNum <- maxEventVersion uuid
-      let serialized = encodeJSON <$> events
-          entities = zipWith (SqliteEvent uuid) [versionNum + 1..] serialized
+      let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
       sequenceNums <- bulkInsert entities
       return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
         sequenceNums [versionNum + 1..] events

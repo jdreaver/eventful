@@ -66,7 +66,9 @@ deriveJSON (unPrefix "_counterCommandError") 'OutOfBounds
 
 -- Test harness for stores
 
-eventStoreSpec :: (EventStoreInfo IO store, EventStore IO store Counter) => IO store -> Spec
+eventStoreSpec
+  :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
+  => IO store -> Spec
 eventStoreSpec createStore = do
   context "when the event store is empty" $ do
     store <- runIO createStore
@@ -108,7 +110,7 @@ eventStoreSpec createStore = do
 
 
 sequencedEventStoreSpec
-  :: (Serializable (Event Counter) serialized, EventStore IO store Counter, SequencedEventStore IO store serialized)
+  :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
   => IO store -> Spec
 sequencedEventStoreSpec createStore = do
   context "when the event store is empty" $ do
@@ -129,7 +131,9 @@ sequencedEventStoreSpec createStore = do
       (storedEventVersion <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]
       (storedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
 
-insertExampleEvents :: (EventStore IO store Counter) => store -> IO (AggregateId Counter, AggregateId Counter)
+insertExampleEvents
+  :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
+  => store -> IO (AggregateId Counter, AggregateId Counter)
 insertExampleEvents store = do
   let uuid1 = AggregateId (uuidFromInteger 1)
       uuid2 = AggregateId (uuidFromInteger 2)

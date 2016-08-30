@@ -1,7 +1,7 @@
 module EventSourcing.Store.Class
   ( EventStore (..)
-  , SequencedEventStore (..)
-  , EventStoreInfo (..)
+  , getEvents
+  , storeEvents
   , AggregateId (..)
   , StoredEvent (..)
   , serializeEvent
@@ -13,6 +13,7 @@ module EventSourcing.Store.Class
 
 import Data.Aeson
 import Data.Dynamic
+import Data.Maybe (mapMaybe)
 import Database.Persist (PersistField)
 import Database.Persist.Sql (PersistFieldSql)
 import Pipes
@@ -23,24 +24,33 @@ import EventSourcing.Aeson
 import EventSourcing.Projection
 import EventSourcing.UUID
 
-class (Monad m) => EventStore m store proj where
-  getEvents :: store -> AggregateId proj -> m [StoredEvent (Event proj)]
-  storeEvents :: store -> AggregateId proj -> [Event proj] -> m [StoredEvent (Event proj)]
-  latestEventVersion :: store -> AggregateId proj -> m EventVersion
+class (Monad m) => EventStore m store serialized | store -> serialized where
+  getAllUuids :: store -> m [UUID]
+  getEventsRaw :: store -> UUID -> m [StoredEvent serialized]
+  storeEventsRaw :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
+  latestEventVersion :: store -> UUID -> m EventVersion
 
   -- Some implementations might have a more efficient ways to do the this
-  getAggregate :: (Projection proj) => store -> AggregateId proj -> m proj
+  getAggregate :: (Projection proj, Serializable (Event proj) serialized) => store -> AggregateId proj -> m proj
   getAggregate store uuid = latestProjection . fmap storedEventEvent <$> getEvents store uuid
 
-class (Monad m) => SequencedEventStore m store serialized | store -> serialized where
   getSequencedEvents :: store -> SequenceNumber -> m [StoredEvent serialized]
 
   -- Some implementations might have a more efficient ways to do the this
   getSequencedEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent serialized) m ())
   getSequencedEventsPipe store = fmap (mapM_ yield) . getSequencedEvents store
 
-class (Monad m) => EventStoreInfo m store where
-  getAllUuids :: store -> m [UUID]
+getEvents
+  :: (Serializable (Event proj) serialized, EventStore m store serialized)
+  => store -> AggregateId proj -> m [StoredEvent (Event proj)]
+getEvents store (AggregateId uuid) = mapMaybe deserialize <$> getEventsRaw store uuid
+
+storeEvents
+  :: (Serializable (Event proj) serialized, EventStore m store serialized)
+  => store -> AggregateId proj -> [Event proj] -> m [StoredEvent (Event proj)]
+storeEvents store (AggregateId uuid) events = do
+  serialized <- storeEventsRaw store uuid (serialize <$> events)
+  return $ zipWith (<$) events serialized
 
 -- | This type ensures our stored events have the correct type, but it also
 -- allows us to avoid type ambiguity errors in event stores by providing the
