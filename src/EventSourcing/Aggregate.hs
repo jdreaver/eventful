@@ -24,8 +24,13 @@ class (Projection a) => Aggregate a where
 -- aggregate root (same UUID) at once. There is a race condition between
 -- getting the projection and validating the command.
 eventStoreCommand
-  :: (MonadIO m, EventStore m store serialized, Aggregate a, Serializable (Event a) serialized)
-  => store -> EventBus serialized -> AggregateId a -> Command a -> m (Maybe (CommandError a))
+  :: ( MonadIO m
+     , Aggregate a
+     , EventStore m store serializedes
+     , Serializable (Event a) serializedes
+     , Serializable (Event a) serializedeb
+     )
+  => store -> EventBus serializedeb -> AggregateId a -> Command a -> m (Maybe (CommandError a))
 eventStoreCommand store bus uuid cmd = do
   proj <- getAggregate store uuid
   case command proj cmd of

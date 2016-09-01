@@ -21,9 +21,9 @@ import EventSourcing.Store
 
 type Handler serialized m = StoredEvent serialized -> m ()
 
-data EventBus event =
+data EventBus serialized =
   EventBus
-  { eventBusQueues :: TVar [Output (StoredEvent event)]
+  { eventBusQueues :: TVar [Output (StoredEvent serialized)]
   }
 
 eventBus :: IO (EventBus event)
@@ -63,8 +63,12 @@ publishEvent EventBus{..} event =
     mapM_ (`send` event) queues
 
 storeAndPublishEvent
-  :: (MonadIO m, EventStore m store serialized, Serializable (Event proj) serialized)
-  => store -> EventBus serialized -> AggregateId proj -> Event proj -> m ()
+  :: ( MonadIO m
+     , EventStore m store serializedes
+     , Serializable (Event proj) serializedes
+     , Serializable (Event proj) serializedeb
+     )
+  => store -> EventBus serializedeb -> AggregateId proj -> Event proj -> m ()
 storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]
   mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
