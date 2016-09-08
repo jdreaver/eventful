@@ -20,7 +20,6 @@ import Pipes
 import Web.HttpApiData
 import Web.PathPieces
 
-import EventSourcing.Aeson
 import EventSourcing.Projection
 import EventSourcing.UUID
 
@@ -87,10 +86,6 @@ class Serializable a b where
 instance (Typeable a) => Serializable a Dynamic where
   serialize = toDyn
   deserialize = fromDynamic
-
-instance (ToJSON a, FromJSON a) => Serializable a JSONString where
-  serialize = encodeJSON
-  deserialize = decodeJSON
 
 instance (Serializable a b) => Serializable (StoredEvent a) (StoredEvent b) where
   serialize = serializeEvent

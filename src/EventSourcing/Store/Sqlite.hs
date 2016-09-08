@@ -11,6 +11,7 @@ module EventSourcing.Store.Sqlite
   , sqliteMaxVariableNumber
   , SqliteEventStore
   , sqliteEventStore
+  , JSONString
   ) where
 
 import Control.Monad.Reader
@@ -20,8 +21,8 @@ import Database.Persist
 import Database.Persist.Sql
 import Database.Persist.TH
 
-import EventSourcing.Aeson
 import EventSourcing.Store.Class
+import EventSourcing.Store.Sqlite.Internal
 import EventSourcing.UUID
 
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|

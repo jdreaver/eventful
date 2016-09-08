@@ -4,6 +4,7 @@ maintainer: David Reaver
 
 dependencies:
   - base
+  - todomvc-common
   - aeson
   - async
   - bytestring
