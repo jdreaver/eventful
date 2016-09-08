@@ -15,7 +15,7 @@ import qualified Data.Set as Set
 import Safe (maximumDef)
 
 import EventSourcing.Store.Class
-import EventSourcing.UUID
+import TodoCommon
 
 data MemoryEventStore
   = MemoryEventStore { unMemoryEventStore :: Seq (StoredEvent Dynamic)}

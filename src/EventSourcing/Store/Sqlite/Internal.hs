@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module EventSourcing.Store.Sqlite.Internal
   ( JSONString
   ) where
@@ -6,6 +8,7 @@ import Data.ByteString
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Database.Persist
 import Database.Persist.Sql
+import Data.UUID
 
 import EventSourcing.Store.Class
 import TodoCommon
@@ -26,3 +29,15 @@ encodeJSON = JSONString . toStrict . encode
 
 decodeJSON :: (FromJSON a) => JSONString -> Maybe a
 decodeJSON = decode . fromStrict . unJSONString
+
+
+instance PersistField UUID where
+  toPersistValue = PersistText . uuidToText
+  fromPersistValue (PersistText t) =
+    case uuidFromText t of
+      Just x -> Right x
+      Nothing -> Left "Invalid UUID"
+  fromPersistValue _ = Left "Not PersistDBSpecific"
+
+instance PersistFieldSql UUID where
+  sqlType _ = SqlOther "uuid"

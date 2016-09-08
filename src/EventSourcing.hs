@@ -8,4 +8,3 @@ import EventSourcing.Projection as X
 import EventSourcing.ProjectionMap as X
 import EventSourcing.ReadModel as X
 import EventSourcing.Store as X
-import EventSourcing.UUID as X

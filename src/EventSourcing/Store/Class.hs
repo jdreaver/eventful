@@ -21,7 +21,7 @@ import Web.HttpApiData
 import Web.PathPieces
 
 import EventSourcing.Projection
-import EventSourcing.UUID
+import TodoCommon
 
 class (Monad m) => EventStore m store serialized | store -> serialized where
   getAllUuids :: store -> m [UUID]
@@ -55,7 +55,7 @@ storeEvents store (AggregateId uuid) events = do
 -- allows us to avoid type ambiguity errors in event stores by providing the
 -- phantom projection type.
 newtype AggregateId proj = AggregateId { unAggregateId :: UUID }
-  deriving (Show, Eq, Ord, ToJSON, FromJSON, PersistField, PersistFieldSql, FromHttpApiData)
+  deriving (Show, Eq, Ord, ToJSON, FromJSON, FromHttpApiData)
 
 data StoredEvent event
   = StoredEvent
