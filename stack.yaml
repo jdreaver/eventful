@@ -1,5 +1,6 @@
 resolver: nightly-2016-09-03
 packages:
+  - 'eventful-bus'
   - 'eventful-core'
   - 'eventful-memory'
   - 'eventful-sqlite'

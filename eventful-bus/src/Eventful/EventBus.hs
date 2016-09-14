@@ -6,6 +6,7 @@ module Eventful.EventBus
   , registerReadModel
   , publishEvent
   , storeAndPublishEvent
+  , eventStoreCommand
   ) where
 
 import Control.Concurrent.Async
@@ -15,6 +16,7 @@ import Control.Monad.IO.Class
 import Pipes
 import Pipes.Concurrent
 
+import Eventful.Aggregate
 import Eventful.ReadModel
 import Eventful.Projection
 import Eventful.Store
@@ -72,3 +74,28 @@ storeAndPublishEvent
 storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]
   mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
+
+-- TODO: Move this to a class so that individual event stores can decide to
+-- make this more efficient.
+getSequencedEventsPipe
+  :: (EventStore m store serialized)
+  => store -> SequenceNumber -> m (Producer (StoredEvent serialized) m ())
+getSequencedEventsPipe store = fmap (mapM_ yield) . getSequencedEvents store
+
+
+-- TODO: This is not safe when multiple writers apply a command to the same
+-- aggregate root (same UUID) at once. There is a race condition between
+-- getting the projection and validating the command.
+eventStoreCommand
+  :: ( MonadIO m
+     , Aggregate a
+     , EventStore m store serializedes
+     , Serializable (Event a) serializedes
+     , Serializable (Event a) serializedeb
+     )
+  => store -> EventBus serializedeb -> AggregateId a -> Command a -> m (Maybe (CommandError a))
+eventStoreCommand store bus uuid cmd = do
+  proj <- getAggregate store uuid
+  case command proj cmd of
+    (Left err) -> return (Just err)
+    (Right event) -> storeAndPublishEvent store bus uuid event >> return Nothing

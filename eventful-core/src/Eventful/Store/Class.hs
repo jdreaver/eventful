@@ -16,7 +16,6 @@ import Data.Dynamic
 import Data.Maybe (mapMaybe)
 import Database.Persist (PersistField)
 import Database.Persist.Sql (PersistFieldSql)
-import Pipes
 import Web.HttpApiData
 import Web.PathPieces
 
@@ -34,10 +33,6 @@ class (Monad m) => EventStore m store serialized | store -> serialized where
   getAggregate store uuid = latestProjection . fmap storedEventEvent <$> getEvents store uuid
 
   getSequencedEvents :: store -> SequenceNumber -> m [StoredEvent serialized]
-
-  -- Some implementations might have a more efficient ways to do the this
-  getSequencedEventsPipe :: store -> SequenceNumber -> m (Producer (StoredEvent serialized) m ())
-  getSequencedEventsPipe store = fmap (mapM_ yield) . getSequencedEvents store
 
 getEvents
   :: (Serializable (Event proj) serialized, EventStore m store serialized)
