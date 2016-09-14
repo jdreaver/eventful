@@ -1,4 +1,4 @@
-module EventSourcing.EventBus
+module Eventful.EventBus
   ( Handler
   , EventBus (..)
   , eventBus
@@ -15,9 +15,9 @@ import Control.Monad.IO.Class
 import Pipes
 import Pipes.Concurrent
 
-import EventSourcing.ReadModel
-import EventSourcing.Projection
-import EventSourcing.Store
+import Eventful.ReadModel
+import Eventful.Projection
+import Eventful.Store
 
 type Handler serialized m = StoredEvent serialized -> m ()
 

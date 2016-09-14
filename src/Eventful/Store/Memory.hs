@@ -1,4 +1,4 @@
-module EventSourcing.Store.Memory
+module Eventful.Store.Memory
   ( MemoryEventStore (..)
   , memoryEventStoreTVar
   , memoryEventStoreIORef
@@ -14,8 +14,8 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Safe (maximumDef)
 
-import EventSourcing.Store.Class
-import EventSourcing.UUID
+import Eventful.Store.Class
+import Eventful.UUID
 
 data MemoryEventStore
   = MemoryEventStore { unMemoryEventStore :: Seq (StoredEvent Dynamic)}

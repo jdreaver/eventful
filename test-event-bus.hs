@@ -19,7 +19,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Database.Persist.Sqlite (createSqlitePool)
 
-import EventSourcing
+import Eventful
 
 main :: IO ()
 main = do

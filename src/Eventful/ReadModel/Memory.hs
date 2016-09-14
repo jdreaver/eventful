@@ -1,4 +1,4 @@
-module EventSourcing.ReadModel.Memory
+module Eventful.ReadModel.Memory
   ( MemoryReadModel (..)
   , memoryReadModel
   , projectionMemoryReadModel
@@ -7,10 +7,10 @@ module EventSourcing.ReadModel.Memory
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 
-import EventSourcing.Projection
-import EventSourcing.ProjectionMap
-import EventSourcing.ReadModel.Class
-import EventSourcing.Store
+import Eventful.Projection
+import Eventful.ProjectionMap
+import Eventful.ReadModel.Class
+import Eventful.Store
 
 data MemoryReadModel m serialized
   = MemoryReadModel

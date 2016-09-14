@@ -1,6 +1,6 @@
 -- | Common Aeson helpers for event types.
 
-module EventSourcing.Aeson
+module Eventful.Aeson
   ( module X
   , sumRecordOptions
   , unPrefix

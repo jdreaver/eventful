@@ -20,7 +20,7 @@ import Data.Aeson.TH
 import Data.Maybe
 import Test.Hspec
 
-import EventSourcing
+import Eventful
 
 -- | Example Projection/Aggregate
 newtype Counter = Counter { unCounter :: Int }

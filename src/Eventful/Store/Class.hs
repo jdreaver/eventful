@@ -1,4 +1,4 @@
-module EventSourcing.Store.Class
+module Eventful.Store.Class
   ( EventStore (..)
   , getEvents
   , storeEvents
@@ -20,8 +20,8 @@ import Pipes
 import Web.HttpApiData
 import Web.PathPieces
 
-import EventSourcing.Projection
-import EventSourcing.UUID
+import Eventful.Projection
+import Eventful.UUID
 
 class (Monad m) => EventStore m store serialized | store -> serialized where
   getAllUuids :: store -> m [UUID]

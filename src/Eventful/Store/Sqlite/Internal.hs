@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module EventSourcing.Store.Sqlite.Internal
+module Eventful.Store.Sqlite.Internal
   ( JSONString
   ) where
 
@@ -11,8 +11,8 @@ import Database.Persist
 import Database.Persist.Sql
 import Data.UUID
 
-import EventSourcing.Store.Class
-import EventSourcing.UUID
+import Eventful.Store.Class
+import Eventful.UUID
 
 -- | A more specific type than just ByteString for JSON data.
 newtype JSONString = JSONString { unJSONString :: ByteString }

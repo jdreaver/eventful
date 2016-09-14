@@ -1,4 +1,4 @@
-module EventSourcing.Projection
+module Eventful.Projection
   ( Projection (..)
   , latestProjection
   , allProjections

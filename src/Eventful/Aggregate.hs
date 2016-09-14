@@ -1,15 +1,15 @@
 -- | Defines an Aggregate type-class from DDD parlance.
 
-module EventSourcing.Aggregate
+module Eventful.Aggregate
   ( Aggregate (..)
   , eventStoreCommand
   ) where
 
 import Control.Monad.IO.Class
 
-import EventSourcing.EventBus
-import EventSourcing.Projection
-import EventSourcing.Store
+import Eventful.EventBus
+import Eventful.Projection
+import Eventful.Store
 
 
 -- | An aggregate uses the information currently in a 'Projection' to produces

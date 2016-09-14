@@ -1,10 +1,10 @@
-module EventSourcing.Store.SqliteSpec (spec) where
+module Eventful.Store.SqliteSpec (spec) where
 
 import TestImport
 
 import Test.Hspec
 
-import EventSourcing.Store.Sqlite
+import Eventful.Store.Sqlite
 
 makeStore :: (MonadIO m) => m SqliteEventStore
 makeStore = liftIO $ runNoLoggingT (createSqlitePool ":memory:" 1) >>= sqliteEventStore

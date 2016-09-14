@@ -1,10 +1,10 @@
-module EventSourcing.Store.MemorySpec (spec) where
+module Eventful.Store.MemorySpec (spec) where
 
 import TestImport
 
 import Test.Hspec
 
-import EventSourcing.Store.Memory
+import Eventful.Store.Memory
 
 spec :: Spec
 spec = do

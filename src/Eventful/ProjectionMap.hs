@@ -1,4 +1,4 @@
-module EventSourcing.ProjectionMap
+module Eventful.ProjectionMap
   ( ProjectionMap (..)
   , projectionMap
   , applyProjectionMap
@@ -9,8 +9,8 @@ import Data.Map.Strict(Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 
-import EventSourcing.Projection
-import EventSourcing.UUID
+import Eventful.Projection
+import Eventful.UUID
 
 -- | Holds multiple 'Projection's in memory. Useful for in-memory event stores.
 newtype ProjectionMap proj

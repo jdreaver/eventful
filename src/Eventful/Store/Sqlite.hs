@@ -2,7 +2,7 @@
 
 -- | Defines an Sqlite event store.
 
-module EventSourcing.Store.Sqlite
+module Eventful.Store.Sqlite
   ( SqliteEvent (..)
   , SqliteEventId
   , migrateSqliteEvent
@@ -21,9 +21,9 @@ import Database.Persist
 import Database.Persist.Sql
 import Database.Persist.TH
 
-import EventSourcing.Store.Class
-import EventSourcing.Store.Sqlite.Internal
-import EventSourcing.UUID
+import Eventful.Store.Class
+import Eventful.Store.Sqlite.Internal
+import Eventful.UUID
 
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 SqliteEvent sql=events

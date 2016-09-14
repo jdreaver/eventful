@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module EventSourcing.UUID
+module Eventful.UUID
   ( UUID
   , uuidFromText
   , uuidToText

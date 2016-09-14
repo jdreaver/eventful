@@ -1,4 +1,4 @@
-module EventSourcing.ReadModel.Class
+module Eventful.ReadModel.Class
   ( ReadModel (..)
   , EventHandler (..)
   , combineHandlers
@@ -6,7 +6,7 @@ module EventSourcing.ReadModel.Class
 
 import Control.Monad (mapM_)
 
-import EventSourcing.Store
+import Eventful.Store
 
 class (Monad m) => ReadModel m model serialized | model -> serialized where
   latestApplied :: model -> m SequenceNumber
