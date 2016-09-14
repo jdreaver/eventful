@@ -1,6 +1,16 @@
 name: eventful-core
 version: "0.1.0"
 maintainer: David Reaver
+synopsis: Core module for eventful
+description: Core module for eventful
+maintainer: David Reaver
+stability: experimental
+license: MIT
+license-file: LICENSE.md
+
+extra-source-files:
+  - CHANGELOG.md
+  - README.md
 
 dependencies:
   - base

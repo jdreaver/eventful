@@ -1,6 +1,12 @@
 name: eventful-test-helpers
 version: "0.1.0"
 maintainer: David Reaver
+synopsis: Common module used for eventful tests
+description: Common module used for eventful tests
+maintainer: David Reaver
+stability: experimental
+license: MIT
+license-file: LICENSE.md
 
 dependencies:
   - base
