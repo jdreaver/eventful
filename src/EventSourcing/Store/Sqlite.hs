@@ -23,7 +23,7 @@ import Database.Persist.TH
 
 import EventSourcing.Store.Class
 import EventSourcing.Store.Sqlite.Internal
-import TodoCommon
+import EventSourcing.UUID
 
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 SqliteEvent sql=events

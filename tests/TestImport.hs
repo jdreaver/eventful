@@ -21,7 +21,6 @@ import Data.Maybe
 import Test.Hspec
 
 import EventSourcing
-import TodoCommon
 
 -- | Example Projection/Aggregate
 newtype Counter = Counter { unCounter :: Int }

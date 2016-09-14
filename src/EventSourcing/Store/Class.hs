@@ -21,7 +21,7 @@ import Web.HttpApiData
 import Web.PathPieces
 
 import EventSourcing.Projection
-import TodoCommon
+import EventSourcing.UUID
 
 class (Monad m) => EventStore m store serialized | store -> serialized where
   getAllUuids :: store -> m [UUID]

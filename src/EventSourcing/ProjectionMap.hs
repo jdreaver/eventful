@@ -10,7 +10,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 
 import EventSourcing.Projection
-import TodoCommon
+import EventSourcing.UUID
 
 -- | Holds multiple 'Projection's in memory. Useful for in-memory event stores.
 newtype ProjectionMap proj

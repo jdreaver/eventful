@@ -4,6 +4,7 @@ module EventSourcing.Store.Sqlite.Internal
   ( JSONString
   ) where
 
+import Data.Aeson
 import Data.ByteString
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Database.Persist
@@ -11,7 +12,7 @@ import Database.Persist.Sql
 import Data.UUID
 
 import EventSourcing.Store.Class
-import TodoCommon
+import EventSourcing.UUID
 
 -- | A more specific type than just ByteString for JSON data.
 newtype JSONString = JSONString { unJSONString :: ByteString }
