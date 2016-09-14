@@ -14,8 +14,6 @@ module Eventful.Store.Class
 import Data.Aeson
 import Data.Dynamic
 import Data.Maybe (mapMaybe)
-import Database.Persist (PersistField)
-import Database.Persist.Sql (PersistFieldSql)
 import Web.HttpApiData
 import Web.PathPieces
 
@@ -68,10 +66,10 @@ deserializeEvent (StoredEvent uuid vers seqNum event) =
   StoredEvent uuid vers seqNum <$> deserialize event
 
 newtype EventVersion = EventVersion { unEventVersion :: Int }
-  deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql)
+  deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON)
 
 newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
-  deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON, PersistField, PersistFieldSql,
+  deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON,
             PathPiece, ToHttpApiData, FromHttpApiData)
 
 class Serializable a b where

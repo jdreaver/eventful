@@ -19,7 +19,6 @@ dependencies:
   - containers
   - http-api-data
   - path-pieces
-  - persistent
   - text
   - uuid
 

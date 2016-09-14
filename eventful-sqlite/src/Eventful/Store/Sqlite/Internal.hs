@@ -9,6 +9,7 @@ import Data.ByteString
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Database.Persist
 import Database.Persist.Sql
+import Data.Proxy
 import Data.UUID
 
 import Eventful.Store.Class
@@ -42,3 +43,17 @@ instance PersistField UUID where
 
 instance PersistFieldSql UUID where
   sqlType _ = SqlOther "uuid"
+
+instance PersistField EventVersion where
+  toPersistValue = toPersistValue . unEventVersion
+  fromPersistValue = fmap EventVersion . fromPersistValue
+
+instance PersistFieldSql EventVersion where
+  sqlType _ = sqlType (Proxy :: Proxy Int)
+
+instance PersistField SequenceNumber where
+  toPersistValue = toPersistValue . unSequenceNumber
+  fromPersistValue = fmap SequenceNumber . fromPersistValue
+
+instance PersistFieldSql SequenceNumber where
+  sqlType _ = sqlType (Proxy :: Proxy Int)
