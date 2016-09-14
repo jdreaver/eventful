@@ -1,31 +1,14 @@
-name: eventful-core
+name: eventful-memory
 version: "0.1.0"
 maintainer: David Reaver
 
 dependencies:
   - base
+  - eventful-core
 
-  - aeson
-  - async
-  - bytestring
   - containers
-  - directory
-  - http-api-data
-  - monad-logger
-  - path-pieces
-  - persistent
-  - pipes
-  - pipes-concurrency
-  - lens
-  - mtl
-  - random
   - safe
-  - split
   - stm
-  - text
-  - time
-  - transformers
-  - uuid
 
 default-extensions:
   - ConstraintKinds

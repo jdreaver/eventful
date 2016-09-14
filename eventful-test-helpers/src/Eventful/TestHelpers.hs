@@ -1,19 +1,18 @@
 -- | Common test functionality
 
-module TestImport
-  ( module X
-  , Counter (..)
+module Eventful.TestHelpers
+  ( Counter (..)
   , Event (..)
   , Command (..)
   , CommandError (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
+  , module X
   ) where
 
 import Control.Monad as X
 import Control.Monad.IO.Class as X
 import Control.Monad.Logger as X
-import Database.Persist.Sqlite as X
 
 import Data.Aeson
 import Data.Aeson.TH

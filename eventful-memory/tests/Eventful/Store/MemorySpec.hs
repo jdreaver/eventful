@@ -1,10 +1,9 @@
 module Eventful.Store.MemorySpec (spec) where
 
-import TestImport
-
 import Test.Hspec
 
 import Eventful.Store.Memory
+import Eventful.TestHelpers
 
 spec :: Spec
 spec = do
