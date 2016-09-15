@@ -174,7 +174,7 @@ eventBusSpec createBus createStore mDelay = do
       length events `shouldBe` 2
 
     it "should properly transmit events" $ do
-      storeAndPublishEvent store bus (AggregateId nil) (Added 3)
+      storeAndPublishEvents store bus (AggregateId nil) [Added 3, Added 4]
       doDelay
       events <- readIORef eventsRef
-      length events `shouldBe` 3
+      length events `shouldBe` 4

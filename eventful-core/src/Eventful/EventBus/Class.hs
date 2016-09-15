@@ -3,7 +3,7 @@ module Eventful.EventBus.Class
   , EventBusHandler
   , registerStoreHandler
   , registerReadModel
-  , storeAndPublishEvent
+  , storeAndPublishEvents
   , runAggregateCommand
   ) where
 
@@ -32,15 +32,15 @@ registerReadModel eventStore bus model = do
   let handler event = applyEvents model [event]
   registerStoreHandlerStart bus seqNum eventStore handler
 
-storeAndPublishEvent
+storeAndPublishEvents
   :: ( EventStore m store serializedes
      , EventBus m bus serializedeb
      , Serializable (Event proj) serializedes
      , Serializable (Event proj) serializedeb
      )
-  => store -> bus -> AggregateId proj -> Event proj -> m ()
-storeAndPublishEvent store bus uuid event = do
-  storedEvents <- storeEvents store uuid [event]
+  => store -> bus -> AggregateId proj -> [Event proj] -> m ()
+storeAndPublishEvents store bus uuid events = do
+  storedEvents <- storeEvents store uuid events
   mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
 
 -- TODO: This is not safe when multiple writers apply a command to the same
@@ -58,4 +58,4 @@ runAggregateCommand store bus uuid cmd = do
   proj <- getAggregate store uuid
   case command proj cmd of
     (Left err) -> return (Just err)
-    (Right event) -> storeAndPublishEvent store bus uuid event >> return Nothing
+    (Right event) -> storeAndPublishEvents store bus uuid [event] >> return Nothing
