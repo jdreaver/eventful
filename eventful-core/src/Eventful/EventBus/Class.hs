@@ -1,7 +1,7 @@
 module Eventful.EventBus.Class
   ( EventBus (..)
   , EventBusHandler
-  , eventBusRegisterStoreHandler
+  , registerStoreHandler
   , registerReadModel
   , storeAndPublishEvent
   , runAggregateCommand
@@ -16,14 +16,13 @@ type EventBusHandler m serialized = StoredEvent serialized -> m ()
 
 class (Monad m) => EventBus m bus serialized | bus -> serialized where
   publishEvent :: bus -> StoredEvent serialized -> m ()
-  --registerHandler :: bus -> EventBusHandler m serialized -> m ()
   registerStoreHandlerStart :: (EventStore m store serialized) => bus -> SequenceNumber -> store -> EventBusHandler m serialized -> m ()
 
 
-eventBusRegisterStoreHandler
+registerStoreHandler
   :: (EventStore m store serialized, EventBus m bus serialized)
   => bus -> store -> EventBusHandler m serialized  -> m ()
-eventBusRegisterStoreHandler bus = registerStoreHandlerStart bus 0
+registerStoreHandler bus = registerStoreHandlerStart bus 0
 
 registerReadModel
   :: (ReadModel m model serialized, EventStore m store serialized, EventBus m bus serialized)

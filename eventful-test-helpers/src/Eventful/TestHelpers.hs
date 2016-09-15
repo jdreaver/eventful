@@ -7,12 +7,17 @@ module Eventful.TestHelpers
   , CommandError (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
+  , EventBusSpecDelayMilliseconds (..)
+  , eventBusSpec
   , module X
   ) where
 
+import Control.Concurrent
 import Control.Monad as X
+import Control.Monad.Extra
 import Control.Monad.IO.Class as X
 import Control.Monad.Logger as X
+import Data.IORef
 
 import Data.Aeson
 import Data.Aeson.TH
@@ -141,3 +146,35 @@ insertExampleEvents store = do
   void $ storeEvents store uuid1 [Added 4]
   void $ storeEvents store uuid2 [Added 5]
   return (uuid1, uuid2)
+
+-- Test harness for event buses
+
+-- | Used when testing eventually consistent async buses
+newtype EventBusSpecDelayMilliseconds = EventBusSpecDelayMilliseconds Int
+
+eventBusSpec
+  :: (Serializable (Event Counter) serialized, EventStore IO store serialized, EventBus IO bus serialized)
+  => IO bus -> IO store -> Maybe EventBusSpecDelayMilliseconds -> Spec
+eventBusSpec createBus createStore mDelay = do
+  let doDelay = whenJust mDelay (\(EventBusSpecDelayMilliseconds delay) -> threadDelay (delay * 1000))
+
+  context "given an event handler that just stores events" $ do
+    store <- runIO createStore
+    -- Populate store with some sample events
+    void $ runIO $ storeEvents store (AggregateId nil) [Added 1, Added 2]
+
+    bus <- runIO createBus
+    eventsRef <- runIO $ newIORef []
+    let handler event = modifyIORef' eventsRef (\events -> event : events)
+    runIO $ registerStoreHandler bus store handler
+
+    it "should have stored the pre-existing events" $ do
+      doDelay
+      events <- readIORef eventsRef
+      length events `shouldBe` 2
+
+    it "should properly transmit events" $ do
+      storeAndPublishEvent store bus (AggregateId nil) (Added 3)
+      doDelay
+      events <- readIORef eventsRef
+      length events `shouldBe` 3
