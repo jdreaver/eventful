@@ -15,21 +15,20 @@ import Eventful.Store.Class
 
 type EventBusHandler m serialized = StoredEvent serialized -> m ()
 
-data EventBus m serialized
-  = EventBus
-  { publishEvent :: StoredEvent serialized -> m ()
-  , registerHandler :: EventBusHandler m serialized -> m ()
-  , registerStoreHandlerStart :: forall store. (EventStore m store serialized) => SequenceNumber -> store -> EventBusHandler m serialized -> m ()
-  }
+class (Monad m) => EventBus m bus serialized | bus -> serialized where
+  publishEvent :: bus -> StoredEvent serialized -> m ()
+  registerHandler :: bus -> EventBusHandler m serialized -> m ()
+  registerStoreHandlerStart :: (EventStore m store serialized) => bus -> SequenceNumber -> store -> EventBusHandler m serialized -> m ()
+
 
 eventBusRegisterStoreHandler
-  :: (EventStore m store serialized)
-  => EventBus m serialized -> store -> EventBusHandler m serialized  -> m ()
+  :: (EventStore m store serialized, EventBus m bus serialized)
+  => bus -> store -> EventBusHandler m serialized  -> m ()
 eventBusRegisterStoreHandler bus = registerStoreHandlerStart bus 0
 
 registerReadModel
-  :: (ReadModel m model serialized, EventStore m store serialized)
-  => store -> EventBus m serialized -> model -> m ()
+  :: (ReadModel m model serialized, EventStore m store serialized, EventBus m bus serialized)
+  => store -> bus -> model -> m ()
 registerReadModel eventStore bus model = do
   seqNum <- latestApplied model
   let handler event = applyEvents model [event]
@@ -38,10 +37,11 @@ registerReadModel eventStore bus model = do
 storeAndPublishEvent
   :: ( MonadIO m
      , EventStore m store serializedes
+     , EventBus m bus serializedeb
      , Serializable (Event proj) serializedes
      , Serializable (Event proj) serializedeb
      )
-  => store -> EventBus m serializedeb -> AggregateId proj -> Event proj -> m ()
+  => store -> bus -> AggregateId proj -> Event proj -> m ()
 storeAndPublishEvent store bus uuid event = do
   storedEvents <- storeEvents store uuid [event]
   mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
@@ -53,10 +53,11 @@ runAggregateCommand
   :: ( MonadIO m
      , Aggregate a
      , EventStore m store serializedes
+     , EventBus m bus serializedeb
      , Serializable (Event a) serializedes
      , Serializable (Event a) serializedeb
      )
-  => store -> EventBus m serializedeb -> AggregateId a -> Command a -> m (Maybe (CommandError a))
+  => store -> bus -> AggregateId a -> Command a -> m (Maybe (CommandError a))
 runAggregateCommand store bus uuid cmd = do
   proj <- getAggregate store uuid
   case command proj cmd of
