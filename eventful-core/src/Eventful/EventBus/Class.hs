@@ -1,12 +1,11 @@
 module Eventful.EventBus.Class
   ( EventBus (..)
+  , EventBusHandler
   , eventBusRegisterStoreHandler
   , registerReadModel
   , storeAndPublishEvent
   , runAggregateCommand
   ) where
-
-import Control.Monad.IO.Class
 
 import Eventful.Aggregate
 import Eventful.Projection
@@ -17,7 +16,7 @@ type EventBusHandler m serialized = StoredEvent serialized -> m ()
 
 class (Monad m) => EventBus m bus serialized | bus -> serialized where
   publishEvent :: bus -> StoredEvent serialized -> m ()
-  registerHandler :: bus -> EventBusHandler m serialized -> m ()
+  --registerHandler :: bus -> EventBusHandler m serialized -> m ()
   registerStoreHandlerStart :: (EventStore m store serialized) => bus -> SequenceNumber -> store -> EventBusHandler m serialized -> m ()
 
 
@@ -35,8 +34,7 @@ registerReadModel eventStore bus model = do
   registerStoreHandlerStart bus seqNum eventStore handler
 
 storeAndPublishEvent
-  :: ( MonadIO m
-     , EventStore m store serializedes
+  :: ( EventStore m store serializedes
      , EventBus m bus serializedeb
      , Serializable (Event proj) serializedes
      , Serializable (Event proj) serializedeb
@@ -50,8 +48,7 @@ storeAndPublishEvent store bus uuid event = do
 -- aggregate root (same UUID) at once. There is a race condition between
 -- getting the projection and validating the command.
 runAggregateCommand
-  :: ( MonadIO m
-     , Aggregate a
+  :: ( Aggregate a
      , EventStore m store serializedes
      , EventBus m bus serializedeb
      , Serializable (Event a) serializedes

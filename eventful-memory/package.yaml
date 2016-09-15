@@ -16,7 +16,10 @@ dependencies:
   - base
   - eventful-core
 
+  - async
   - containers
+  - pipes
+  - pipes-concurrency
   - safe
   - stm
 
