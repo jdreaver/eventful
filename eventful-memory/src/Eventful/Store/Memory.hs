@@ -2,6 +2,7 @@ module Eventful.Store.Memory
   ( MemoryEventStore (..)
   , memoryEventStoreTVar
   , memoryEventStoreIORef
+  , module Eventful.Store.Class
   ) where
 
 import Control.Concurrent.STM

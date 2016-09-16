@@ -12,6 +12,7 @@ module Eventful.Store.Sqlite
   , SqliteEventStore
   , sqliteEventStore
   , JSONString
+  , module Eventful.Store.Class
   ) where
 
 import Control.Monad.Reader

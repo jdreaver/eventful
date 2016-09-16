@@ -1,6 +1,7 @@
 module Eventful.EventBus.Pipes
   ( PipesEventBus (..)
   , pipesEventBus
+  , module Eventful.EventBus.Class
   ) where
 
 import Control.Concurrent.Async

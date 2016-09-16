@@ -1,6 +1,7 @@
 module Eventful.EventBus.Sync
   ( SyncEventBusIO
   , syncEventBusIO
+  , module Eventful.EventBus.Class
   ) where
 
 import Control.Monad.IO.Class
