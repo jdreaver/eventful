@@ -38,11 +38,11 @@ main = do
     --publishEvent bus nil line
     --uuid <- nextRandom
     let uuid = nil
-    storeAndPublishEvent eventStore bus (AggregateId uuid) (AddItem line)
+    storeAndPublishEvent eventStore bus (ProjectionId uuid) (AddItem line)
 
     threadDelay 100000
 
-    es <- getEvents eventStore (AggregateId uuid) :: IO [StoredEvent (Event ListProjection)]
+    es <- getEvents eventStore (ProjectionId uuid) :: IO [StoredEvent (Event ListProjection)]
     print es
 
     es' <- getSequencedEvents eventStore 0 :: IO [StoredEvent JSONString]
@@ -51,7 +51,7 @@ main = do
     (p :: ListProjection) <- lookupProjectionMap uuid <$> readTVarIO projectionTVar
     print p
 
-    p' <- getAggregate eventStore (AggregateId uuid :: AggregateId ListProjection)
+    p' <- getAggregate eventStore (ProjectionId uuid :: ProjectionId ListProjection)
     print p'
 
 

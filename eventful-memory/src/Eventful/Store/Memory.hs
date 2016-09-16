@@ -29,7 +29,7 @@ memoryEventStoreIORef = newIORef (MemoryEventStore Seq.empty)
 
 lookupMemoryEventStoreRaw :: MemoryEventStore -> UUID -> [StoredEvent Dynamic]
 lookupMemoryEventStoreRaw (MemoryEventStore seq') uuid =
-  filter ((==) uuid . storedEventAggregateId) $ toList seq'
+  filter ((==) uuid . storedEventProjectionId) $ toList seq'
 
 latestEventVersion' :: MemoryEventStore -> UUID -> EventVersion
 latestEventVersion' store uuid = maximumDef (-1) $ storedEventVersion <$> lookupMemoryEventStoreRaw store uuid
@@ -47,7 +47,7 @@ storeMemoryEventStore store@(MemoryEventStore seq') uuid events =
   in (MemoryEventStore newSeq, storedEvents)
 
 instance (MonadIO m) => EventStore m (TVar MemoryEventStore) Dynamic where
-  getAllUuids tvar = liftIO $ toList . Set.fromList . map storedEventAggregateId . toList . unMemoryEventStore <$> readTVarIO tvar
+  getAllUuids tvar = liftIO $ toList . Set.fromList . map storedEventProjectionId . toList . unMemoryEventStore <$> readTVarIO tvar
   getEventsRaw tvar uuid = liftIO $ flip lookupMemoryEventStoreRaw uuid <$> readTVarIO tvar
   storeEventsRaw tvar uuid events = liftIO . atomically $ do
     store <- readTVar tvar
@@ -61,7 +61,7 @@ instance (MonadIO m) => EventStore m (TVar MemoryEventStore) Dynamic where
     return $ lookupMemoryEventStoreSeq store seqNum
 
 instance (MonadIO m) => EventStore m (IORef MemoryEventStore) Dynamic where
-  getAllUuids ref = liftIO $ toList . Set.fromList . map storedEventAggregateId . toList . unMemoryEventStore <$> readIORef ref
+  getAllUuids ref = liftIO $ toList . Set.fromList . map storedEventProjectionId . toList . unMemoryEventStore <$> readIORef ref
   getEventsRaw ref uuid = liftIO $ flip lookupMemoryEventStoreRaw uuid <$> readIORef ref
   storeEventsRaw ref uuid events = liftIO $ do
     store <- readIORef ref

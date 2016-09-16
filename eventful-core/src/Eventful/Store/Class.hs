@@ -2,7 +2,7 @@ module Eventful.Store.Class
   ( EventStore (..)
   , getEvents
   , storeEvents
-  , AggregateId (..)
+  , ProjectionId (..)
   , StoredEvent (..)
   , serializeEvent
   , deserializeEvent
@@ -27,32 +27,32 @@ class (Monad m) => EventStore m store serialized | store -> serialized where
   latestEventVersion :: store -> UUID -> m EventVersion
 
   -- Some implementations might have a more efficient ways to do the this
-  getAggregate :: (Projection proj, Serializable (Event proj) serialized) => store -> AggregateId proj -> m proj
+  getAggregate :: (Projection proj, Serializable (Event proj) serialized) => store -> ProjectionId proj -> m proj
   getAggregate store uuid = latestProjection . fmap storedEventEvent <$> getEvents store uuid
 
   getSequencedEvents :: store -> SequenceNumber -> m [StoredEvent serialized]
 
 getEvents
   :: (Serializable (Event proj) serialized, EventStore m store serialized)
-  => store -> AggregateId proj -> m [StoredEvent (Event proj)]
-getEvents store (AggregateId uuid) = mapMaybe deserialize <$> getEventsRaw store uuid
+  => store -> ProjectionId proj -> m [StoredEvent (Event proj)]
+getEvents store (ProjectionId uuid) = mapMaybe deserialize <$> getEventsRaw store uuid
 
 storeEvents
   :: (Serializable (Event proj) serialized, EventStore m store serialized)
-  => store -> AggregateId proj -> [Event proj] -> m [StoredEvent (Event proj)]
-storeEvents store (AggregateId uuid) events = do
+  => store -> ProjectionId proj -> [Event proj] -> m [StoredEvent (Event proj)]
+storeEvents store (ProjectionId uuid) events = do
   serialized <- storeEventsRaw store uuid (serialize <$> events)
   return $ zipWith (<$) events serialized
 
 -- | This type ensures our stored events have the correct type, but it also
 -- allows us to avoid type ambiguity errors in event stores by providing the
 -- phantom projection type.
-newtype AggregateId proj = AggregateId { unAggregateId :: UUID }
+newtype ProjectionId proj = ProjectionId { unProjectionId :: UUID }
   deriving (Show, Eq, Ord, ToJSON, FromJSON, FromHttpApiData)
 
 data StoredEvent event
   = StoredEvent
-  { storedEventAggregateId :: UUID
+  { storedEventProjectionId :: UUID
   , storedEventVersion :: EventVersion
   , storedEventSequenceNumber :: SequenceNumber
   , storedEventEvent :: event

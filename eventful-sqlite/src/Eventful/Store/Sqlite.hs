@@ -6,7 +6,7 @@ module Eventful.Store.Sqlite
   ( SqliteEvent (..)
   , SqliteEventId
   , migrateSqliteEvent
-  , getAggregateIds
+  , getProjectionIds
   , bulkInsert
   , sqliteMaxVariableNumber
   , SqliteEventStore
@@ -28,10 +28,10 @@ import Eventful.UUID
 share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
 SqliteEvent sql=events
     Id SequenceNumber sql=sequence_number
-    aggregateId UUID
+    projectionId UUID
     version EventVersion
     data JSONString
-    UniqueAggregateVersion aggregateId version
+    UniqueAggregateVersion projectionId version
     deriving Show
 |]
 
@@ -44,13 +44,13 @@ sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid version da
 --   Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)
 --   where data' = toStrict (encode event)
 
-getAggregateIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
-getAggregateIds =
-  fmap unSingle <$> rawSql "SELECT DISTINCT aggregate_id FROM events" []
+getProjectionIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
+getProjectionIds =
+  fmap unSingle <$> rawSql "SELECT DISTINCT projection_id FROM events" []
 
 getSqliteAggregateEvents :: (MonadIO m) => UUID -> ReaderT SqlBackend m [StoredEvent JSONString]
 getSqliteAggregateEvents uuid = do
-  entities <- selectList [SqliteEventAggregateId ==. uuid] [Asc SqliteEventVersion]
+  entities <- selectList [SqliteEventProjectionId ==. uuid] [Asc SqliteEventVersion]
   return $ sqliteEventToStored <$> entities
 
 getAllEventsFromSequence :: (MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [StoredEvent JSONString]
@@ -60,7 +60,7 @@ getAllEventsFromSequence seqNum = do
 
 maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
 maxEventVersion uuid =
-  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE aggregate_id = ?" [toPersistValue uuid]
+  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?" [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
@@ -90,9 +90,9 @@ sqliteEventStore pool = do
   -- Run migrations
   _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqliteEvent) pool
 
-  -- Create index on aggregate_id so retrieval is very fast
+  -- Create index on projection_id so retrieval is very fast
   liftIO $ runSqlPool
-    (rawExecute "CREATE INDEX IF NOT EXISTS aggregate_id_index ON events (aggregate_id)" [])
+    (rawExecute "CREATE INDEX IF NOT EXISTS projection_id_index ON events (projection_id)" [])
     pool
 
   return $ SqliteEventStore pool
@@ -106,7 +106,7 @@ instance (MonadIO m) => EventStore m SqliteEventStore JSONString where
 
 sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore -> m [UUID]
 sqliteEventStoreGetUuids (SqliteEventStore pool) =
-  liftIO $ runSqlPool getAggregateIds pool
+  liftIO $ runSqlPool getProjectionIds pool
 
 sqliteEventStoreGetEvents :: (MonadIO m) => SqliteEventStore -> UUID -> m [StoredEvent JSONString]
 sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =

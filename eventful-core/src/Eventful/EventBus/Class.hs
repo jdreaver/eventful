@@ -38,7 +38,7 @@ storeAndPublishEvents
      , Serializable (Event proj) serializedes
      , Serializable (Event proj) serializedeb
      )
-  => store -> bus -> AggregateId proj -> [Event proj] -> m ()
+  => store -> bus -> ProjectionId proj -> [Event proj] -> m ()
 storeAndPublishEvents store bus uuid events = do
   storedEvents <- storeEvents store uuid events
   mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
@@ -53,7 +53,7 @@ runAggregateCommand
      , Serializable (Event a) serializedes
      , Serializable (Event a) serializedeb
      )
-  => store -> bus -> AggregateId a -> Command a -> m (Maybe (CommandError a))
+  => store -> bus -> ProjectionId a -> Command a -> m (Maybe (CommandError a))
 runAggregateCommand store bus uuid cmd = do
   proj <- getAggregate store uuid
   case command proj cmd of

@@ -83,28 +83,28 @@ eventStoreSpec createStore = do
   context "when a few events are inserted" $ do
     store <- runIO createStore
     let events = [Added 1, Added 4, Added (-3)]
-    _ <- runIO $ storeEvents store (AggregateId nil) events
+    _ <- runIO $ storeEvents store (ProjectionId nil) events
 
     it "should return events" $ do
-      events' <- getEvents store (AggregateId nil)
+      events' <- getEvents store (ProjectionId nil)
       (storedEventEvent <$> events') `shouldBe` events
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
 
     it "should return the latest projection" $ do
-      getAggregate store (AggregateId nil) `shouldReturn` Counter 2
+      getAggregate store (ProjectionId nil) `shouldReturn` Counter 2
 
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO createStore
     (uuid1, uuid2) <- runIO $ insertExampleEvents store
-    let (AggregateId uuid1', AggregateId uuid2') = (uuid1, uuid2)
+    let (ProjectionId uuid1', ProjectionId uuid2') = (uuid1, uuid2)
 
     it "should have the correct events for each aggregate" $ do
       events1 <- getEvents store uuid1
       events2 <- getEvents store uuid2
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
-      (storedEventAggregateId <$> events1) `shouldBe` [uuid1', uuid1']
-      (storedEventAggregateId <$> events2) `shouldBe` [uuid2', uuid2', uuid2']
+      (storedEventProjectionId <$> events1) `shouldBe` [uuid1', uuid1']
+      (storedEventProjectionId <$> events2) `shouldBe` [uuid2', uuid2', uuid2']
       (storedEventVersion <$> events1) `shouldBe` [0, 1]
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
@@ -125,22 +125,22 @@ sequencedEventStoreSpec createStore = do
 
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO createStore
-    (AggregateId uuid1, AggregateId uuid2) <- runIO $ insertExampleEvents store
+    (ProjectionId uuid1, ProjectionId uuid2) <- runIO $ insertExampleEvents store
 
     it "should have the correct events in global order" $ do
       events' <- getSequencedEvents store 0
       let deserializedEvents = mapMaybe deserializeEvent events'
       (storedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
-      (storedEventAggregateId <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (storedEventProjectionId <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
       (storedEventVersion <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]
       (storedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
 
 insertExampleEvents
   :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
-  => store -> IO (AggregateId Counter, AggregateId Counter)
+  => store -> IO (ProjectionId Counter, ProjectionId Counter)
 insertExampleEvents store = do
-  let uuid1 = AggregateId (uuidFromInteger 1)
-      uuid2 = AggregateId (uuidFromInteger 2)
+  let uuid1 = ProjectionId (uuidFromInteger 1)
+      uuid2 = ProjectionId (uuidFromInteger 2)
   void $ storeEvents store uuid1 [Added 1]
   void $ storeEvents store uuid2 [Added 2, Added 3]
   void $ storeEvents store uuid1 [Added 4]
@@ -161,7 +161,7 @@ eventBusSpec createBus createStore mDelay = do
   context "given an event handler that just stores events" $ do
     store <- runIO createStore
     -- Populate store with some sample events
-    void $ runIO $ storeEvents store (AggregateId nil) [Added 1, Added 2]
+    void $ runIO $ storeEvents store (ProjectionId nil) [Added 1, Added 2]
 
     bus <- runIO createBus
     eventsRef <- runIO $ newIORef []
@@ -174,7 +174,7 @@ eventBusSpec createBus createStore mDelay = do
       length events `shouldBe` 2
 
     it "should properly transmit events" $ do
-      storeAndPublishEvents store bus (AggregateId nil) [Added 3, Added 4]
+      storeAndPublishEvents store bus (ProjectionId nil) [Added 3, Added 4]
       doDelay
       events <- readIORef eventsRef
       length events `shouldBe` 4
