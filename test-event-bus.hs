@@ -51,7 +51,7 @@ main = do
     (p :: ListProjection) <- lookupProjectionMap uuid <$> readTVarIO projectionTVar
     print p
 
-    p' <- getAggregate eventStore (ProjectionId uuid :: ProjectionId ListProjection)
+    p' <- getLatestProjection eventStore (ProjectionId uuid :: ProjectionId ListProjection)
     print p'
 
 

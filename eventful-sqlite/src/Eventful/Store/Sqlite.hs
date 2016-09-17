@@ -102,7 +102,6 @@ instance (MonadIO m) => EventStore m SqliteEventStore JSONString where
   getAllUuids = sqliteEventStoreGetUuids
   getEventsRaw = sqliteEventStoreGetEvents
   storeEventsRaw = sqliteEventStoreStoreEvents
-  latestEventVersion = sqliteEventStoreLatestEventVersion
   getSequencedEvents = sqliteEventStoreGetSequencedEvents
 
 sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore -> m [UUID]
@@ -129,9 +128,3 @@ sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
       sequenceNums <- bulkInsert entities
       return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
         sequenceNums [versionNum + 1..] events
-
-sqliteEventStoreLatestEventVersion
-  :: (MonadIO m)
-  => SqliteEventStore -> UUID -> m EventVersion
-sqliteEventStoreLatestEventVersion (SqliteEventStore pool) uuid =
-  liftIO $ runSqlPool (maxEventVersion uuid) pool

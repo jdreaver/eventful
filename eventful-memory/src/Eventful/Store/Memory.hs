@@ -32,8 +32,8 @@ lookupMemoryEventStoreRaw :: MemoryEventStore -> UUID -> [StoredEvent Dynamic]
 lookupMemoryEventStoreRaw (MemoryEventStore seq') uuid =
   filter ((==) uuid . storedEventProjectionId) $ toList seq'
 
-latestEventVersion' :: MemoryEventStore -> UUID -> EventVersion
-latestEventVersion' store uuid = maximumDef (-1) $ storedEventVersion <$> lookupMemoryEventStoreRaw store uuid
+latestEventVersion :: MemoryEventStore -> UUID -> EventVersion
+latestEventVersion store uuid = maximumDef (-1) $ storedEventVersion <$> lookupMemoryEventStoreRaw store uuid
 
 lookupMemoryEventStoreSeq :: MemoryEventStore -> SequenceNumber -> [StoredEvent Dynamic]
 lookupMemoryEventStoreSeq (MemoryEventStore seq') (SequenceNumber i) = toList $ Seq.drop i seq'
@@ -41,7 +41,7 @@ lookupMemoryEventStoreSeq (MemoryEventStore seq') (SequenceNumber i) = toList $ 
 storeMemoryEventStore
   :: MemoryEventStore -> UUID -> [Dynamic] -> (MemoryEventStore, [StoredEvent Dynamic])
 storeMemoryEventStore store@(MemoryEventStore seq') uuid events =
-  let versStart = latestEventVersion' store uuid + 1
+  let versStart = latestEventVersion store uuid + 1
       seqStart = SequenceNumber (Seq.length seq') + 1
       storedEvents = zipWith3 (StoredEvent uuid) [versStart..] [seqStart..] events
       newSeq = seq' >< Seq.fromList storedEvents
@@ -55,7 +55,6 @@ instance (MonadIO m) => EventStore m (TVar MemoryEventStore) Dynamic where
     let (newMap, storedEvents) = storeMemoryEventStore store uuid events
     writeTVar tvar newMap
     return storedEvents
-  latestEventVersion tvar uuid = liftIO $ flip latestEventVersion' uuid <$> readTVarIO tvar
 
   getSequencedEvents tvar seqNum = liftIO $ do
     store <- readTVarIO tvar
@@ -69,7 +68,6 @@ instance (MonadIO m) => EventStore m (IORef MemoryEventStore) Dynamic where
     let (newMap, storedEvents) = storeMemoryEventStore store uuid events
     writeIORef ref newMap
     return storedEvents
-  latestEventVersion ref uuid = liftIO $ flip latestEventVersion' uuid <$> readIORef ref
   getSequencedEvents ref seqNum = liftIO $ do
     store <- readIORef ref
     return $ lookupMemoryEventStoreSeq store seqNum

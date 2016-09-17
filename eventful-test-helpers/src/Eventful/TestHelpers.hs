@@ -91,7 +91,7 @@ eventStoreSpec createStore = do
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
 
     it "should return the latest projection" $ do
-      getAggregate store (ProjectionId nil) `shouldReturn` Counter 2
+      getLatestProjection store (ProjectionId nil) `shouldReturn` Counter 2
 
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO createStore
@@ -109,8 +109,8 @@ eventStoreSpec createStore = do
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
     it "should produce the correct projections" $ do
-      getAggregate store uuid1 `shouldReturn` Counter 5
-      getAggregate store uuid2 `shouldReturn` Counter 10
+      getLatestProjection store uuid1 `shouldReturn` Counter 5
+      getLatestProjection store uuid2 `shouldReturn` Counter 10
 
 
 sequencedEventStoreSpec
@@ -129,7 +129,7 @@ sequencedEventStoreSpec createStore = do
 
     it "should have the correct events in global order" $ do
       events' <- getSequencedEvents store 0
-      let deserializedEvents = mapMaybe deserializeEvent events'
+      let deserializedEvents = mapMaybe deserialize events'
       (storedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
       (storedEventProjectionId <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
       (storedEventVersion <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]

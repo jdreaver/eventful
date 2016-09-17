@@ -42,7 +42,7 @@ storeAndPublishEvents
   => store -> bus -> ProjectionId proj -> [Event proj] -> m ()
 storeAndPublishEvents store bus uuid events = do
   storedEvents <- storeEvents store uuid events
-  mapM_ (publishEvent bus) (serializeEvent <$> storedEvents)
+  mapM_ (publishEvent bus) (serialize <$> storedEvents)
 
 -- TODO: This is not safe when multiple writers apply a command to the same
 -- aggregate root (same UUID) at once. There is a race condition between
@@ -56,7 +56,7 @@ runAggregateCommand
      )
   => store -> bus -> ProjectionId a -> Command a -> m (Maybe (CommandError a))
 runAggregateCommand store bus uuid cmd = do
-  proj <- getAggregate store uuid
+  proj <- getLatestProjection store uuid
   case command proj cmd of
     (Left err) -> return (Just err)
     (Right event) -> storeAndPublishEvents store bus uuid [event] >> return Nothing
