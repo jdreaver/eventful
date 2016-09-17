@@ -10,6 +10,7 @@ import Control.Monad.IO.Class
 import Eventful.Projection
 import Eventful.ProjectionMap
 import Eventful.ReadModel.Class
+import Eventful.Serializable
 import Eventful.Store
 
 data MemoryReadModel m serialized

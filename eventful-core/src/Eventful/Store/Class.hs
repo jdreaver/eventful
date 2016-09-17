@@ -8,16 +8,15 @@ module Eventful.Store.Class
   , deserializeEvent
   , EventVersion (..)
   , SequenceNumber (..)
-  , Serializable (..)
   ) where
 
 import Data.Aeson
-import Data.Dynamic
 import Data.Maybe (mapMaybe)
 import Web.HttpApiData
 import Web.PathPieces
 
 import Eventful.Projection
+import Eventful.Serializable
 import Eventful.UUID
 
 class (Monad m) => EventStore m store serialized | store -> serialized where
@@ -58,6 +57,10 @@ data StoredEvent event
   , storedEventEvent :: event
   } deriving (Show, Eq, Functor)
 
+instance (Serializable a b) => Serializable (StoredEvent a) (StoredEvent b) where
+  serialize = serializeEvent
+  deserialize = deserializeEvent
+
 serializeEvent :: (Serializable event serialized) => StoredEvent event -> StoredEvent serialized
 serializeEvent = fmap serialize
 
@@ -71,15 +74,3 @@ newtype EventVersion = EventVersion { unEventVersion :: Int }
 newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON,
             PathPiece, ToHttpApiData, FromHttpApiData)
-
-class Serializable a b where
-  serialize :: a -> b
-  deserialize :: b -> Maybe a
-
-instance (Typeable a) => Serializable a Dynamic where
-  serialize = toDyn
-  deserialize = fromDynamic
-
-instance (Serializable a b) => Serializable (StoredEvent a) (StoredEvent b) where
-  serialize = serializeEvent
-  deserialize = deserializeEvent

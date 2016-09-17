@@ -10,6 +10,7 @@ module Eventful.EventBus.Class
 import Eventful.Aggregate
 import Eventful.Projection
 import Eventful.ReadModel.Class
+import Eventful.Serializable
 import Eventful.Store.Class
 
 type EventBusHandler m serialized = StoredEvent serialized -> m ()

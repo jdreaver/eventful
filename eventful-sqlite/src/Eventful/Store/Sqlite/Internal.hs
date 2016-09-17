@@ -12,6 +12,7 @@ import Database.Persist.Sql
 import Data.Proxy
 import Data.UUID
 
+import Eventful.Serializable
 import Eventful.Store.Class
 import Eventful.UUID
 

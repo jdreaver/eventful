@@ -6,6 +6,7 @@ module Eventful.ReadModel.Class
 
 import Control.Monad (mapM_)
 
+import Eventful.Serializable
 import Eventful.Store
 
 class (Monad m) => ReadModel m model serialized | model -> serialized where
