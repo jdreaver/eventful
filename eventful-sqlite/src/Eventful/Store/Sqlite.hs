@@ -72,8 +72,11 @@ bulkInsert
      , PersistEntity val
      )
   => [val]
-  -> ReaderT (PersistEntityBackend val) m [Key val]
-bulkInsert items = concat <$> forM (chunksOf sqliteMaxVariableNumber items) insertMany
+  -> Int
+  -> ReaderT (PersistEntityBackend val) m ()
+bulkInsert items numFields = forM_ (chunksOf chunkSize items) insertMany_
+  where
+    chunkSize = quot sqliteMaxVariableNumber numFields
 
 -- | Search for SQLITE_MAX_VARIABLE_NUMBER here:
 -- https://www.sqlite.org/limits.html
@@ -125,6 +128,12 @@ sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
     doInsert = do
       versionNum <- maxEventVersion uuid
       let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
-      sequenceNums <- bulkInsert entities
+
+      -- Note that the postgres backend doesn't need to do a SELECT after the
+      -- INSERT to get the keys, because insertMany uses the postgres RETURNING
+      -- statement.
+      bulkInsert entities 4
+      sequenceNums <- selectKeysList [SqliteEventProjectionId ==. uuid, SqliteEventVersion >. versionNum] [Asc SqliteEventVersion]
+
       return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
         sequenceNums [versionNum + 1..] events
