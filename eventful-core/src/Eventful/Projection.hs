@@ -2,21 +2,17 @@ module Eventful.Projection
   ( Projection (..)
   , latestProjection
   , allProjections
-  , eventProjectionName
   )
   where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
-import Data.Typeable
 
--- | A state object is 'Projection' when it is created as the result of
--- applying events.
-class (Typeable proj) => Projection proj where
+-- | A 'Projection' is a piece of state that is constructed only from applying
+-- events. For those coming from a Data Driven Design background, a Projection
+-- is the current state of an 'Aggregate'.
+class Projection proj where
   data Event proj :: *
-
-  projectionName :: proj -> String
-  projectionName = show . typeOf
 
   seed :: proj
   apply :: proj -> Event proj -> proj
@@ -26,12 +22,6 @@ latestProjection :: (Foldable t, Projection a) => t (Event a) -> a
 latestProjection = foldl' apply seed
 
 -- | Given a list of events, produce all the Projections that were ever
--- produced.
+-- produced. Just a 'scanl' using 'apply'.
 allProjections :: (Projection a) => [Event a] -> [a]
 allProjections = scanl' apply seed
-
-
-eventProjectionName :: (Projection proj) => Event proj -> String
-eventProjectionName = projectionName . mkProj
-  where mkProj :: (Projection proj) => Event proj -> proj
-        mkProj _ = undefined

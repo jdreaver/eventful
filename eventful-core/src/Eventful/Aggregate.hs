@@ -6,8 +6,11 @@ module Eventful.Aggregate
 
 import Eventful.Projection
 
--- | An aggregate uses the information currently in a 'Projection' to produces
--- events from commands.
+-- | An 'Aggregate' is a combination of a 'Projection' and a function to
+-- validate 'Command's against that 'Projection'. When using an aggregate in
+-- some service, it is common to simply load the latest projection state from
+-- the event store and apply the command. If the command is valid then the new
+-- event is applied to the projection in the event store.
 class (Projection a) => Aggregate a where
   data Command a :: *
   data CommandError a :: *

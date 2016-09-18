@@ -1,5 +1,9 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+-- | This module contains orphan 'UUID' instances and a few convenience
+-- functions around UUIDs. It would be great if this were its own entirely
+-- separate package.
+
 module Eventful.UUID
   ( UUID
   , uuidFromText

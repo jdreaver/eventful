@@ -17,9 +17,11 @@ newtype ProjectionMap proj
   = ProjectionMap { unProjectionMap :: Map UUID proj }
   deriving (Show)
 
+-- | Creates a new, empty 'ProjectionMap'.
 projectionMap :: ProjectionMap a
 projectionMap = ProjectionMap Map.empty
 
+-- | Variant of 'apply' just for 'ProjectionMap's.
 applyProjectionMap :: (Projection a) => UUID -> Event a -> ProjectionMap a -> ProjectionMap a
 applyProjectionMap uuid event (ProjectionMap map') =
   ProjectionMap (Map.insert uuid newAP map')
@@ -28,5 +30,6 @@ applyProjectionMap uuid event (ProjectionMap map') =
       Nothing -> apply seed event
       Just ap -> apply ap event
 
+-- | Get the current state of a 'Projection' from the 'ProjectionMap'.
 lookupProjectionMap :: (Projection proj) => UUID -> ProjectionMap proj -> proj
 lookupProjectionMap uuid (ProjectionMap map') = fromMaybe seed (Map.lookup uuid map')
