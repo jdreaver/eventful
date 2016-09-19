@@ -1,11 +1,20 @@
 module Eventful.Store.Class
-  ( EventStore (..)
+  ( -- * EventStore
+    EventStore (..)
   , getEvents
   , storeEvents
+    -- * Utility types
   , ProjectionId (..)
   , StoredEvent (..)
   , EventVersion (..)
   , SequenceNumber (..)
+    -- * HasEventStore and helper functions
+  , HasEventStore (..)
+  , getAllUuidsM
+  , getEventsRawM
+  , storeEventsRawM
+  , getLatestProjectionM
+  , getSequencedEventsM
   ) where
 
 import Data.Aeson
@@ -100,3 +109,21 @@ newtype EventVersion = EventVersion { unEventVersion :: Int }
 newtype SequenceNumber = SequenceNumber { unSequenceNumber :: Int }
   deriving (Show, Read, Ord, Eq, Enum, Num, FromJSON, ToJSON,
             PathPiece, ToHttpApiData, FromHttpApiData)
+
+class (EventStore m store serialized) => HasEventStore m store serialized | m -> store where
+  getEventStore :: m store
+
+getAllUuidsM :: (HasEventStore m store serialized) => m [UUID]
+getAllUuidsM = getEventStore >>= getAllUuids
+
+getEventsRawM :: (HasEventStore m store serialized) => UUID -> m [StoredEvent serialized]
+getEventsRawM uuid = getEventStore >>= flip getEventsRaw uuid
+
+storeEventsRawM :: (HasEventStore m store serialized) => UUID -> [serialized] -> m [StoredEvent serialized]
+storeEventsRawM uuid events = getEventStore >>= \store -> storeEventsRaw store uuid events
+
+getLatestProjectionM :: (Projection proj, Serializable (Event proj) serialized, HasEventStore m store serialized) => ProjectionId proj -> m proj
+getLatestProjectionM pid = getEventStore >>= \store -> getLatestProjection store pid
+
+getSequencedEventsM :: (HasEventStore m store serialized) => SequenceNumber -> m [StoredEvent serialized]
+getSequencedEventsM seqNum = getEventStore >>= \store -> getSequencedEvents store seqNum
