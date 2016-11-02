@@ -3,6 +3,9 @@ module Eventful.Store.Class
     EventStore (..)
   , getEvents
   , storeEvents
+  , storeEvent
+  , storeEventsGetLatest
+  , storeEventGetLatest
     -- * Utility types
   , ProjectionId (..)
   , StoredEvent (..)
@@ -69,6 +72,26 @@ storeEvents
 storeEvents store (ProjectionId uuid) events = do
   serialized <- storeEventsRaw store uuid (serialize <$> events)
   return $ zipWith (<$) events serialized
+
+-- | Like 'storeEvents', but just store a single event.
+storeEvent
+  :: (Serializable (Event proj) serialized, EventStore m store serialized)
+  => store -> ProjectionId proj -> Event proj -> m [StoredEvent (Event proj)]
+storeEvent store projId event = storeEvents store projId [event]
+
+-- | Like 'storeEvents', but also return the latest projection.
+storeEventsGetLatest
+  :: (EventStore m store serialized, Projection proj, Serializable (Event proj) serialized)
+  => store -> ProjectionId proj -> [Event proj] -> m proj
+storeEventsGetLatest store projId events = do
+  _ <- storeEvents store projId events
+  getLatestProjection store projId
+
+-- | Like 'storeEventsGetLatest', but only store a single event.
+storeEventGetLatest
+  :: (EventStore m store serialized, Projection proj, Serializable (Event proj) serialized)
+  => store -> ProjectionId proj -> Event proj -> m proj
+storeEventGetLatest store projId event = storeEventsGetLatest store projId [event]
 
 -- | This type ensures our stored events have the correct type, but it also
 -- allows us to avoid type ambiguity errors in event stores by providing the
