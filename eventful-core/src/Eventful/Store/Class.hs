@@ -8,6 +8,7 @@ module Eventful.Store.Class
   , storeEventGetLatest
     -- * Utility types
   , ProjectionId (..)
+  , projectionIdNextRandom
   , StoredEvent (..)
   , EventVersion (..)
   , SequenceNumber (..)
@@ -98,6 +99,10 @@ storeEventGetLatest store projId event = storeEventsGetLatest store projId [even
 -- phantom projection type.
 newtype ProjectionId proj = ProjectionId { unProjectionId :: UUID }
   deriving (Show, Eq, Ord, ToJSON, FromJSON, FromHttpApiData)
+
+-- | Generate a random ProjectionId
+projectionIdNextRandom :: IO (ProjectionId proj)
+projectionIdNextRandom = ProjectionId <$> uuidNextRandom
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event
