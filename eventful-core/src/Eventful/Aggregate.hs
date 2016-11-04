@@ -12,6 +12,6 @@ import Eventful.Projection
 -- the event store and apply the command. If the command is valid then the new
 -- event is applied to the projection in the event store.
 class (Projection a) => Aggregate a where
-  data Command a :: *
-  data CommandError a :: *
+  type Command a :: *
+  type CommandError a :: *
   command :: a -> Command a -> Either (CommandError a) (Event a)

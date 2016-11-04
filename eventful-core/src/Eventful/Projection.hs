@@ -12,7 +12,7 @@ import Data.List (scanl')
 -- events. For those coming from a Data Driven Design background, a Projection
 -- is the current state of an 'Aggregate'.
 class Projection proj where
-  data Event proj :: *
+  type Event proj :: *
 
   seed :: proj
   apply :: proj -> Event proj -> proj

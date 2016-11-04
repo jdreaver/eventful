@@ -2,9 +2,9 @@
 
 module Eventful.TestHelpers
   ( Counter (..)
-  , Event (..)
-  , Command (..)
-  , CommandError (..)
+  , CounterEvent (..)
+  , CounterCommand (..)
+  , CounterCommandError (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
   , EventBusSpecDelayMilliseconds (..)
@@ -30,28 +30,33 @@ import Eventful
 newtype Counter = Counter { unCounter :: Int }
   deriving (Eq, Show, FromJSON, ToJSON)
 
-instance Projection Counter where
-  data Event Counter
-    = Added
+data CounterEvent
+  = Added
     { _counterEventAmount :: Int
     }
-    deriving (Eq, Show)
+  deriving (Eq, Show)
+
+instance Projection Counter where
+  type Event Counter = CounterEvent
   seed = Counter 0
   apply (Counter k) (Added x) = Counter (k + x)
 
-instance Aggregate Counter where
-  data Command Counter
-    = Increment
-      { _counterCommandAmount :: Int
-      }
-    | Decrement
-      { _counterCommandAmount :: Int
-      }
-    deriving (Eq, Show)
+data CounterCommand
+  = Increment
+    { _counterCommandAmount :: Int
+    }
+  | Decrement
+    { _counterCommandAmount :: Int
+    }
+  deriving (Eq, Show)
 
-  data CommandError Counter
-    = OutOfBounds
-    deriving (Eq, Show)
+data CounterCommandError
+  = OutOfBounds
+  deriving (Eq, Show)
+
+instance Aggregate Counter where
+  type Command Counter = CounterCommand
+  type CommandError Counter = CounterCommandError
 
   command (Counter k) (Increment n) =
     if k + n <= 100
@@ -63,9 +68,9 @@ instance Aggregate Counter where
     then Right $ Added (-n)
     else Left OutOfBounds
 
-deriveJSON (unPrefix "_counterEvent") 'Added
-deriveJSON (unPrefix "_counterCommand") 'Increment
-deriveJSON (unPrefix "_counterCommandError") 'OutOfBounds
+deriveJSON (unPrefix "_counterEvent")  ''CounterEvent
+deriveJSON (unPrefix "_counterCommand")  ''CounterCommand
+deriveJSON (unPrefix "_counterCommandError")  ''CounterCommandError
 
 
 -- Test harness for stores
@@ -83,10 +88,10 @@ eventStoreSpec createStore = do
   context "when a few events are inserted" $ do
     store <- runIO createStore
     let events = [Added 1, Added 4, Added (-3)]
-    _ <- runIO $ storeEvents store (ProjectionId nil) events
+    _ <- runIO $ storeEvents store (ProjectionId nil :: ProjectionId Counter) events
 
     it "should return events" $ do
-      events' <- getEvents store (ProjectionId nil)
+      events' <- getEvents store (ProjectionId nil :: ProjectionId Counter)
       (storedEventEvent <$> events') `shouldBe` events
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
 
@@ -139,8 +144,8 @@ insertExampleEvents
   :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
   => store -> IO (ProjectionId Counter, ProjectionId Counter)
 insertExampleEvents store = do
-  let uuid1 = ProjectionId (uuidFromInteger 1)
-      uuid2 = ProjectionId (uuidFromInteger 2)
+  let uuid1 = ProjectionId (uuidFromInteger 1) :: ProjectionId Counter
+      uuid2 = ProjectionId (uuidFromInteger 2) :: ProjectionId Counter
   void $ storeEvents store uuid1 [Added 1]
   void $ storeEvents store uuid2 [Added 2, Added 3]
   void $ storeEvents store uuid1 [Added 4]
@@ -161,7 +166,7 @@ eventBusSpec createBus createStore mDelay = do
   context "given an event handler that just stores events" $ do
     store <- runIO createStore
     -- Populate store with some sample events
-    void $ runIO $ storeEvents store (ProjectionId nil) [Added 1, Added 2]
+    void $ runIO $ storeEvents store (ProjectionId nil :: ProjectionId Counter) [Added 1, Added 2]
 
     bus <- runIO createBus
     eventsRef <- runIO $ newIORef []
@@ -174,7 +179,7 @@ eventBusSpec createBus createStore mDelay = do
       length events `shouldBe` 2
 
     it "should properly transmit events" $ do
-      storeAndPublishEvents store bus (ProjectionId nil) [Added 3, Added 4]
+      storeAndPublishEvents store bus (ProjectionId nil :: ProjectionId Counter) [Added 3, Added 4]
       doDelay
       events <- readIORef eventsRef
       length events `shouldBe` 4
