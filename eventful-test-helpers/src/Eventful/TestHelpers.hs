@@ -76,7 +76,7 @@ deriveJSON (unPrefix "_counterCommandError")  ''CounterCommandError
 -- Test harness for stores
 
 eventStoreSpec
-  :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
+  :: (Serializable Counter serialized, Serializable (Event Counter) serialized, EventStore IO store serialized)
   => IO store -> Spec
 eventStoreSpec createStore = do
   context "when the event store is empty" $ do

@@ -51,6 +51,7 @@ runAggregateCommand
   :: ( Aggregate a
      , EventStore m store serializedes
      , EventBus m bus serializedeb
+     , Serializable a serializedes
      , Serializable (Event a) serializedes
      , Serializable (Event a) serializedeb
      )

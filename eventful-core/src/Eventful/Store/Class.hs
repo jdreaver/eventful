@@ -61,7 +61,9 @@ class (Monad m) => EventStore m store serialized | store -> serialized where
   -- | Retrieves the current state of a projection from the store. Some
   -- implementations might have a more efficient ways to do the this by suing
   -- snapshots.
-  getLatestProjection :: (Projection proj, Serializable (Event proj) serialized) => store -> ProjectionId proj -> m proj
+  getLatestProjection
+    :: (Projection proj, Serializable proj serialized, Serializable (Event proj) serialized)
+    => store -> ProjectionId proj -> m proj
   getLatestProjection store uuid = latestProjection . fmap storedEventEvent <$> getEvents store uuid
 
   -- | Gets all the events ordered starting with a given 'SequenceNumber', and
@@ -100,7 +102,7 @@ storeEvent store projId event = storeEvents store projId [event]
 
 -- | Like 'storeEvents', but also return the latest projection.
 storeEventsGetLatest
-  :: (EventStore m store serialized, Projection proj, Serializable (Event proj) serialized)
+  :: (EventStore m store serialized, Projection proj, Serializable proj serialized, Serializable (Event proj) serialized)
   => store -> ProjectionId proj -> [Event proj] -> m proj
 storeEventsGetLatest store projId events = do
   _ <- storeEvents store projId events
@@ -108,7 +110,7 @@ storeEventsGetLatest store projId events = do
 
 -- | Like 'storeEventsGetLatest', but only store a single event.
 storeEventGetLatest
-  :: (EventStore m store serialized, Projection proj, Serializable (Event proj) serialized)
+  :: (EventStore m store serialized, Projection proj, Serializable proj serialized, Serializable (Event proj) serialized)
   => store -> ProjectionId proj -> Event proj -> m proj
 storeEventGetLatest store projId event = storeEventsGetLatest store projId [event]
 
@@ -170,7 +172,9 @@ getEventsRawM uuid = getEventStore >>= flip getEventsRaw uuid
 storeEventsRawM :: (HasEventStore m store serialized) => UUID -> [serialized] -> m [StoredEvent serialized]
 storeEventsRawM uuid events = getEventStore >>= \store -> storeEventsRaw store uuid events
 
-getLatestProjectionM :: (Projection proj, Serializable (Event proj) serialized, HasEventStore m store serialized) => ProjectionId proj -> m proj
+getLatestProjectionM
+  :: (Projection proj, Serializable proj serialized, Serializable (Event proj) serialized, HasEventStore m store serialized)
+  => ProjectionId proj -> m proj
 getLatestProjectionM pid = getEventStore >>= \store -> getLatestProjection store pid
 
 getSequencedEventsM :: (HasEventStore m store serialized) => SequenceNumber -> m [StoredEvent serialized]

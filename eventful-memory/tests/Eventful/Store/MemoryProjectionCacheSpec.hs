@@ -12,12 +12,13 @@ import Eventful.UUID
 
 spec :: Spec
 spec = do
+  let
+    pid1 = ProjectionId (uuidFromInteger 1) :: ProjectionId Counter
+    pid2 = ProjectionId (uuidFromInteger 2) :: ProjectionId Counter
+    pid3 = ProjectionId (uuidFromInteger 3) :: ProjectionId Counter
+
   describe "loadProjectionCached" $ do
     store <- runIO memoryEventStoreTVar
-    let
-      pid1 = ProjectionId (uuidFromInteger 1) :: ProjectionId Counter
-      pid2 = ProjectionId (uuidFromInteger 2) :: ProjectionId Counter
-      pid3 = ProjectionId (uuidFromInteger 3) :: ProjectionId Counter
 
     it "should return seed when there are no events" $ do
       snd <$> loadProjectionCached store pid1 projectionCache >>= (`shouldBe` seed)
@@ -39,6 +40,27 @@ spec = do
       cache <- assertCache store pid3 projectionCache 3
       cache' <- assertCache store pid3 cache 3
       void $ assertCache store pid3 cache' 3
+
+  describe "TVar memory event store wrapped in projection cache store" $ do
+    store <- runIO (memoryEventStoreTVar >>= projectionCacheStore)
+
+    it "should properly cache after loading a projection" $ do
+      void $ storeEvents store pid1 [Added 1]
+      ProjectionCache cache <- readTVarIO $ _projectionCacheStoreCache store
+      (Map.lookup (unProjectionId pid1) cache >>= deserializeCached) `shouldBe` (Nothing :: Maybe (CachedProjection Counter))
+      proj <- getLatestProjection store pid1
+      proj `shouldBe` Counter 1
+      ProjectionCache cache' <- readTVarIO $ _projectionCacheStoreCache store
+      (Map.lookup (unProjectionId pid1) cache' >>= deserializeCached) `shouldBe` Just (CachedProjection 0 (Counter 1))
+
+      void $ storeEvents store pid1 [Added 2, Added 3]
+      proj' <- getLatestProjection store pid1
+      proj' `shouldBe` Counter 6
+      ProjectionCache cache'' <- readTVarIO $ _projectionCacheStoreCache store
+      (Map.lookup (unProjectionId pid1) cache'' >>= deserializeCached) `shouldBe` Just (CachedProjection 2 (Counter 6))
+
+    eventStoreSpec (memoryEventStoreTVar >>= projectionCacheStore)
+    sequencedEventStoreSpec (memoryEventStoreTVar >>= projectionCacheStore)
 
 assertCache :: TVar MemoryEventStore -> ProjectionId Counter -> ProjectionCache -> Int -> IO ProjectionCache
 assertCache store pid cache val = do
