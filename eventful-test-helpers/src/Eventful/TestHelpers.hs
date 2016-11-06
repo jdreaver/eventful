@@ -85,6 +85,9 @@ eventStoreSpec createStore = do
     it "shouldn't have UUIDs" $ do
       getAllUuids store `shouldReturn` []
 
+    it "should return versions of -1 for UUIDs" $ do
+      getLatestVersion store nil `shouldReturn` (-1)
+
   context "when a few events are inserted" $ do
     store <- runIO createStore
     let events = [Added 1, Added 4, Added (-3)]
@@ -94,6 +97,13 @@ eventStoreSpec createStore = do
       events' <- getEvents store (ProjectionId nil :: ProjectionId Counter)
       (storedEventEvent <$> events') `shouldBe` events
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
+
+    it "should return correct event versions" $ do
+      getLatestVersion store nil `shouldReturn` 2
+      fmap storedEventEvent <$> getEventsFromVersion store (ProjectionId nil :: ProjectionId Counter) (-1)
+        >>= (`shouldBe` events)
+      fmap storedEventEvent <$> getEventsFromVersion store (ProjectionId nil :: ProjectionId Counter) 1
+        >>= (`shouldBe` drop 1 events)
 
     it "should return the latest projection" $ do
       getLatestProjection store (ProjectionId nil) `shouldReturn` Counter 2
@@ -112,6 +122,12 @@ eventStoreSpec createStore = do
       (storedEventProjectionId <$> events2) `shouldBe` [uuid2', uuid2', uuid2']
       (storedEventVersion <$> events1) `shouldBe` [0, 1]
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
+
+    it "should return correct event versions" $ do
+      getLatestVersion store (unProjectionId uuid1) `shouldReturn` 1
+      getLatestVersion store (unProjectionId uuid2) `shouldReturn` 2
+      fmap storedEventEvent <$> getEventsFromVersion store uuid1 0 >>= (`shouldBe` [Added 1, Added 4])
+      fmap storedEventEvent <$> getEventsFromVersion store uuid2 1 >>= (`shouldBe` [Added 3, Added 5])
 
     it "should produce the correct projections" $ do
       getLatestProjection store uuid1 `shouldReturn` Counter 5

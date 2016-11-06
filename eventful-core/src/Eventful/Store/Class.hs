@@ -2,6 +2,7 @@ module Eventful.Store.Class
   ( -- * EventStore
     EventStore (..)
   , getEvents
+  , getEventsFromVersion
   , storeEvents
   , storeEvent
   , storeEventsGetLatest
@@ -44,8 +45,18 @@ class (Monad m) => EventStore m store serialized | store -> serialized where
   -- projection's UUID.
   getEventsRaw :: store -> UUID -> m [StoredEvent serialized]
 
+  -- | Like 'getEventsRaw', but only retrieves events greater than or equal to
+  -- the given version.
+  getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [StoredEvent serialized]
+  getEventsFromVersionRaw store uuid vers = do
+    allEvents <- getEventsRaw store uuid
+    return $ filter ((>= vers) . storedEventVersion) allEvents
+
   -- | Stores the events for a given 'Projection' using that projection's UUID.
   storeEventsRaw :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
+
+  -- | Gets the latest 'EventVersion' for a given 'Projection'.
+  getLatestVersion :: store -> UUID -> m EventVersion
 
   -- | Retrieves the current state of a projection from the store. Some
   -- implementations might have a more efficient ways to do the this by suing
@@ -64,6 +75,13 @@ getEvents
   :: (Serializable (Event proj) serialized, EventStore m store serialized)
   => store -> ProjectionId proj -> m [StoredEvent (Event proj)]
 getEvents store (ProjectionId uuid) = mapMaybe deserialize <$> getEventsRaw store uuid
+
+-- | Like 'getEventsFromVersionRaw', but uses a 'Serializable' instance for the
+-- event type to try and deserialize them.
+getEventsFromVersion
+  :: (Serializable (Event proj) serialized, EventStore m store serialized)
+  => store -> ProjectionId proj -> EventVersion -> m [StoredEvent (Event proj)]
+getEventsFromVersion store (ProjectionId uuid) vers = mapMaybe deserialize <$> getEventsFromVersionRaw store uuid vers
 
 -- | Like 'storeEventsRaw', but uses a 'Serializable' instance for the event
 -- type to serialize them.

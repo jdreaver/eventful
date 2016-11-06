@@ -49,9 +49,13 @@ getProjectionIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getProjectionIds =
   fmap unSingle <$> rawSql "SELECT DISTINCT projection_id FROM events" []
 
-getSqliteAggregateEvents :: (MonadIO m) => UUID -> ReaderT SqlBackend m [StoredEvent JSONString]
-getSqliteAggregateEvents uuid = do
-  entities <- selectList [SqliteEventProjectionId ==. uuid] [Asc SqliteEventVersion]
+getSqliteAggregateEvents :: (MonadIO m) => UUID -> Maybe EventVersion -> ReaderT SqlBackend m [StoredEvent JSONString]
+getSqliteAggregateEvents uuid mVers = do
+  let
+    constraints =
+      (SqliteEventProjectionId ==. uuid) :
+      maybe [] (\vers -> [SqliteEventVersion >=. vers]) mVers
+  entities <- selectList constraints [Asc SqliteEventVersion]
   return $ sqliteEventToStored <$> entities
 
 getAllEventsFromSequence :: (MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [StoredEvent JSONString]
@@ -102,18 +106,12 @@ sqliteEventStore pool = do
   return $ SqliteEventStore pool
 
 instance (MonadIO m) => EventStore m SqliteEventStore JSONString where
-  getAllUuids = sqliteEventStoreGetUuids
-  getEventsRaw = sqliteEventStoreGetEvents
+  getAllUuids (SqliteEventStore pool) = liftIO $ runSqlPool getProjectionIds pool
+  getEventsRaw (SqliteEventStore pool) uuid = liftIO $ runSqlPool (getSqliteAggregateEvents uuid Nothing) pool
+  getEventsFromVersionRaw (SqliteEventStore pool) uuid vers = liftIO $ runSqlPool (getSqliteAggregateEvents uuid (Just vers)) pool
+  getLatestVersion (SqliteEventStore pool) uuid = liftIO $ runSqlPool (maxEventVersion uuid) pool
   storeEventsRaw = sqliteEventStoreStoreEvents
   getSequencedEvents = sqliteEventStoreGetSequencedEvents
-
-sqliteEventStoreGetUuids :: (MonadIO m) => SqliteEventStore -> m [UUID]
-sqliteEventStoreGetUuids (SqliteEventStore pool) =
-  liftIO $ runSqlPool getProjectionIds pool
-
-sqliteEventStoreGetEvents :: (MonadIO m) => SqliteEventStore -> UUID -> m [StoredEvent JSONString]
-sqliteEventStoreGetEvents (SqliteEventStore pool) uuid =
-  liftIO $ runSqlPool (getSqliteAggregateEvents uuid) pool
 
 sqliteEventStoreGetSequencedEvents :: (MonadIO m) => SqliteEventStore -> SequenceNumber -> m [StoredEvent JSONString]
 sqliteEventStoreGetSequencedEvents (SqliteEventStore pool) seqNum =
