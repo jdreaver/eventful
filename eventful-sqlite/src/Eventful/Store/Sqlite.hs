@@ -11,6 +11,7 @@ module Eventful.Store.Sqlite
   , sqliteMaxVariableNumber
   , SqliteEventStore
   , sqliteEventStore
+  , SqlitePersistTEventStore (..)
   , JSONString
   , module Eventful.Store.Class
   ) where
@@ -68,6 +69,20 @@ maxEventVersion uuid =
   let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?" [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
+sqliteStoreEvents :: (MonadIO m) => UUID -> [JSONString] -> SqlPersistT m [StoredEvent JSONString]
+sqliteStoreEvents uuid events = do
+  versionNum <- maxEventVersion uuid
+  let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
+
+  -- Note that the postgres backend doesn't need to do a SELECT after the
+  -- INSERT to get the keys, because insertMany uses the postgres RETURNING
+  -- statement.
+  bulkInsert entities 4
+  sequenceNums <- selectKeysList [SqliteEventProjectionId ==. uuid, SqliteEventVersion >. versionNum] [Asc SqliteEventVersion]
+
+  return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
+    sequenceNums [versionNum + 1..] events
+
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
 bulkInsert
   :: ( MonadIO m
@@ -105,33 +120,21 @@ sqliteEventStore pool = do
 
   return $ SqliteEventStore pool
 
-instance (MonadIO m) => EventStore m SqliteEventStore JSONString where
-  getAllUuids (SqliteEventStore pool) = liftIO $ runSqlPool getProjectionIds pool
-  getEventsRaw (SqliteEventStore pool) uuid = liftIO $ runSqlPool (getSqliteAggregateEvents uuid Nothing) pool
-  getEventsFromVersionRaw (SqliteEventStore pool) uuid vers = liftIO $ runSqlPool (getSqliteAggregateEvents uuid (Just vers)) pool
-  getLatestVersion (SqliteEventStore pool) uuid = liftIO $ runSqlPool (maxEventVersion uuid) pool
-  storeEventsRaw = sqliteEventStoreStoreEvents
-  getSequencedEvents = sqliteEventStoreGetSequencedEvents
+instance EventStore IO SqliteEventStore JSONString where
+  getAllUuids (SqliteEventStore pool) = runSqlPool getProjectionIds pool
+  getEventsRaw (SqliteEventStore pool) uuid = runSqlPool (getSqliteAggregateEvents uuid Nothing) pool
+  getEventsFromVersionRaw (SqliteEventStore pool) uuid vers = runSqlPool (getSqliteAggregateEvents uuid (Just vers)) pool
+  getLatestVersion (SqliteEventStore pool) uuid = runSqlPool (maxEventVersion uuid) pool
+  storeEventsRaw (SqliteEventStore pool) uuid events = runSqlPool (sqliteStoreEvents uuid events) pool
+  getSequencedEvents (SqliteEventStore pool) seqNum = runSqlPool (getAllEventsFromSequence seqNum) pool
 
-sqliteEventStoreGetSequencedEvents :: (MonadIO m) => SqliteEventStore -> SequenceNumber -> m [StoredEvent JSONString]
-sqliteEventStoreGetSequencedEvents (SqliteEventStore pool) seqNum =
-  liftIO $ runSqlPool (getAllEventsFromSequence seqNum) pool
+data SqlitePersistTEventStore = SqlitePersistTEventStore
+  deriving (Show)
 
-sqliteEventStoreStoreEvents
-  :: (MonadIO m)
-  => SqliteEventStore -> UUID -> [JSONString] -> m [StoredEvent JSONString]
-sqliteEventStoreStoreEvents (SqliteEventStore pool) uuid events =
-  liftIO $ runSqlPool doInsert pool
-  where
-    doInsert = do
-      versionNum <- maxEventVersion uuid
-      let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
-
-      -- Note that the postgres backend doesn't need to do a SELECT after the
-      -- INSERT to get the keys, because insertMany uses the postgres RETURNING
-      -- statement.
-      bulkInsert entities 4
-      sequenceNums <- selectKeysList [SqliteEventProjectionId ==. uuid, SqliteEventVersion >. versionNum] [Asc SqliteEventVersion]
-
-      return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
-        sequenceNums [versionNum + 1..] events
+instance (MonadIO m) => EventStore (SqlPersistT m) SqlitePersistTEventStore JSONString where
+  getAllUuids _ = getProjectionIds
+  getEventsRaw _ uuid = getSqliteAggregateEvents uuid Nothing
+  getEventsFromVersionRaw _ uuid vers = getSqliteAggregateEvents uuid (Just vers)
+  getLatestVersion _ = maxEventVersion
+  storeEventsRaw _ = sqliteStoreEvents
+  getSequencedEvents _ = getAllEventsFromSequence
