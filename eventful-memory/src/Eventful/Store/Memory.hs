@@ -6,7 +6,6 @@ module Eventful.Store.Memory
   ) where
 
 import Control.Concurrent.STM
-import Control.Monad.IO.Class
 import Data.Dynamic
 import Data.Foldable (toList)
 import Data.List (sortOn)
@@ -57,30 +56,39 @@ storeMemoryEventStore store@(MemoryEventStore uuidMap seqNum) uuid events =
       newSeq = seqNum + (SequenceNumber $ length events)
   in (MemoryEventStore newMap newSeq, storedEvents)
 
-instance (MonadIO m) => EventStore m (TVar MemoryEventStore) Dynamic where
-  getAllUuids tvar = liftIO $ fmap fst . Map.toList . memoryEventStoreUuidMap <$> readTVarIO tvar
-  getEventsRaw tvar uuid = liftIO $ toList . flip lookupMemoryEventStoreRaw uuid <$> readTVarIO tvar
-  getEventsFromVersionRaw tvar uuid vers = liftIO $ toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVarIO tvar
-  storeEventsRaw tvar uuid events = liftIO . atomically $ do
+instance EventStore IO (TVar MemoryEventStore) Dynamic where
+  -- These use the STM instance defined below
+  getAllUuids tvar = atomically $ getAllUuids tvar
+  getEventsRaw tvar uuid = atomically $ getEventsRaw tvar uuid
+  getEventsFromVersionRaw tvar uuid vers = atomically $ getEventsFromVersionRaw tvar uuid vers
+  storeEventsRaw tvar uuid events = atomically $ storeEventsRaw tvar uuid events
+  getLatestVersion tvar uuid = atomically $ getLatestVersion tvar uuid
+  getSequencedEvents tvar seqNum = atomically $ getSequencedEvents tvar seqNum
+
+instance EventStore STM (TVar MemoryEventStore) Dynamic where
+  getAllUuids tvar = fmap fst . Map.toList . memoryEventStoreUuidMap <$> readTVar tvar
+  getEventsRaw tvar uuid = toList . flip lookupMemoryEventStoreRaw uuid <$> readTVar tvar
+  getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
+  storeEventsRaw tvar uuid events = do
     store <- readTVar tvar
     let (newMap, storedEvents) = storeMemoryEventStore store uuid events
     writeTVar tvar newMap
     return storedEvents
-  getLatestVersion tvar uuid = liftIO $ flip latestEventVersion uuid <$> readTVarIO tvar
-  getSequencedEvents tvar seqNum = liftIO $ do
-    store <- readTVarIO tvar
+  getLatestVersion tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
+  getSequencedEvents tvar seqNum = do
+    store <- readTVar tvar
     return $ lookupMemoryEventStoreSeq store seqNum
 
-instance (MonadIO m) => EventStore m (IORef MemoryEventStore) Dynamic where
-  getAllUuids ref = liftIO $ fmap fst . Map.toList . memoryEventStoreUuidMap <$> readIORef ref
-  getEventsRaw ref uuid = liftIO $ toList . flip lookupMemoryEventStoreRaw uuid <$> readIORef ref
-  getEventsFromVersionRaw ref uuid vers = liftIO $ toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readIORef ref
-  storeEventsRaw ref uuid events = liftIO $ do
+instance EventStore IO (IORef MemoryEventStore) Dynamic where
+  getAllUuids ref = fmap fst . Map.toList . memoryEventStoreUuidMap <$> readIORef ref
+  getEventsRaw ref uuid = toList . flip lookupMemoryEventStoreRaw uuid <$> readIORef ref
+  getEventsFromVersionRaw ref uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readIORef ref
+  storeEventsRaw ref uuid events = do
     store <- readIORef ref
     let (newMap, storedEvents) = storeMemoryEventStore store uuid events
     writeIORef ref newMap
     return storedEvents
-  getLatestVersion ref uuid = liftIO $ flip latestEventVersion uuid <$> readIORef ref
-  getSequencedEvents ref seqNum = liftIO $ do
+  getLatestVersion ref uuid = flip latestEventVersion uuid <$> readIORef ref
+  getSequencedEvents ref seqNum = do
     store <- readIORef ref
     return $ lookupMemoryEventStoreSeq store seqNum
