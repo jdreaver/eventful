@@ -13,7 +13,6 @@ module Eventful.UUID
   , uuidFromInteger
   ) where
 
-
 import Data.UUID
 import qualified Data.UUID.V4 as UUID4
 
@@ -23,6 +22,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
 import Text.Printf (printf)
 import Web.HttpApiData
+import Web.PathPieces
 
 uuidFromText :: Text -> Maybe UUID
 uuidFromText = fromText
@@ -41,9 +41,18 @@ instance FromJSON UUID where
     uuid <- parseJSON text
     maybe (fail $ "Error parsing UUID " ++ show uuid) pure (fromText uuid)
 
+-- TODO: Later versions of http-api-data have this already implemented
 instance FromHttpApiData UUID where
   parseUrlPiece = maybe (Left "Can't decode UUID in URL path") Right . fromText
   parseQueryParam = maybe (Left "Can't decode UUID in query param") Right . fromText
+
+instance ToHttpApiData UUID where
+  toUrlPiece = toText
+  toHeader = toASCIIBytes
+
+instance PathPiece UUID where
+  fromPathPiece = uuidFromText
+  toPathPiece = uuidToText
 
 -- | Useful for testing
 uuidFromInteger :: Integer -> UUID
