@@ -1,4 +1,4 @@
-resolver: nightly-2016-09-17
+resolver: nightly-2016-11-13
 packages:
   - 'eventful-core'
   - 'eventful-memory'
