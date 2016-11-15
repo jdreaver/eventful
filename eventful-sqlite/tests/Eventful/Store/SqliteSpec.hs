@@ -21,5 +21,5 @@ spec = do
 
       it "doesn't fail with an error about too many variables" $ do
         let numEvents = sqliteMaxVariableNumber * 3
-        storedEvents <- storeEvents store (ProjectionId nil :: ProjectionId Counter) (Added <$> [1..numEvents])
+        storedEvents <- storeEvents store nil (Added <$> [1..numEvents])
         length storedEvents `shouldBe` numEvents

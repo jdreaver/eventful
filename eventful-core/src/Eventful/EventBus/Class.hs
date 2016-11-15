@@ -12,6 +12,7 @@ import Eventful.Projection
 import Eventful.ReadModel.Class
 import Eventful.Serializable
 import Eventful.Store.Class
+import Eventful.UUID
 
 type EventBusHandler m serialized = StoredEvent serialized -> m ()
 
@@ -36,10 +37,10 @@ registerReadModel eventStore bus model = do
 storeAndPublishEvents
   :: ( EventStore m store serializedes
      , EventBus m bus serializedeb
-     , Serializable (Event proj) serializedes
-     , Serializable (Event proj) serializedeb
+     , Serializable event serializedes
+     , Serializable event serializedeb
      )
-  => store -> bus -> ProjectionId proj -> [Event proj] -> m ()
+  => store -> bus -> UUID -> [event] -> m ()
 storeAndPublishEvents store bus uuid events = do
   storedEvents <- storeEvents store uuid events
   mapM_ (publishEvent bus) (serialize <$> storedEvents)
@@ -48,16 +49,16 @@ storeAndPublishEvents store bus uuid events = do
 -- aggregate root (same UUID) at once. There is a race condition between
 -- getting the projection and validating the command.
 runAggregateCommand
-  :: ( Aggregate a
+  :: ( Aggregate proj
      , EventStore m store serializedes
      , EventBus m bus serializedeb
-     , Serializable a serializedes
-     , Serializable (Event a) serializedes
-     , Serializable (Event a) serializedeb
+     , Serializable proj serializedes
+     , Serializable (Event proj) serializedes
+     , Serializable (Event proj) serializedeb
      )
-  => store -> bus -> ProjectionId a -> Command a -> m (Maybe (CommandError a))
+  => store -> bus -> UUID -> Command proj -> m (proj, Maybe (CommandError proj))
 runAggregateCommand store bus uuid cmd = do
   proj <- getLatestProjection store uuid
   case command proj cmd of
-    (Left err) -> return (Just err)
-    (Right event) -> storeAndPublishEvents store bus uuid [event] >> return Nothing
+    (Left err) -> return (proj, Just err)
+    (Right event) -> storeAndPublishEvents store bus uuid [event] >> return (proj, Nothing)

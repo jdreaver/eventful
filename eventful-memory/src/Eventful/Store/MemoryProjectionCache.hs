@@ -45,8 +45,8 @@ deserializeCached (CachedProjection vers proj) = CachedProjection vers <$> deser
 
 lookupProjectionCache
   :: (Projection proj, Serializable proj Dynamic)
-  => ProjectionId proj -> ProjectionCache -> CachedProjection proj
-lookupProjectionCache (ProjectionId uuid) (ProjectionCache cache) =
+  => UUID -> ProjectionCache -> CachedProjection proj
+lookupProjectionCache uuid (ProjectionCache cache) =
   case Map.lookup uuid cache >>= deserializeCached of
     (Just proj) -> proj
     Nothing -> CachedProjection (-1) seed
@@ -55,15 +55,15 @@ lookupProjectionCache (ProjectionId uuid) (ProjectionCache cache) =
 -- projection.
 loadProjectionCached
   :: (EventStore m store serialized, Projection proj, Serializable proj Dynamic, Serializable (Event proj) serialized)
-  => store -> ProjectionId proj -> ProjectionCache -> m (ProjectionCache, proj)
-loadProjectionCached store pid@(ProjectionId uuid) cache@(ProjectionCache projMap) = do
+  => store -> UUID -> ProjectionCache -> m (ProjectionCache, proj)
+loadProjectionCached store uuid cache@(ProjectionCache projMap) = do
   version <- getLatestVersion store uuid
   let
-    (CachedProjection cachedVersion cachedProj) = lookupProjectionCache pid cache
+    (CachedProjection cachedVersion cachedProj) = lookupProjectionCache uuid cache
   if cachedVersion >= version
   then return (cache, cachedProj)
   else do
-    newEvents <- getEventsFromVersion store pid (cachedVersion + 1)
+    newEvents <- getEventsFromVersion store uuid (cachedVersion + 1)
     let
       proj = foldl' apply cachedProj (storedEventEvent <$> newEvents)
       cachedProj' = CachedProjection version proj
