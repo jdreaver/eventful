@@ -11,7 +11,8 @@ module Eventful.Store.Sqlite
   , sqliteMaxVariableNumber
   , SqliteEventStore
   , sqliteEventStore
-  , SqlitePersistTEventStore (..)
+  , SqlitePersistTEventStore
+  , sqlitePersistTEventStore
   , JSONString
   , module Eventful.Store.Class
   ) where
@@ -102,14 +103,8 @@ bulkInsert items numFields = forM_ (chunksOf chunkSize items) insertMany_
 sqliteMaxVariableNumber :: Int
 sqliteMaxVariableNumber = 999
 
-
-data SqliteEventStore
-  = SqliteEventStore
-  { _sqliteEventStoreConnectionPool :: ConnectionPool
-  }
-
-sqliteEventStore :: (MonadIO m) => ConnectionPool -> m SqliteEventStore
-sqliteEventStore pool = do
+initializeSqliteEventStore :: (MonadIO m) => ConnectionPool -> m ()
+initializeSqliteEventStore pool = do
   -- Run migrations
   _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqliteEvent) pool
 
@@ -118,6 +113,16 @@ sqliteEventStore pool = do
     (rawExecute "CREATE INDEX IF NOT EXISTS projection_id_index ON events (projection_id)" [])
     pool
 
+  return ()
+
+data SqliteEventStore
+  = SqliteEventStore
+  { _sqliteEventStoreConnectionPool :: ConnectionPool
+  }
+
+sqliteEventStore :: (MonadIO m) => ConnectionPool -> m SqliteEventStore
+sqliteEventStore pool = do
+  initializeSqliteEventStore pool
   return $ SqliteEventStore pool
 
 instance EventStore IO SqliteEventStore JSONString where
@@ -130,6 +135,11 @@ instance EventStore IO SqliteEventStore JSONString where
 
 data SqlitePersistTEventStore = SqlitePersistTEventStore
   deriving (Show)
+
+sqlitePersistTEventStore :: (MonadIO m) => ConnectionPool -> m SqlitePersistTEventStore
+sqlitePersistTEventStore pool = do
+  initializeSqliteEventStore pool
+  return SqlitePersistTEventStore
 
 instance (MonadIO m) => EventStore (SqlPersistT m) SqlitePersistTEventStore JSONString where
   getAllUuids _ = getProjectionIds
