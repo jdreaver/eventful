@@ -8,5 +8,5 @@ import Eventful.TestHelpers
 spec :: Spec
 spec = do
   describe "TVar memory event store" $ do
-    eventStoreSpec memoryEventStoreTVar runMemoryEventStore
-    sequencedEventStoreSpec memoryEventStoreTVar runMemoryEventStore
+    eventStoreSpec memoryEventStore runMemoryEventStore
+    sequencedEventStoreSpec memoryEventStore runMemoryEventStore
