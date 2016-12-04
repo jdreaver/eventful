@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE QuasiQuotes #-}  -- This is here so Hlint doesn't choke
 
 -- | Defines an Sqlite event store.
@@ -9,10 +10,7 @@ module Eventful.Store.Sqlite
   , getProjectionIds
   , bulkInsert
   , sqliteMaxVariableNumber
-  , SqliteEventStore
-  , sqliteEventStore
-  , SqlitePersistTEventStore
-  , sqlitePersistTEventStore
+  , initializeSqliteEventStore
   , JSONString
   , module Eventful.Store.Class
   ) where
@@ -115,36 +113,12 @@ initializeSqliteEventStore pool = do
 
   return ()
 
-data SqliteEventStore
-  = SqliteEventStore
-  { _sqliteEventStoreConnectionPool :: ConnectionPool
-  }
+instance (MonadIO m) => EventStoreMetadata (SqlPersistT m) where
+  getAllUuids = getProjectionIds
+  getLatestVersion = maxEventVersion
 
-sqliteEventStore :: (MonadIO m) => ConnectionPool -> m SqliteEventStore
-sqliteEventStore pool = do
-  initializeSqliteEventStore pool
-  return $ SqliteEventStore pool
-
-instance EventStore IO SqliteEventStore JSONString where
-  getAllUuids (SqliteEventStore pool) = runSqlPool getProjectionIds pool
-  getEventsRaw (SqliteEventStore pool) uuid = runSqlPool (getSqliteAggregateEvents uuid Nothing) pool
-  getEventsFromVersionRaw (SqliteEventStore pool) uuid vers = runSqlPool (getSqliteAggregateEvents uuid (Just vers)) pool
-  getLatestVersion (SqliteEventStore pool) uuid = runSqlPool (maxEventVersion uuid) pool
-  storeEventsRaw (SqliteEventStore pool) uuid events = runSqlPool (sqliteStoreEvents uuid events) pool
-  getSequencedEvents (SqliteEventStore pool) seqNum = runSqlPool (getAllEventsFromSequence seqNum) pool
-
-data SqlitePersistTEventStore = SqlitePersistTEventStore
-  deriving (Show)
-
-sqlitePersistTEventStore :: (MonadIO m) => ConnectionPool -> m SqlitePersistTEventStore
-sqlitePersistTEventStore pool = do
-  initializeSqliteEventStore pool
-  return SqlitePersistTEventStore
-
-instance (MonadIO m) => EventStore (SqlPersistT m) SqlitePersistTEventStore JSONString where
-  getAllUuids _ = getProjectionIds
-  getEventsRaw _ uuid = getSqliteAggregateEvents uuid Nothing
-  getEventsFromVersionRaw _ uuid vers = getSqliteAggregateEvents uuid (Just vers)
-  getLatestVersion _ = maxEventVersion
-  storeEventsRaw _ = sqliteStoreEvents
-  getSequencedEvents _ = getAllEventsFromSequence
+instance (MonadIO m) => EventStore (SqlPersistT m) JSONString where
+  getEventsRaw uuid = getSqliteAggregateEvents uuid Nothing
+  storeEventsRaw = sqliteStoreEvents
+  getEventsFromVersionRaw uuid vers = getSqliteAggregateEvents uuid (Just vers)
+  getSequencedEvents = getAllEventsFromSequence

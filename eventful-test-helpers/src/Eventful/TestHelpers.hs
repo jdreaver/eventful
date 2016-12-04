@@ -7,17 +7,12 @@ module Eventful.TestHelpers
   , CounterCommandError (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
-  , EventBusSpecDelayMilliseconds (..)
-  , eventBusSpec
   , module X
   ) where
 
-import Control.Concurrent
 import Control.Monad as X
-import Control.Monad.Extra
 import Control.Monad.IO.Class as X
 import Control.Monad.Logger as X
-import Data.IORef
 
 import Data.Aeson
 import Data.Aeson.TH
@@ -76,45 +71,45 @@ deriveJSON (unPrefix "_counterCommandError")  ''CounterCommandError
 -- Test harness for stores
 
 eventStoreSpec
-  :: (Serializable Counter serialized, Serializable (Event Counter) serialized, EventStore IO store serialized)
-  => IO store -> Spec
-eventStoreSpec createStore = do
+  :: (Serializable Counter serialized, Serializable (Event Counter) serialized, EventStore m serialized)
+  => IO store -> (forall a. store -> m a -> IO a) -> Spec
+eventStoreSpec makeStore runStore = do
   context "when the event store is empty" $ do
-    store <- runIO createStore
+    store <- runIO makeStore
 
     it "shouldn't have UUIDs" $ do
-      getAllUuids store `shouldReturn` []
+      runStore store getAllUuids `shouldReturn` []
 
     it "should return versions of -1 for UUIDs" $ do
-      getLatestVersion store nil `shouldReturn` (-1)
+      runStore store (getLatestVersion nil) `shouldReturn` (-1)
 
   context "when a few events are inserted" $ do
-    store <- runIO createStore
     let events = [Added 1, Added 4, Added (-3)]
-    _ <- runIO $ storeEvents store nil events
+    store <- runIO makeStore
+    _ <- runIO $ runStore store $ storeEvents nil events
 
     it "should return events" $ do
-      events' <- getEvents store nil
+      events' <- runStore store $ getEvents nil
       (storedEventEvent <$> events') `shouldBe` events
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
 
     it "should return correct event versions" $ do
-      getLatestVersion store nil `shouldReturn` 2
-      fmap storedEventEvent <$> getEventsFromVersion store nil (-1)
+      runStore store (getLatestVersion nil) `shouldReturn` 2
+      fmap storedEventEvent <$> runStore store (getEventsFromVersion nil (-1))
         >>= (`shouldBe` events)
-      fmap storedEventEvent <$> getEventsFromVersion store nil 1
+      fmap storedEventEvent <$> runStore store (getEventsFromVersion nil 1)
         >>= (`shouldBe` drop 1 events)
 
     it "should return the latest projection" $ do
-      getLatestProjection store nil `shouldReturn` Counter 2
+      runStore store (getLatestProjection nil) `shouldReturn` Counter 2
 
   context "when events from multiple UUIDs are inserted" $ do
-    store <- runIO createStore
-    (uuid1, uuid2) <- runIO $ insertExampleEvents store
+    store <- runIO makeStore
+    (uuid1, uuid2) <- runIO $ runStore store insertExampleEvents
 
     it "should have the correct events for each aggregate" $ do
-      events1 <- getEvents store uuid1
-      events2 <- getEvents store uuid2
+      events1 <- runStore store $ getEvents uuid1
+      events2 <- runStore store $ getEvents uuid2
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
       (storedEventProjectionId <$> events1) `shouldBe` [uuid1, uuid1]
@@ -123,32 +118,32 @@ eventStoreSpec createStore = do
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
     it "should return correct event versions" $ do
-      getLatestVersion store uuid1 `shouldReturn` 1
-      getLatestVersion store uuid2 `shouldReturn` 2
-      fmap storedEventEvent <$> getEventsFromVersion store uuid1 0 >>= (`shouldBe` [Added 1, Added 4])
-      fmap storedEventEvent <$> getEventsFromVersion store uuid2 1 >>= (`shouldBe` [Added 3, Added 5])
+      runStore store (getLatestVersion uuid1) `shouldReturn` 1
+      runStore store (getLatestVersion uuid2) `shouldReturn` 2
+      fmap storedEventEvent <$> runStore store (getEventsFromVersion uuid1 0) >>= (`shouldBe` [Added 1, Added 4])
+      fmap storedEventEvent <$> runStore store (getEventsFromVersion uuid2 1) >>= (`shouldBe` [Added 3, Added 5])
 
     it "should produce the correct projections" $ do
-      getLatestProjection store uuid1 `shouldReturn` Counter 5
-      getLatestProjection store uuid2 `shouldReturn` Counter 10
+      runStore store (getLatestProjection uuid1) `shouldReturn` Counter 5
+      runStore store (getLatestProjection uuid2) `shouldReturn` Counter 10
 
 
 sequencedEventStoreSpec
-  :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
-  => IO store -> Spec
-sequencedEventStoreSpec createStore = do
+  :: (Serializable (Event Counter) serialized, EventStore m serialized)
+  => IO store -> (forall a. store -> m a -> IO a) -> Spec
+sequencedEventStoreSpec makeStore runStore = do
   context "when the event store is empty" $ do
-    store <- runIO createStore
+    store <- runIO makeStore
 
     it "shouldn't have any events" $ do
-      length <$> getSequencedEvents store 0 `shouldReturn` 0
+      length <$> runStore store (getSequencedEvents 0) `shouldReturn` 0
 
   context "when events from multiple UUIDs are inserted" $ do
-    store <- runIO createStore
-    (uuid1, uuid2) <- runIO $ insertExampleEvents store
+    store <- runIO makeStore
+    (uuid1, uuid2) <- runIO $ runStore store insertExampleEvents
 
     it "should have the correct events in global order" $ do
-      events' <- getSequencedEvents store 0
+      events' <- runStore store $ getSequencedEvents 0
       let deserializedEvents = mapMaybe deserialize events'
       (storedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
       (storedEventProjectionId <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
@@ -156,45 +151,13 @@ sequencedEventStoreSpec createStore = do
       (storedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
 
 insertExampleEvents
-  :: (Serializable (Event Counter) serialized, EventStore IO store serialized)
-  => store -> IO (UUID, UUID)
-insertExampleEvents store = do
+  :: (Serializable (Event Counter) serialized, EventStore m serialized)
+  => m (UUID, UUID)
+insertExampleEvents = do
   let uuid1 = uuidFromInteger 1
       uuid2 = uuidFromInteger 2
-  void $ storeEvents store uuid1 [Added 1]
-  void $ storeEvents store uuid2 [Added 2, Added 3]
-  void $ storeEvents store uuid1 [Added 4]
-  void $ storeEvents store uuid2 [Added 5]
+  void $ storeEvents uuid1 [Added 1]
+  void $ storeEvents uuid2 [Added 2, Added 3]
+  void $ storeEvents uuid1 [Added 4]
+  void $ storeEvents uuid2 [Added 5]
   return (uuid1, uuid2)
-
--- Test harness for event buses
-
--- | Used when testing eventually consistent async buses
-newtype EventBusSpecDelayMilliseconds = EventBusSpecDelayMilliseconds Int
-
-eventBusSpec
-  :: (Serializable (Event Counter) serialized, EventStore IO store serialized, EventBus IO bus serialized)
-  => IO bus -> IO store -> Maybe EventBusSpecDelayMilliseconds -> Spec
-eventBusSpec createBus createStore mDelay = do
-  let doDelay = whenJust mDelay (\(EventBusSpecDelayMilliseconds delay) -> threadDelay (delay * 1000))
-
-  context "given an event handler that just stores events" $ do
-    store <- runIO createStore
-    -- Populate store with some sample events
-    void $ runIO $ storeEvents store nil [Added 1, Added 2]
-
-    bus <- runIO createBus
-    eventsRef <- runIO $ newIORef []
-    let handler event = modifyIORef' eventsRef (\events -> event : events)
-    runIO $ registerStoreHandler bus store handler
-
-    it "should have stored the pre-existing events" $ do
-      doDelay
-      events <- readIORef eventsRef
-      length events `shouldBe` 2
-
-    it "should properly transmit events" $ do
-      storeAndPublishEvents store bus nil [Added 3, Added 4]
-      doDelay
-      events <- readIORef eventsRef
-      length events `shouldBe` 4

@@ -1,15 +1,15 @@
 module Eventful.Store.Memory
   ( MemoryEventStore
   , memoryEventStoreTVar
-  , memoryEventStoreIORef
+  , runMemoryEventStore
   , module Eventful.Store.Class
   ) where
 
 import Control.Concurrent.STM
+import Control.Monad.Reader
 import Data.Dynamic
 import Data.Foldable (toList)
 import Data.List (sortOn)
-import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
@@ -29,9 +29,6 @@ data MemoryEventStore
 
 memoryEventStoreTVar :: IO (TVar MemoryEventStore)
 memoryEventStoreTVar = newTVarIO (MemoryEventStore Map.empty 0)
-
-memoryEventStoreIORef :: IO (IORef MemoryEventStore)
-memoryEventStoreIORef = newIORef (MemoryEventStore Map.empty 0)
 
 lookupMemoryEventStoreRaw :: MemoryEventStore -> UUID -> Seq (StoredEvent Dynamic)
 lookupMemoryEventStoreRaw (MemoryEventStore uuidMap _) uuid =
@@ -56,39 +53,31 @@ storeMemoryEventStore store@(MemoryEventStore uuidMap seqNum) uuid events =
       newSeq = seqNum + (SequenceNumber $ length events)
   in (MemoryEventStore newMap newSeq, storedEvents)
 
-instance EventStore IO (TVar MemoryEventStore) Dynamic where
-  -- These use the STM instance defined below
-  getAllUuids tvar = atomically $ getAllUuids tvar
-  getEventsRaw tvar uuid = atomically $ getEventsRaw tvar uuid
-  getEventsFromVersionRaw tvar uuid vers = atomically $ getEventsFromVersionRaw tvar uuid vers
-  storeEventsRaw tvar uuid events = atomically $ storeEventsRaw tvar uuid events
-  getLatestVersion tvar uuid = atomically $ getLatestVersion tvar uuid
-  getSequencedEvents tvar seqNum = atomically $ getSequencedEvents tvar seqNum
+runMemoryEventStore :: (MonadIO m) => TVar MemoryEventStore -> ReaderT (TVar MemoryEventStore) STM a -> m a
+runMemoryEventStore tvar action = liftIO . atomically $ runReaderT action tvar
 
-instance EventStore STM (TVar MemoryEventStore) Dynamic where
-  getAllUuids tvar = fmap fst . Map.toList . memoryEventStoreUuidMap <$> readTVar tvar
-  getEventsRaw tvar uuid = toList . flip lookupMemoryEventStoreRaw uuid <$> readTVar tvar
-  getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
-  storeEventsRaw tvar uuid events = do
-    store <- readTVar tvar
-    let (newMap, storedEvents) = storeMemoryEventStore store uuid events
-    writeTVar tvar newMap
-    return storedEvents
-  getLatestVersion tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
-  getSequencedEvents tvar seqNum = do
-    store <- readTVar tvar
-    return $ lookupMemoryEventStoreSeq store seqNum
+instance EventStoreMetadata (ReaderT (TVar MemoryEventStore) STM) where
+  getAllUuids = do
+    tvar <- ask
+    lift $ fmap fst . Map.toList . memoryEventStoreUuidMap <$> readTVar tvar
+  getLatestVersion uuid = do
+    tvar <- ask
+    lift $ flip latestEventVersion uuid <$> readTVar tvar
 
-instance EventStore IO (IORef MemoryEventStore) Dynamic where
-  getAllUuids ref = fmap fst . Map.toList . memoryEventStoreUuidMap <$> readIORef ref
-  getEventsRaw ref uuid = toList . flip lookupMemoryEventStoreRaw uuid <$> readIORef ref
-  getEventsFromVersionRaw ref uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readIORef ref
-  storeEventsRaw ref uuid events = do
-    store <- readIORef ref
+instance EventStore (ReaderT (TVar MemoryEventStore) STM) Dynamic where
+  getEventsRaw uuid = do
+    tvar <- ask
+    lift $ toList . flip lookupMemoryEventStoreRaw uuid <$> readTVar tvar
+  getEventsFromVersionRaw uuid vers = do
+    tvar <- ask
+    lift $ toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
+  storeEventsRaw uuid events = do
+    tvar <- ask
+    store <- lift $ readTVar tvar
     let (newMap, storedEvents) = storeMemoryEventStore store uuid events
-    writeIORef ref newMap
+    lift $ writeTVar tvar newMap
     return storedEvents
-  getLatestVersion ref uuid = flip latestEventVersion uuid <$> readIORef ref
-  getSequencedEvents ref seqNum = do
-    store <- readIORef ref
+  getSequencedEvents seqNum = do
+    tvar <- ask
+    store <- lift $ readTVar tvar
     return $ lookupMemoryEventStoreSeq store seqNum
