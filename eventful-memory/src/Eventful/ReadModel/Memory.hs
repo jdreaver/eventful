@@ -31,10 +31,10 @@ memoryReadModel handlers =
 
 
 projectionMemoryReadModel
-  :: (MonadIO m, Projection proj, Serializable (Event proj) serialized)
-  => IO (MemoryReadModel m serialized, TVar (ProjectionMap proj))
-projectionMemoryReadModel = do
+  :: (MonadIO m, Serializable event serialized)
+  => Projection proj event -> IO (MemoryReadModel m serialized, TVar (ProjectionMap proj))
+projectionMemoryReadModel proj = do
   tvar <- newTVarIO projectionMap
-  let handler (StoredEvent uuid _ _ event) = liftIO $ atomically $ modifyTVar' tvar (applyProjectionMap uuid event)
+  let handler (StoredEvent uuid _ _ event) = liftIO $ atomically $ modifyTVar' tvar (applyProjectionMap proj uuid event)
   model <- memoryReadModel [EventHandler handler]
   return (model, tvar)

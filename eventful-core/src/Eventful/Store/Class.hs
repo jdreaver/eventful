@@ -53,9 +53,9 @@ class (EventStoreMetadata m, Monad m) => EventStore m serialized | m -> serializ
   -- implementations might have a more efficient ways to do the this by using
   -- snapshots.
   getLatestProjection
-    :: (Projection proj, Serializable proj serialized, Serializable (Event proj) serialized)
-    => UUID -> m proj
-  getLatestProjection uuid = latestProjection . fmap storedEventEvent <$> getEvents uuid
+    :: (Serializable proj serialized, Serializable event serialized)
+    => Projection proj event -> UUID -> m proj
+  getLatestProjection proj uuid = latestProjection proj . fmap storedEventEvent <$> getEvents uuid
 
   -- | Gets all the events ordered starting with a given 'SequenceNumber', and
   -- ordered by 'SequenceNumber'. This is used when replaying all the events in
@@ -93,17 +93,17 @@ storeEvent projId event = storeEvents projId [event]
 
 -- | Like 'storeEvents', but also return the latest projection.
 storeEventsGetLatest
-  :: (EventStore m serialized, Projection proj, Serializable proj serialized, Serializable (Event proj) serialized)
-  => UUID -> [Event proj] -> m proj
-storeEventsGetLatest projId events = do
+  :: (EventStore m serialized, Serializable proj serialized, Serializable event serialized)
+  => Projection proj event -> UUID -> [event] -> m proj
+storeEventsGetLatest proj projId events = do
   _ <- storeEvents projId events
-  getLatestProjection projId
+  getLatestProjection proj projId
 
 -- | Like 'storeEventsGetLatest', but only store a single event.
 storeEventGetLatest
-  :: (EventStore m serialized, Projection proj, Serializable proj serialized, Serializable (Event proj) serialized)
-  => UUID -> Event proj -> m proj
-storeEventGetLatest projId event = storeEventsGetLatest projId [event]
+  :: (EventStore m serialized, Serializable proj serialized, Serializable event serialized)
+  => Projection proj event -> UUID -> event -> m proj
+storeEventGetLatest proj projId event = storeEventsGetLatest proj projId [event]
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event

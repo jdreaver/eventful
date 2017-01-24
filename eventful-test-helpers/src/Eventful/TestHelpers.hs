@@ -2,6 +2,10 @@
 
 module Eventful.TestHelpers
   ( Counter (..)
+  , CounterProjection
+  , counterProjection
+  , CounterAggregate
+  , counterAggregate
   , CounterEvent (..)
   , CounterCommand (..)
   , CounterCommandError (..)
@@ -31,10 +35,13 @@ data CounterEvent
     }
   deriving (Eq, Show)
 
-instance Projection Counter where
-  type Event Counter = CounterEvent
-  seed = Counter 0
-  apply (Counter k) (Added x) = Counter (k + x)
+type CounterProjection = Projection Counter CounterEvent
+
+counterProjection :: CounterProjection
+counterProjection =
+  Projection
+  (Counter 0)
+  (\(Counter k) (Added x) -> Counter (k + x))
 
 data CounterCommand
   = Increment
@@ -49,29 +56,29 @@ data CounterCommandError
   = OutOfBounds
   deriving (Eq, Show)
 
-instance Aggregate Counter where
-  type Command Counter = CounterCommand
-  type CommandError Counter = CounterCommandError
+type CounterAggregate = Aggregate Counter CounterEvent CounterCommand CounterCommandError
 
-  command (Counter k) (Increment n) =
-    if k + n <= 100
-    then Right $ Added n
-    else Left OutOfBounds
+counterAggregate :: CounterAggregate
+counterAggregate = Aggregate counterCommand
 
-  command (Counter k) (Decrement n) =
-    if k - n >= 0
-    then Right $ Added (-n)
-    else Left OutOfBounds
+counterCommand :: Counter -> CounterCommand -> Either CounterCommandError CounterEvent
+counterCommand (Counter k) (Increment n) =
+  if k + n <= 100
+  then Right $ Added n
+  else Left OutOfBounds
+counterCommand (Counter k) (Decrement n) =
+  if k - n >= 0
+  then Right $ Added (-n)
+  else Left OutOfBounds
 
 deriveJSON (unPrefix "_counterEvent")  ''CounterEvent
 deriveJSON (unPrefix "_counterCommand")  ''CounterCommand
 deriveJSON (unPrefix "_counterCommandError")  ''CounterCommandError
 
-
 -- Test harness for stores
 
 eventStoreSpec
-  :: (Serializable Counter serialized, Serializable (Event Counter) serialized, EventStore m serialized)
+  :: (Serializable Counter serialized, Serializable CounterEvent serialized, EventStore m serialized)
   => IO store -> (forall a. store -> m a -> IO a) -> Spec
 eventStoreSpec makeStore runStore = do
   context "when the event store is empty" $ do
@@ -101,7 +108,7 @@ eventStoreSpec makeStore runStore = do
         >>= (`shouldBe` drop 1 events)
 
     it "should return the latest projection" $ do
-      runStore store (getLatestProjection nil) `shouldReturn` Counter 2
+      runStore store (getLatestProjection counterProjection nil) `shouldReturn` Counter 2
 
   context "when events from multiple UUIDs are inserted" $ do
     store <- runIO makeStore
@@ -124,12 +131,12 @@ eventStoreSpec makeStore runStore = do
       fmap storedEventEvent <$> runStore store (getEventsFromVersion uuid2 1) >>= (`shouldBe` [Added 3, Added 5])
 
     it "should produce the correct projections" $ do
-      runStore store (getLatestProjection uuid1) `shouldReturn` Counter 5
-      runStore store (getLatestProjection uuid2) `shouldReturn` Counter 10
+      runStore store (getLatestProjection counterProjection uuid1) `shouldReturn` Counter 5
+      runStore store (getLatestProjection counterProjection uuid2) `shouldReturn` Counter 10
 
 
 sequencedEventStoreSpec
-  :: (Serializable (Event Counter) serialized, EventStore m serialized)
+  :: (Serializable CounterEvent serialized, EventStore m serialized)
   => IO store -> (forall a. store -> m a -> IO a) -> Spec
 sequencedEventStoreSpec makeStore runStore = do
   context "when the event store is empty" $ do
@@ -151,7 +158,7 @@ sequencedEventStoreSpec makeStore runStore = do
       (storedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
 
 insertExampleEvents
-  :: (Serializable (Event Counter) serialized, EventStore m serialized)
+  :: (Serializable CounterEvent serialized, EventStore m serialized)
   => m (UUID, UUID)
 insertExampleEvents = do
   let uuid1 = uuidFromInteger 1

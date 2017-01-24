@@ -22,8 +22,8 @@ projectionMap :: ProjectionMap a
 projectionMap = ProjectionMap Map.empty
 
 -- | Variant of 'apply' just for 'ProjectionMap's.
-applyProjectionMap :: (Projection a) => UUID -> Event a -> ProjectionMap a -> ProjectionMap a
-applyProjectionMap uuid event (ProjectionMap map') =
+applyProjectionMap :: Projection proj event -> UUID -> event -> ProjectionMap proj -> ProjectionMap proj
+applyProjectionMap (Projection seed apply) uuid event (ProjectionMap map') =
   ProjectionMap (Map.insert uuid newAP map')
   where
     newAP = case Map.lookup uuid map' of
@@ -31,5 +31,5 @@ applyProjectionMap uuid event (ProjectionMap map') =
       Just ap -> apply ap event
 
 -- | Get the current state of a 'Projection' from the 'ProjectionMap'.
-lookupProjectionMap :: (Projection proj) => UUID -> ProjectionMap proj -> proj
-lookupProjectionMap uuid (ProjectionMap map') = fromMaybe seed (Map.lookup uuid map')
+lookupProjectionMap :: Projection proj event -> UUID -> ProjectionMap proj -> proj
+lookupProjectionMap (Projection seed _) uuid (ProjectionMap map') = fromMaybe seed (Map.lookup uuid map')

@@ -4,14 +4,14 @@ module Eventful.Aggregate
   ( Aggregate (..)
   ) where
 
-import Eventful.Projection
+{-# ANN module ("HLint: ignore Use newtype instead of data" :: String) #-}
 
 -- | An 'Aggregate' is a combination of a 'Projection' and a function to
 -- validate 'Command's against that 'Projection'. When using an aggregate in
 -- some service, it is common to simply load the latest projection state from
 -- the event store and apply the command. If the command is valid then the new
 -- event is applied to the projection in the event store.
-class (Projection a) => Aggregate a where
-  type Command a :: *
-  type CommandError a :: *
-  command :: a -> Command a -> Either (CommandError a) (Event a)
+data Aggregate proj event cmd cmderror =
+  Aggregate
+  { aggregateCommand :: proj -> cmd -> Either cmderror event
+  }
