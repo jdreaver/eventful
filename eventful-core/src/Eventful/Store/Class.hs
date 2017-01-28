@@ -123,6 +123,8 @@ instance (Serializable a b) => Serializable (StoredEvent a) (StoredEvent b) wher
   serialize = fmap serialize
   deserialize (StoredEvent uuid vers seqNum event) =
     StoredEvent uuid vers seqNum <$> deserialize event
+  deserializeEither (StoredEvent uuid vers seqNum event) =
+    StoredEvent uuid vers seqNum <$> deserializeEither event
 
 -- | Event versions are a strictly increasing series of integers for each
 -- projection. They allow us to order the events when they are replayed, and

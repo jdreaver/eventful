@@ -26,6 +26,7 @@ instance Show JSONString where
 instance (ToJSON a, FromJSON a) => Serializable a JSONString where
   serialize = encodeJSON
   deserialize = decodeJSON
+  deserializeEither = decodeJSONEither
 
 encodeJSON :: (ToJSON a) => a -> JSONString
 encodeJSON = JSONString . toStrict . encode
@@ -33,6 +34,8 @@ encodeJSON = JSONString . toStrict . encode
 decodeJSON :: (FromJSON a) => JSONString -> Maybe a
 decodeJSON = decode . fromStrict . unJSONString
 
+decodeJSONEither :: (FromJSON a) => JSONString -> Either String a
+decodeJSONEither = eitherDecode . fromStrict . unJSONString
 
 instance PersistField UUID where
   toPersistValue = PersistText . uuidToText

@@ -11,6 +11,10 @@ class Serializable a b where
   serialize :: a -> b
   deserialize :: b -> Maybe a
 
+  -- | Deserialize with additional information on failure
+  deserializeEither :: b -> Either String a
+  deserializeEither = maybe (Left "Serializable: Failed to deserialize") Right . deserialize
+
 instance (Typeable a) => Serializable a Dynamic where
   serialize = toDyn
   deserialize = fromDynamic
