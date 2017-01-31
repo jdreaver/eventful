@@ -1,5 +1,6 @@
 module Eventful.Store.Memory
   ( MemoryEventStore
+  , MemoryEventStoreT
   , memoryEventStore
   , module Eventful.Store.Class
   ) where
@@ -25,8 +26,12 @@ data EventMap
   }
   deriving (Show)
 
+-- | A 'MemoryEventStore' is a 'TVar EventMap', serializes to 'Dynamic', and
+-- runs in 'STM'.
 type MemoryEventStore = EventStore (TVar EventMap) Dynamic STM
+type MemoryEventStoreT = EventStoreT (TVar EventMap) Dynamic STM
 
+-- | Initializes the 'TVar' used in the event store and returns the store.
 memoryEventStore :: IO MemoryEventStore
 memoryEventStore = do
   tvar <- newTVarIO (EventMap Map.empty 0)

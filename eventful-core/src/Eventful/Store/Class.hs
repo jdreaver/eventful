@@ -29,9 +29,16 @@ import Eventful.Projection
 import Eventful.Serializable
 import Eventful.UUID
 
--- | The 'EventStoreDefinition' is one of the core types of eventful. A @store@
--- operates in some monad @m@ and stores events by serializing them to the type
--- @serialized@.
+-- | The 'EventStore' is the core type of eventful. A @store@ operates in some
+-- monad @m@ and stores events by serializing them to the type @serialized@.
+data EventStore store serialized m
+  = EventStore
+  { eventStoreStore :: store
+  , eventStoreDefinition :: EventStoreDefinition store serialized m
+  }
+
+-- | An 'EventStoreDefinition' defines how a @store@ performs the operations
+-- expected of an 'EventStore'. This is where you define new event stores.
 data EventStoreDefinition store serialized m
   = EventStoreDefinition
   { getAllUuidsRaw :: store -> m [UUID]
@@ -54,14 +61,11 @@ data EventStoreDefinition store serialized m
     -- events in a store.
   }
 
--- | 'EventStore'
-data EventStore store serialized m
-  = EventStore
-  { eventStoreStore :: store
-  , eventStoreDefinition :: EventStoreDefinition store serialized m
-  }
-
--- | Monad to run event store actions in.
+-- | Monad to run event store actions in. It us just a newtype around 'ReaderT'
+-- that holds an 'EventStore' and uses @m@ as the base monad.
+--
+-- Note that there is a 'MonadTrans' instance, so if you have some action you
+-- want to perform in the base monad @m@ you can just 'lift' it.
 newtype EventStoreT store serialized m a
   = EventStoreT { unEventStoreT :: ReaderT (EventStore store serialized m) m a }
   deriving (Functor, Applicative, Monad)
@@ -69,6 +73,9 @@ newtype EventStoreT store serialized m a
 instance MonadTrans (EventStoreT store serialized) where
   lift = EventStoreT . lift
 
+-- | Run an action in the 'EventStoreT' monad. This uses the passed
+-- 'EventStore' to take your event store action and return an action in the
+-- base event store monad.
 runEventStore :: EventStore store serialized m -> EventStoreT store serialized m a -> m a
 runEventStore store (EventStoreT action) = runReaderT action store
 

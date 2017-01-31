@@ -5,6 +5,7 @@
 
 module Eventful.Store.Sqlite
   ( SqliteEventStore
+  , SqliteEventStoreT
   , sqliteEventStore
   , initializeSqliteEventStore
   , SqliteEvent (..)
@@ -37,6 +38,26 @@ SqliteEvent sql=events
     UniqueAggregateVersion projectionId version
     deriving Show
 |]
+
+-- | The @store@ for SQLite is currently the @Unit@ type @()@. That is, all the
+-- info we need to run an SQLite event store is presumably stored in the
+-- database connection. In the future this will probably hold information like
+-- what tables are used to store events, and could hold type information if we
+-- allow the user to select the serialization method.
+type SqliteEventStore m = EventStore () JSONString (SqlPersistT m)
+
+type SqliteEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
+
+sqliteEventStore :: (MonadIO m) => SqliteEventStore m
+sqliteEventStore =
+  EventStore () $
+    EventStoreDefinition
+    (const getProjectionIds)
+    (const maxEventVersion)
+    (\_ uuid -> getSqliteAggregateEvents uuid Nothing)
+    (\_ uuid vers -> getSqliteAggregateEvents uuid (Just vers))
+    (const sqliteStoreEvents)
+    (const getAllEventsFromSequence)
 
 sqliteEventToStored :: Entity SqliteEvent -> StoredEvent JSONString
 sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid version data')) =
@@ -114,16 +135,3 @@ initializeSqliteEventStore pool = do
     pool
 
   return ()
-
-type SqliteEventStore m = EventStore () JSONString (SqlPersistT m)
-
-sqliteEventStore :: (MonadIO m) => SqliteEventStore m
-sqliteEventStore =
-  EventStore () $
-    EventStoreDefinition
-    (const getProjectionIds)
-    (const maxEventVersion)
-    (\_ uuid -> getSqliteAggregateEvents uuid Nothing)
-    (\_ uuid vers -> getSqliteAggregateEvents uuid (Just vers))
-    (const sqliteStoreEvents)
-    (const getAllEventsFromSequence)
