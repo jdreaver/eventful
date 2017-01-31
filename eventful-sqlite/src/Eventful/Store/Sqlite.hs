@@ -4,13 +4,15 @@
 -- | Defines an Sqlite event store.
 
 module Eventful.Store.Sqlite
-  ( SqliteEvent (..)
+  ( SqliteEventStore
+  , sqliteEventStore
+  , initializeSqliteEventStore
+  , SqliteEvent (..)
   , SqliteEventId
   , migrateSqliteEvent
   , getProjectionIds
   , bulkInsert
   , sqliteMaxVariableNumber
-  , initializeSqliteEventStore
   , JSONString
   , module Eventful.Store.Class
   ) where
@@ -113,12 +115,15 @@ initializeSqliteEventStore pool = do
 
   return ()
 
-instance (MonadIO m) => EventStoreMetadata (SqlPersistT m) where
-  getAllUuids = getProjectionIds
-  getLatestVersion = maxEventVersion
+type SqliteEventStore m = EventStore () JSONString (SqlPersistT m)
 
-instance (MonadIO m) => EventStore (SqlPersistT m) JSONString where
-  getEventsRaw uuid = getSqliteAggregateEvents uuid Nothing
-  storeEventsRaw = sqliteStoreEvents
-  getEventsFromVersionRaw uuid vers = getSqliteAggregateEvents uuid (Just vers)
-  getSequencedEvents = getAllEventsFromSequence
+sqliteEventStore :: (MonadIO m) => SqliteEventStore m
+sqliteEventStore =
+  EventStore () $
+    EventStoreDefinition
+    (const getProjectionIds)
+    (const maxEventVersion)
+    (\_ uuid -> getSqliteAggregateEvents uuid Nothing)
+    (\_ uuid vers -> getSqliteAggregateEvents uuid (Just vers))
+    (const sqliteStoreEvents)
+    (const getAllEventsFromSequence)

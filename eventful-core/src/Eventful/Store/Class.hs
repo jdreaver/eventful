@@ -1,19 +1,25 @@
 module Eventful.Store.Class
   ( -- * EventStore
     EventStore (..)
-  , EventStoreMetadata (..)
+  , EventStoreDefinition (..)
+  , EventStoreT (..)
+  , runEventStore
+  , getAllUuids
+  , getLatestVersion
   , getEvents
   , getEventsFromVersion
   , storeEvents
   , storeEvent
-  , storeEventsGetLatest
-  , storeEventGetLatest
+  , getSequencedEvents
+  , getLatestProjection
     -- * Utility types
   , StoredEvent (..)
   , EventVersion (..)
   , SequenceNumber (..)
   ) where
 
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Data.Aeson
 import Data.Maybe (mapMaybe)
 import Web.HttpApiData
@@ -23,87 +29,109 @@ import Eventful.Projection
 import Eventful.Serializable
 import Eventful.UUID
 
-class (Monad m) => EventStoreMetadata m where
-  -- | Retrieves all the unique UUIDs in the event store. This is essentially a
-  -- list of all the projections available in the event store.
-  getAllUuids :: m [UUID]
+-- | The 'EventStoreDefinition' is one of the core types of eventful. A @store@
+-- operates in some monad @m@ and stores events by serializing them to the type
+-- @serialized@.
+data EventStoreDefinition store serialized m
+  = EventStoreDefinition
+  { getAllUuidsRaw :: store -> m [UUID]
+    -- ^ Retrieves all the unique UUIDs in the event store. This is essentially
+    -- a list of all the projections available in the event store.
+  , getLatestVersionRaw :: store -> UUID -> m EventVersion
+    -- ^ Gets the latest 'EventVersion' for a given 'Projection'.
+  , getEventsRaw :: store -> UUID -> m [StoredEvent serialized]
+    -- ^ Retrieves all the events for a given 'Projection' using that
+    -- projection's UUID.
+  , getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [StoredEvent serialized]
+    -- ^ Like 'getEventsRaw', but only retrieves events greater than or equal
+    -- to the given version.
+  , storeEventsRaw :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
+    -- ^ Stores the events for a given 'Projection' using that projection's
+    -- UUID.
+  , getSequencedEventsRaw :: store -> SequenceNumber -> m [StoredEvent serialized]
+    -- ^ Gets all the events ordered starting with a given 'SequenceNumber',
+    -- and ordered by 'SequenceNumber'. This is used when replaying all the
+    -- events in a store.
+  }
 
-  -- | Gets the latest 'EventVersion' for a given 'Projection'.
-  getLatestVersion :: UUID -> m EventVersion
+-- | 'EventStore'
+data EventStore store serialized m
+  = EventStore
+  { eventStoreStore :: store
+  , eventStoreDefinition :: EventStoreDefinition store serialized m
+  }
 
--- | The 'EventStore' is one of the core type classes of eventful. An
--- EventStore @store@ operates in some monad @m@ and serializes events using
--- the type @serialized@.
-class (EventStoreMetadata m, Monad m) => EventStore m serialized | m -> serialized where
-  -- | Retrieves all the events for a given 'Projection' using that
-  -- projection's UUID.
-  getEventsRaw :: UUID -> m [StoredEvent serialized]
+-- | Monad to run event store actions in.
+newtype EventStoreT store serialized m a
+  = EventStoreT { unEventStoreT :: ReaderT (EventStore store serialized m) m a }
+  deriving (Functor, Applicative, Monad)
 
-  -- | Like 'getEventsRaw', but only retrieves events greater than or equal to
-  -- the given version.
-  getEventsFromVersionRaw :: UUID -> EventVersion -> m [StoredEvent serialized]
-  getEventsFromVersionRaw uuid vers = do
-    allEvents <- getEventsRaw uuid
-    return $ filter ((>= vers) . storedEventVersion) allEvents
+instance MonadTrans (EventStoreT store serialized) where
+  lift = EventStoreT . lift
 
-  -- | Stores the events for a given 'Projection' using that projection's UUID.
-  storeEventsRaw :: UUID -> [serialized] -> m [StoredEvent serialized]
+runEventStore :: EventStore store serialized m -> EventStoreT store serialized m a -> m a
+runEventStore store (EventStoreT action) = runReaderT action store
 
-  -- | Retrieves the current state of a projection from the store. Some
-  -- implementations might have a more efficient ways to do the this by using
-  -- snapshots.
-  getLatestProjection
-    :: (Serializable proj serialized, Serializable event serialized)
-    => Projection proj event -> UUID -> m proj
-  getLatestProjection proj uuid = latestProjection proj . fmap storedEventEvent <$> getEvents uuid
+askEventStore :: (Monad m) => EventStoreT store serialized m (EventStore store serialized m)
+askEventStore = EventStoreT ask
 
-  -- | Gets all the events ordered starting with a given 'SequenceNumber', and
-  -- ordered by 'SequenceNumber'. This is used when replaying all the events in
-  -- a store.
-  getSequencedEvents :: SequenceNumber -> m [StoredEvent serialized]
+-- | Convenience wrapper around 'getAllUuidsRaw'
+getAllUuids :: (Monad m) => EventStoreT store serialized m [UUID]
+getAllUuids = do
+  EventStore store EventStoreDefinition{..} <- askEventStore
+  lift $ getAllUuidsRaw store
+
+-- | Convenience wrapper around 'getLatestVersion'
+getLatestVersion :: (Monad m) => UUID -> EventStoreT store serialized m EventVersion
+getLatestVersion uuid = do
+  EventStore store EventStoreDefinition{..} <- askEventStore
+  lift $ getLatestVersionRaw store uuid
 
 -- | Like 'getEventsRaw', but uses a 'Serializable' instance for the event type
 -- to try and deserialize them.
 getEvents
-  :: (Serializable event serialized, EventStore m serialized)
-  => UUID -> m [StoredEvent event]
-getEvents uuid = mapMaybe deserialize <$> getEventsRaw uuid
+  :: (Monad m, Serializable event serialized)
+  => UUID -> EventStoreT store serialized m [StoredEvent event]
+getEvents uuid = do
+  EventStore store EventStoreDefinition{..} <- askEventStore
+  lift $ mapMaybe deserialize <$> getEventsRaw store uuid
 
 -- | Like 'getEventsFromVersionRaw', but uses a 'Serializable' instance for the
 -- event type to try and deserialize them.
 getEventsFromVersion
-  :: (Serializable event serialized, EventStore m serialized)
-  => UUID -> EventVersion -> m [StoredEvent event]
-getEventsFromVersion uuid vers = mapMaybe deserialize <$> getEventsFromVersionRaw uuid vers
+  :: (Monad m, Serializable event serialized)
+  => UUID -> EventVersion -> EventStoreT store serialized m [StoredEvent event]
+getEventsFromVersion uuid vers = do
+  EventStore store EventStoreDefinition{..} <- askEventStore
+  lift $ mapMaybe deserialize <$> getEventsFromVersionRaw store uuid vers
 
 -- | Like 'storeEventsRaw', but uses a 'Serializable' instance for the event
 -- type to serialize them.
 storeEvents
-  :: (Serializable event serialized, EventStore m serialized)
-  => UUID -> [event] -> m [StoredEvent event]
+  :: (Monad m, Serializable event serialized)
+  => UUID -> [event] -> EventStoreT store serialized m [StoredEvent event]
 storeEvents uuid events = do
-  serialized <- storeEventsRaw uuid (serialize <$> events)
+  EventStore store EventStoreDefinition{..} <- askEventStore
+  serialized <- lift $ storeEventsRaw store uuid (serialize <$> events)
   return $ zipWith (<$) events serialized
 
 -- | Like 'storeEvents', but just store a single event.
 storeEvent
-  :: (Serializable event serialized, EventStore m serialized)
-  => UUID -> event -> m [StoredEvent event]
+  :: (Monad m, Serializable event serialized)
+  => UUID -> event -> EventStoreT store serialized m [StoredEvent event]
 storeEvent projId event = storeEvents projId [event]
 
--- | Like 'storeEvents', but also return the latest projection.
-storeEventsGetLatest
-  :: (EventStore m serialized, Serializable proj serialized, Serializable event serialized)
-  => Projection proj event -> UUID -> [event] -> m proj
-storeEventsGetLatest proj projId events = do
-  _ <- storeEvents projId events
-  getLatestProjection proj projId
+-- | Convenience wrapper around 'getSequencedEventsRaw'
+getSequencedEvents :: (Monad m) => SequenceNumber -> EventStoreT store serialized m [StoredEvent serialized]
+getSequencedEvents seqNum = do
+  EventStore store EventStoreDefinition{..} <- askEventStore
+  lift $ getSequencedEventsRaw store seqNum
 
--- | Like 'storeEventsGetLatest', but only store a single event.
-storeEventGetLatest
-  :: (EventStore m serialized, Serializable proj serialized, Serializable event serialized)
-  => Projection proj event -> UUID -> event -> m proj
-storeEventGetLatest proj projId event = storeEventsGetLatest proj projId [event]
+-- | Gets the latest projection from a store using 'getEvents'
+getLatestProjection
+  :: (Monad m, Serializable event serialized)
+  => Projection proj event -> UUID -> EventStoreT store serialized m proj
+getLatestProjection proj uuid = latestProjection proj . fmap storedEventEvent <$> getEvents uuid
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event
