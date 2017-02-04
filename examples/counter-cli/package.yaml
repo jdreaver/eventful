@@ -1,0 +1,21 @@
+name: examples-counter-cli
+version: "0.1.0"
+maintainer: David Reaver
+synopsis: Example Counter cli application for eventful
+description: Example Counter cli application for eventful
+maintainer: David Reaver
+stability: experimental
+license: MIT
+
+dependencies:
+  - base
+  - eventful-core
+  - eventful-memory
+
+  - safe
+  - stm
+
+executables:
+  counter-cli:
+    main: counter-cli.hs
+    ghc-options: -Wall
