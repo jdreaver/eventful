@@ -1,0 +1,24 @@
+name: examples-cafe
+version: "0.1.0"
+maintainer: David Reaver
+synopsis: Example cafe application for eventful
+description: Example cafe application for eventful
+maintainer: David Reaver
+stability: experimental
+license: MIT
+
+dependencies:
+  - base
+  - eventful-core
+  - eventful-sqlite
+
+  - persistent
+  - persistent-sqlite
+  - safe
+
+executables:
+  cafe-main:
+    main: cafe-main.hs
+    ghc-options: -Wall
+    source-dirs:
+      - app
