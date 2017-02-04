@@ -13,8 +13,8 @@ import Eventful.Projection
 import Eventful.UUID
 
 -- | Holds multiple 'Projection's in memory. Useful for in-memory event stores.
-newtype ProjectionMap proj
-  = ProjectionMap { unProjectionMap :: Map UUID proj }
+newtype ProjectionMap state
+  = ProjectionMap { unProjectionMap :: Map UUID state }
   deriving (Show)
 
 -- | Creates a new, empty 'ProjectionMap'.
@@ -22,7 +22,7 @@ projectionMap :: ProjectionMap a
 projectionMap = ProjectionMap Map.empty
 
 -- | Variant of 'apply' just for 'ProjectionMap's.
-applyProjectionMap :: Projection proj event -> UUID -> event -> ProjectionMap proj -> ProjectionMap proj
+applyProjectionMap :: Projection state event -> UUID -> event -> ProjectionMap state -> ProjectionMap state
 applyProjectionMap (Projection seed apply) uuid event (ProjectionMap map') =
   ProjectionMap (Map.insert uuid newAP map')
   where
@@ -31,5 +31,5 @@ applyProjectionMap (Projection seed apply) uuid event (ProjectionMap map') =
       Just ap -> apply ap event
 
 -- | Get the current state of a 'Projection' from the 'ProjectionMap'.
-lookupProjectionMap :: Projection proj event -> UUID -> ProjectionMap proj -> proj
+lookupProjectionMap :: Projection state event -> UUID -> ProjectionMap state -> state
 lookupProjectionMap (Projection seed _) uuid (ProjectionMap map') = fromMaybe seed (Map.lookup uuid map')
