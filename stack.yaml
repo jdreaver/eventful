@@ -4,3 +4,4 @@ packages:
   - 'eventful-memory'
   - 'eventful-sqlite'
   - 'eventful-test-helpers'
+  - 'examples'
