@@ -13,5 +13,5 @@ module Eventful.Aggregate
 -- event is applied to the projection in the event store.
 data Aggregate state event cmd cmderror =
   Aggregate
-  { aggregateCommand :: state -> cmd -> Either cmderror event
+  { aggregateCommand :: state -> cmd -> Either cmderror [event]
   }
