@@ -61,14 +61,14 @@ type CounterAggregate = Aggregate Counter CounterEvent CounterCommand CounterCom
 counterAggregate :: CounterAggregate
 counterAggregate = Aggregate counterCommand
 
-counterCommand :: Counter -> CounterCommand -> Either CounterCommandError CounterEvent
+counterCommand :: Counter -> CounterCommand -> Either CounterCommandError [CounterEvent]
 counterCommand (Counter k) (Increment n) =
   if k + n <= 100
-  then Right $ Added n
+  then Right [Added n]
   else Left OutOfBounds
 counterCommand (Counter k) (Decrement n) =
   if k - n >= 0
-  then Right $ Added (-n)
+  then Right [Added (-n)]
   else Left OutOfBounds
 
 deriveJSON (unPrefix "_counterEvent")  ''CounterEvent

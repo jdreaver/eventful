@@ -82,16 +82,16 @@ data CounterCommandError
   deriving (Eq, Show)
 
 -- | This function validates commands and produces either an error or an event.
-counterApplyCommand :: CounterState -> CounterCommand -> Either CounterCommandError CounterEvent
+counterApplyCommand :: CounterState -> CounterCommand -> Either CounterCommandError [CounterEvent]
 counterApplyCommand (CounterState k) (IncrementCounter n) =
   if k + n <= 100
-  then Right $ CounterAmountAdded n
+  then Right [CounterAmountAdded n]
   else Left CounterOutOfBounds
 counterApplyCommand (CounterState k) (DecrementCounter n) =
   if k - n >= 0
-  then Right $ CounterAmountAdded (-n)
+  then Right [CounterAmountAdded (-n)]
   else Left CounterOutOfBounds
-counterApplyCommand (CounterState k) ResetCounter = Right $ CounterAmountAdded (-k)
+counterApplyCommand (CounterState k) ResetCounter = Right [CounterAmountAdded (-k)]
 
 -- | This ties all of the counter types into an aggregate.
 type CounterAggregate = Aggregate CounterState CounterEvent CounterCommand CounterCommandError
