@@ -11,16 +11,23 @@ module Cafe.Models.Tab
 
 import Control.Lens
 import Data.List (foldl')
+import Data.Maybe (catMaybes)
 
 import Eventful
 
 data TabState =
   TabState
   { _tabStateIsOpen :: Bool
-  , _tabStateOutstandingDrinks :: [Drink]
-  , _tabStateOutstandingFood :: [Food]
-  , _tabStatePreparedFood :: [Food]
+  , _tabStateOutstandingDrinks :: [Maybe Drink]
+    -- ^ All drinks that need to be served. 'Nothing' indicates the drink was
+    -- served or cancelled.
+  , _tabStateOutstandingFood :: [Maybe Food]
+    -- ^ All food that needs to be made. 'Nothing' indicates the food was made
+    -- or cancelled.
+  , _tabStatePreparedFood :: [Maybe Food]
+    -- ^ All food that has been made. 'Nothing' indicates the food was served.
   , _tabStateServedItems :: [OrderedItem]
+    -- ^ All items that have been served.
   } deriving (Show, Eq)
 
 newtype Drink = Drink { unDrink :: OrderedItem }
@@ -53,29 +60,29 @@ data TabEvent
   deriving (Show, Eq)
 
 tabApplyEvent :: TabState -> TabEvent -> TabState
-tabApplyEvent state (DrinksOrdered drinks) = state & tabStateOutstandingDrinks %~ (++ drinks)
-tabApplyEvent state (FoodOrdered food) = state & tabStateOutstandingFood %~ (++ food)
-tabApplyEvent state (DrinksCancelled indexes) = state & tabStateOutstandingDrinks %~ filterListByIndexes indexes
-tabApplyEvent state (FoodCancelled indexes) = state & tabStateOutstandingFood %~ filterListByIndexes indexes
+tabApplyEvent state (DrinksOrdered drinks) = state & tabStateOutstandingDrinks %~ (++ map Just drinks)
+tabApplyEvent state (FoodOrdered food) = state & tabStateOutstandingFood %~ (++ map Just food)
+tabApplyEvent state (DrinksCancelled indexes) = state & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
+tabApplyEvent state (FoodCancelled indexes) = state & tabStateOutstandingFood %~ setIndexesToNothing indexes
 tabApplyEvent state (DrinksServed indexes) =
   state
-  & tabStateOutstandingDrinks %~ filterListByIndexes indexes
+  & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
   & tabStateServedItems %~
-    \items -> items ++ fmap unDrink (getListItemsByIndexes indexes (state ^. tabStateOutstandingDrinks))
+    \items -> items ++ fmap unDrink (catMaybes $ getListItemsByIndexes indexes (state ^. tabStateOutstandingDrinks))
 tabApplyEvent state (FoodPrepared indexes) =
   state
-  & tabStateOutstandingFood %~ filterListByIndexes indexes
+  & tabStateOutstandingFood %~ setIndexesToNothing indexes
   & tabStatePreparedFood %~
     \items -> items ++ getListItemsByIndexes indexes (state ^. tabStatePreparedFood)
 tabApplyEvent state (FoodServed indexes) =
   state
-  & tabStatePreparedFood %~ filterListByIndexes indexes
+  & tabStatePreparedFood %~ setIndexesToNothing indexes
   & tabStateServedItems %~
-    \items -> items ++ fmap unFood (getListItemsByIndexes indexes (state ^. tabStatePreparedFood))
+    \items -> items ++ fmap unFood (catMaybes $ getListItemsByIndexes indexes (state ^. tabStatePreparedFood))
 tabApplyEvent state (TabClosed _) = state & tabStateIsOpen .~ False
 
-filterListByIndexes :: [Int] -> [a] -> [a]
-filterListByIndexes indexes = map snd . filter (not . (`elem` indexes) . fst) . zip [0..]
+setIndexesToNothing :: [Int] -> [Maybe a] -> [Maybe a]
+setIndexesToNothing indexes = map (\(i, x) -> if i `elem` indexes then Nothing else x) . zip [0..]
 
 getListItemsByIndexes :: [Int] -> [a] -> [a]
 getListItemsByIndexes indexes = map snd . filter ((`elem` indexes) . fst) . zip [0..]
@@ -94,16 +101,13 @@ data TabCommand
   deriving (Show, Eq)
 
 data TabCommandError
-  = CannotCancelServedItem
+  = TabAlreadyClosed
+  | CannotCancelServedItem
   | TabHasUnservedItems
   | MustPayEnough
   deriving (Show, Eq)
 
 tabApplyCommand :: TabState -> TabCommand -> Either TabCommandError [TabEvent]
-tabApplyCommand _ (PlaceOrder food drinks) = Right [FoodOrdered food, DrinksOrdered drinks]
-tabApplyCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
-tabApplyCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
-tabApplyCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
 tabApplyCommand state (CloseTab cash)
   | amountOfNonServedItems > 0 = Left TabHasUnservedItems
   | cash < totalServedWorth = Left MustPayEnough
@@ -114,6 +118,11 @@ tabApplyCommand state (CloseTab cash)
       length (state ^. tabStateOutstandingFood) +
       length (state ^. tabStatePreparedFood)
     totalServedWorth = foldl' (+) 0 (fmap orderedItemPrice $ state ^. tabStateServedItems)
+tabApplyCommand TabState { _tabStateIsOpen = False } _ = Left TabAlreadyClosed
+tabApplyCommand _ (PlaceOrder food drinks) = Right [FoodOrdered food, DrinksOrdered drinks]
+tabApplyCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
+tabApplyCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
+tabApplyCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
 
 type TabAggregate = Aggregate TabState TabEvent TabCommand TabCommandError
 
