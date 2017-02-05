@@ -12,9 +12,19 @@ dependencies:
   - eventful-core
   - eventful-sqlite
 
+  - lens
   - persistent
   - persistent-sqlite
   - safe
+
+default-extensions:
+  - RecordWildCards
+  - TemplateHaskell
+
+library:
+  source-dirs:
+    - src
+  ghc-options: -Wall
 
 executables:
   cafe-main:
