@@ -15,11 +15,16 @@ dependencies:
   - lens
   - persistent
   - persistent-sqlite
+  - persistent-template
   - safe
 
 default-extensions:
+  - ExistentialQuantification
+  - GeneralizedNewtypeDeriving
+  - MultiParamTypeClasses
   - RecordWildCards
   - TemplateHaskell
+  - TypeFamilies
 
 library:
   source-dirs:
