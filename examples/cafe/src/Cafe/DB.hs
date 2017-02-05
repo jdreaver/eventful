@@ -4,6 +4,9 @@ module Cafe.DB
   ( openTab
   , getTabUuid
   , migrateTabEntity
+  , TabEntity (..)
+  , TabEntityId
+  , Key (..)
   ) where
 
 import Control.Monad.IO.Class
@@ -22,11 +25,11 @@ TabEntity sql=tabs
 
 -- | Opens a tab by inserting an entry into the tabs table and returning the
 -- UUID.
-openTab :: (MonadIO m) => SqlPersistT m UUID
+openTab :: (MonadIO m) => SqlPersistT m (TabEntityId, UUID)
 openTab = do
   uuid <- liftIO uuidNextRandom
-  insert_ (TabEntity uuid)
-  return uuid
+  key <- insert (TabEntity uuid)
+  return (key, uuid)
 
 -- | Given the tab id, attempts to load the tab and return the UUID.
 getTabUuid :: (MonadIO m) => TabEntityId -> SqlPersistT m (Maybe UUID)

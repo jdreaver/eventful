@@ -1,4 +1,6 @@
 module Main where
 
+import Cafe
+
 main :: IO ()
-main = putStrLn "Hello!"
+main = cliMain

@@ -12,6 +12,7 @@ module Eventful.Store.Class
   , storeEvent
   , getSequencedEvents
   , getLatestProjection
+  , commandStoredAggregate
     -- * Utility types
   , StoredEvent (..)
   , EventVersion (..)
@@ -25,6 +26,7 @@ import Data.Maybe (mapMaybe)
 import Web.HttpApiData
 import Web.PathPieces
 
+import Eventful.Aggregate
 import Eventful.Projection
 import Eventful.Serializable
 import Eventful.UUID
@@ -139,6 +141,20 @@ getLatestProjection
   :: (Monad m, Serializable event serialized)
   => Projection proj event -> UUID -> EventStoreT store serialized m proj
 getLatestProjection proj uuid = latestProjection proj . fmap storedEventEvent <$> getEvents uuid
+
+-- | Loads the latest version of a projection from the event store and tries to
+-- apply the 'Aggregate' command to it. If the command succeeds, then this
+-- saves the events back to the store as well.
+commandStoredAggregate
+  :: (Monad m, Serializable event serialized)
+  => Aggregate state event cmd cmderror -> UUID -> cmd -> EventStoreT store serialized m (Either cmderror [event])
+commandStoredAggregate (Aggregate applyCommand proj) uuid command = do
+  latest <- getLatestProjection proj uuid
+  case applyCommand latest command of
+    (Left err) -> return $ Left err
+    (Right events) -> do
+      _ <- storeEvents uuid events
+      return $ Right events
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event

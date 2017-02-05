@@ -59,7 +59,7 @@ data CounterCommandError
 type CounterAggregate = Aggregate Counter CounterEvent CounterCommand CounterCommandError
 
 counterAggregate :: CounterAggregate
-counterAggregate = Aggregate counterCommand
+counterAggregate = Aggregate counterCommand counterProjection
 
 counterCommand :: Counter -> CounterCommand -> Either CounterCommandError [CounterEvent]
 counterCommand (Counter k) (Increment n) =

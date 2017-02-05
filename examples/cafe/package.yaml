@@ -13,10 +13,14 @@ dependencies:
   - eventful-sqlite
 
   - lens
+  - monad-logger
+  - mtl
+  - optparse-applicative
   - persistent
   - persistent-sqlite
   - persistent-template
   - safe
+  - text
 
 default-extensions:
   - ExistentialQuantification
@@ -37,3 +41,5 @@ executables:
     ghc-options: -Wall
     source-dirs:
       - app
+    dependencies:
+      - examples-cafe

@@ -7,6 +7,9 @@ module Cafe.Models.Tab
   , tabProjection
   , TabAggregate
   , tabAggregate
+  , TabCommand (..)
+  , TabEvent (..)
+  , TabCommandError (..)
   ) where
 
 import Control.Lens
@@ -14,6 +17,20 @@ import Data.List (foldl')
 import Data.Maybe (catMaybes)
 
 import Eventful
+
+data OrderedItem =
+  OrderedItem
+  { orderedItemDescription :: String
+  , orderedItemPrice :: Double
+  } deriving (Show, Eq)
+
+deriveJSON (unPrefix "orderedItem") ''OrderedItem
+
+newtype Drink = Drink { unDrink :: OrderedItem }
+  deriving (Show, Eq, FromJSON, ToJSON)
+
+newtype Food = Food { unFood :: OrderedItem }
+  deriving (Show, Eq, FromJSON, ToJSON)
 
 data TabState =
   TabState
@@ -30,34 +47,37 @@ data TabState =
     -- ^ All items that have been served.
   } deriving (Show, Eq)
 
-newtype Drink = Drink { unDrink :: OrderedItem }
-  deriving (Show, Eq)
-
-newtype Food = Food { unFood :: OrderedItem }
-  deriving (Show, Eq)
-
-data OrderedItem =
-  OrderedItem
-  { orderedItemMenuId :: Int
-  , orderedItemDescription :: String
-  , orderedItemPrice :: Double
-  } deriving (Show, Eq)
-
 makeLenses ''TabState
 
 tabSeed :: TabState
 tabSeed = TabState True [] [] [] []
 
 data TabEvent
-  = DrinksOrdered [Drink]
-  | FoodOrdered [Food]
-  | DrinksCancelled [Int]
-  | FoodCancelled [Int]
-  | DrinksServed [Int]
-  | FoodPrepared [Int]
-  | FoodServed [Int]
+  = DrinksOrdered
+    { _tabEventDrinks :: [Drink]
+    }
+  | FoodOrdered
+    { _tabEventFood :: [Food]
+    }
+  | DrinksCancelled
+    { _tabEventDrinkIndexes :: [Int]
+    }
+  | FoodCancelled
+    { _tabEventFoodIndexes :: [Int]
+    }
+  | DrinksServed
+    { _tabEventDrinkIndexes :: [Int]
+    }
+  | FoodPrepared
+    { _tabEventFoodIndexes :: [Int]
+    }
+  | FoodServed
+    { _tabEventFoodIndexes :: [Int]
+    }
   | TabClosed Double
   deriving (Show, Eq)
+
+deriveJSON (unPrefix "_tabEvent") ''TabEvent
 
 tabApplyEvent :: TabState -> TabEvent -> TabState
 tabApplyEvent state (DrinksOrdered drinks) = state & tabStateOutstandingDrinks %~ (++ map Just drinks)
@@ -108,6 +128,7 @@ data TabCommandError
   deriving (Show, Eq)
 
 tabApplyCommand :: TabState -> TabCommand -> Either TabCommandError [TabEvent]
+tabApplyCommand TabState { _tabStateIsOpen = False } _ = Left TabAlreadyClosed
 tabApplyCommand state (CloseTab cash)
   | amountOfNonServedItems > 0 = Left TabHasUnservedItems
   | cash < totalServedWorth = Left MustPayEnough
@@ -118,7 +139,6 @@ tabApplyCommand state (CloseTab cash)
       length (state ^. tabStateOutstandingFood) +
       length (state ^. tabStatePreparedFood)
     totalServedWorth = foldl' (+) 0 (fmap orderedItemPrice $ state ^. tabStateServedItems)
-tabApplyCommand TabState { _tabStateIsOpen = False } _ = Left TabAlreadyClosed
 tabApplyCommand _ (PlaceOrder food drinks) = Right [FoodOrdered food, DrinksOrdered drinks]
 tabApplyCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
 tabApplyCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
@@ -127,4 +147,4 @@ tabApplyCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
 type TabAggregate = Aggregate TabState TabEvent TabCommand TabCommandError
 
 tabAggregate :: TabAggregate
-tabAggregate = Aggregate tabApplyCommand
+tabAggregate = Aggregate tabApplyCommand tabProjection

@@ -97,4 +97,4 @@ counterApplyCommand (CounterState k) ResetCounter = Right [CounterAmountAdded (-
 type CounterAggregate = Aggregate CounterState CounterEvent CounterCommand CounterCommandError
 
 counterAggregate :: CounterAggregate
-counterAggregate = Aggregate counterApplyCommand
+counterAggregate = Aggregate counterApplyCommand counterProjection
