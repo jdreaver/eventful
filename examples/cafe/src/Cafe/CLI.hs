@@ -5,6 +5,9 @@ module Cafe.CLI
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Logger (runNoLoggingT)
+import Data.Aeson
+import Data.Aeson.Encode.Pretty
+import qualified Data.ByteString.Lazy.Char8 as BSL
 import Database.Persist.Sqlite
 import Data.Text (pack)
 import Safe
@@ -31,6 +34,16 @@ runCLICommand :: Command -> CLI ()
 runCLICommand OpenTab = do
   (key, uuid) <- runDB openTab
   liftIO $ putStrLn $ "Opened tab. Id: " ++ show (fromSqlKey key) ++ ", UUID: " ++ show uuid
+runCLICommand ListMenu = liftIO $ do
+  putStrLn "Food:"
+  let printPair (i, MenuItem desc price) = putStrLn $ show i ++ ": " ++ desc ++ " ($" ++ show price ++ ")"
+  mapM_ printPair (zip [0 :: Int ..] $ map unFood allFood)
+  putStrLn "Drinks:"
+  mapM_ printPair (zip [0 :: Int ..] $ map unDrink allDrinks)
+runCLICommand (ViewTab tabId) = do
+  uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
+  latest <- runEventStoreCLI $ getLatestProjection tabProjection uuid
+  liftIO $ printJSONPretty latest
 runCLICommand (TabCommand tabId command) = do
   uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
   result <- runEventStoreCLI $ commandStoredAggregate tabAggregate uuid command
@@ -40,4 +53,7 @@ runCLICommand (TabCommand tabId command) = do
       liftIO . putStrLn $ "Events: " ++ show events
       latest <- runEventStoreCLI $ getLatestProjection tabProjection uuid
       liftIO . putStrLn $ "Latest state:"
-      liftIO $ print latest
+      liftIO $ printJSONPretty latest
+
+printJSONPretty :: (ToJSON a) => a -> IO ()
+printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })

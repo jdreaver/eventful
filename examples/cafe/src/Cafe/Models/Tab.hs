@@ -2,7 +2,9 @@ module Cafe.Models.Tab
   ( TabState (..)
   , Drink (..)
   , Food (..)
-  , OrderedItem (..)
+  , MenuItem (..)
+  , allDrinks
+  , allFood
   , TabProjection
   , tabProjection
   , TabAggregate
@@ -14,22 +16,22 @@ module Cafe.Models.Tab
 
 import Control.Lens
 import Data.List (foldl')
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, isJust)
 
 import Eventful
 
-data OrderedItem =
-  OrderedItem
-  { orderedItemDescription :: String
-  , orderedItemPrice :: Double
+data MenuItem =
+  MenuItem
+  { menuItemDescription :: String
+  , menuItemPrice :: Double
   } deriving (Show, Eq)
 
-deriveJSON (unPrefix "orderedItem") ''OrderedItem
+deriveJSON (unPrefix "menuItem") ''MenuItem
 
-newtype Drink = Drink { unDrink :: OrderedItem }
+newtype Drink = Drink { unDrink :: MenuItem }
   deriving (Show, Eq, FromJSON, ToJSON)
 
-newtype Food = Food { unFood :: OrderedItem }
+newtype Food = Food { unFood :: MenuItem }
   deriving (Show, Eq, FromJSON, ToJSON)
 
 data TabState =
@@ -43,11 +45,12 @@ data TabState =
     -- or cancelled.
   , _tabStatePreparedFood :: [Maybe Food]
     -- ^ All food that has been made. 'Nothing' indicates the food was served.
-  , _tabStateServedItems :: [OrderedItem]
+  , _tabStateServedItems :: [MenuItem]
     -- ^ All items that have been served.
   } deriving (Show, Eq)
 
 makeLenses ''TabState
+deriveJSON (unPrefix "_tabState") ''TabState
 
 tabSeed :: TabState
 tabSeed = TabState True [] [] [] []
@@ -86,19 +89,19 @@ tabApplyEvent state (DrinksCancelled indexes) = state & tabStateOutstandingDrink
 tabApplyEvent state (FoodCancelled indexes) = state & tabStateOutstandingFood %~ setIndexesToNothing indexes
 tabApplyEvent state (DrinksServed indexes) =
   state
-  & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
   & tabStateServedItems %~
-    \items -> items ++ fmap unDrink (catMaybes $ getListItemsByIndexes indexes (state ^. tabStateOutstandingDrinks))
+    (\items -> items ++ fmap unDrink (catMaybes $ getListItemsByIndexes indexes (state ^. tabStateOutstandingDrinks)))
+  & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
 tabApplyEvent state (FoodPrepared indexes) =
   state
-  & tabStateOutstandingFood %~ setIndexesToNothing indexes
   & tabStatePreparedFood %~
-    \items -> items ++ getListItemsByIndexes indexes (state ^. tabStatePreparedFood)
+    (\items -> items ++ getListItemsByIndexes indexes (state ^. tabStateOutstandingFood))
+  & tabStateOutstandingFood %~ setIndexesToNothing indexes
 tabApplyEvent state (FoodServed indexes) =
   state
-  & tabStatePreparedFood %~ setIndexesToNothing indexes
   & tabStateServedItems %~
-    \items -> items ++ fmap unFood (catMaybes $ getListItemsByIndexes indexes (state ^. tabStatePreparedFood))
+    (\items -> items ++ fmap unFood (catMaybes $ getListItemsByIndexes indexes (state ^. tabStatePreparedFood)))
+  & tabStatePreparedFood %~ setIndexesToNothing indexes
 tabApplyEvent state (TabClosed _) = state & tabStateIsOpen .~ False
 
 setIndexesToNothing :: [Int] -> [Maybe a] -> [Maybe a]
@@ -114,6 +117,8 @@ tabProjection = Projection tabSeed tabApplyEvent
 
 data TabCommand
   = PlaceOrder [Food] [Drink]
+  -- CancelDrinks [Int]
+  -- CancelFood [Int]
   | MarkDrinksServed [Int]
   | MarkFoodPrepared [Int]
   | MarkFoodServed [Int]
@@ -135,11 +140,13 @@ tabApplyCommand state (CloseTab cash)
   | otherwise = Right [TabClosed cash]
   where
     amountOfNonServedItems =
-      length (state ^. tabStateOutstandingDrinks) +
-      length (state ^. tabStateOutstandingFood) +
-      length (state ^. tabStatePreparedFood)
-    totalServedWorth = foldl' (+) 0 (fmap orderedItemPrice $ state ^. tabStateServedItems)
+      length (filter isJust $ state ^. tabStateOutstandingDrinks) +
+      length (filter isJust $ state ^. tabStateOutstandingFood) +
+      length (filter isJust $ state ^. tabStatePreparedFood)
+    totalServedWorth = foldl' (+) 0 (fmap menuItemPrice $ state ^. tabStateServedItems)
 tabApplyCommand _ (PlaceOrder food drinks) = Right [FoodOrdered food, DrinksOrdered drinks]
+-- TODO: Check if index exceeds list length or if item is already marked null
+-- for the next 3 commands.
 tabApplyCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
 tabApplyCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
 tabApplyCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
@@ -148,3 +155,21 @@ type TabAggregate = Aggregate TabState TabEvent TabCommand TabCommandError
 
 tabAggregate :: TabAggregate
 tabAggregate = Aggregate tabApplyCommand tabProjection
+
+-- | List of all drinks. The menu could be its own aggregate in the future.
+allDrinks :: [Drink]
+allDrinks =
+  map Drink
+  [ MenuItem "Beer" 3.50
+  , MenuItem "Water" 0.00
+  , MenuItem "Soda" 1.00
+  ]
+
+-- | List of all food. The menu could be its own aggregate in the future.
+allFood :: [Food]
+allFood =
+  map Food
+  [ MenuItem "Sandwich" 6.50
+  , MenuItem "Steak" 10.00
+  , MenuItem "Chips" 1.00
+  ]

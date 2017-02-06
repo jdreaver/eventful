@@ -12,6 +12,9 @@ dependencies:
   - eventful-core
   - eventful-sqlite
 
+  - aeson
+  - aeson-pretty
+  - bytestring
   - lens
   - monad-logger
   - mtl
@@ -27,6 +30,7 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - MultiParamTypeClasses
   - RecordWildCards
+  - ScopedTypeVariables
   - TemplateHaskell
   - TypeFamilies
 
