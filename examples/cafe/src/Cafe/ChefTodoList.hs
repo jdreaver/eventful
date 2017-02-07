@@ -3,6 +3,7 @@ module Cafe.ChefTodoList
   ) where
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (forM_, unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Logger (runNoLoggingT)
 import Data.List (foldl')
@@ -15,11 +16,11 @@ import Database.Persist.Sql
 import Database.Persist.Sqlite
 import Options.Applicative
 import Safe (maximumDef)
+import System.Console.ANSI (clearScreen, setCursorPosition)
 
 import Eventful
 import Eventful.Store.Sqlite
 
-import Cafe.CLI (printJSONPretty)
 import Cafe.CLI.Options (parseDatabaseFileOption)
 import Cafe.Models.Tab
 
@@ -40,8 +41,7 @@ chefTodoListLoop pool (ChefTodoModel latestSeq foodMap) = do
     latestSeq' = maximumDef latestSeq (storedEventSequenceNumber <$> tabEvents)
     foodMap' = foldl' applyEventToMap foodMap tabEvents
 
-  -- mapM_ printJSONPretty (storedEventEvent <$> tabEvents)
-  mapM_ printJSONPretty (Map.toList foodMap')
+  unless (null newEvents) $ printFood foodMap'
 
   threadDelay 1000000  -- 1 second in microseconds
   chefTodoListLoop pool $ ChefTodoModel latestSeq' foodMap'
@@ -64,3 +64,12 @@ applyEventToFood :: [Maybe Food] -> TabEvent -> [Maybe Food]
 applyEventToFood oldFood (FoodOrdered newFood) = oldFood ++ map Just newFood
 applyEventToFood oldFood (FoodPrepared indexes) = setIndexesToNothing indexes oldFood
 applyEventToFood food _ = food
+
+printFood :: Map UUID [Maybe Food] -> IO ()
+printFood foodMap = do
+  let
+    allFoods :: [(UUID, Food)]
+    allFoods = concatMap (\(uuid, foods) -> mapMaybe (fmap (uuid,)) foods) $ Map.toList foodMap
+  clearScreen
+  setCursorPosition 0 0
+  forM_ allFoods $ \(uuid, Food (MenuItem desc _)) -> putStrLn $ "Tab: " ++ show uuid ++ ", Item: " ++ desc
