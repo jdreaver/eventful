@@ -2,6 +2,7 @@ module Cafe.CLI.Options
   ( runOptionsParser
   , Options (..)
   , Command (..)
+  , parseDatabaseFileOption
   ) where
 
 import Data.Monoid ((<>))
@@ -31,13 +32,7 @@ data Command
 parseOptions :: Parser Options
 parseOptions =
   Options <$>
-  strOption
-    ( metavar "DATABASE_PATH" <>
-      long "database-path" <>
-      short 'p' <>
-      value "database.db" <>
-      help "File path for SQLite database. Default is ./database.db"
-    ) <*>
+  parseDatabaseFileOption <*>
   subparser (
     command "open-tab" (info (helper <*> pure OpenTab) (progDesc "Open a new tab")) <>
     command "list-menu" (info (helper <*> pure ListMenu) (progDesc "List all the menu items")) <>
@@ -48,6 +43,16 @@ parseOptions =
     command "mark-food-served" (info (helper <*> parseTabCommand parseMarkFoodServed) (progDesc "Mark food as served")) <>
     command "close-tab" (info (helper <*> parseTabCommand parseCloseTab) (progDesc "Close an open tab"))
   )
+
+parseDatabaseFileOption :: Parser FilePath
+parseDatabaseFileOption =
+  strOption
+    ( metavar "DATABASE_PATH" <>
+      long "database-path" <>
+      short 'p' <>
+      value "database.db" <>
+      help "File path for SQLite database. Default is ./database.db"
+    )
 
 tabIdOption :: Parser TabEntityId
 tabIdOption =

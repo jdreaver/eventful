@@ -15,6 +15,7 @@ dependencies:
   - aeson
   - aeson-pretty
   - bytestring
+  - containers
   - lens
   - monad-logger
   - mtl
@@ -42,6 +43,14 @@ library:
 executables:
   cafe-main:
     main: cafe-main.hs
+    ghc-options: -Wall
+    source-dirs:
+      - app
+    dependencies:
+      - examples-cafe
+
+  cafe-chef-todo-main:
+    main: cafe-chef-todo-main.hs
     ghc-options: -Wall
     source-dirs:
       - app

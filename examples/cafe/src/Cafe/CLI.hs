@@ -1,5 +1,6 @@
 module Cafe.CLI
   ( cliMain
+  , printJSONPretty
   ) where
 
 import Control.Monad (void)
@@ -8,8 +9,8 @@ import Control.Monad.Logger (runNoLoggingT)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy.Char8 as BSL
-import Database.Persist.Sqlite
 import Data.Text (pack)
+import Database.Persist.Sqlite
 import Safe
 
 import Eventful.Store.Sqlite

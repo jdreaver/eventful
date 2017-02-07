@@ -12,6 +12,7 @@ module Cafe.Models.Tab
   , TabCommand (..)
   , TabEvent (..)
   , TabCommandError (..)
+  , setIndexesToNothing
   ) where
 
 import Control.Lens
