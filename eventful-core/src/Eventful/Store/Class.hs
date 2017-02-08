@@ -52,7 +52,7 @@ data EventStoreDefinition store serialized m
   , getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [StoredEvent serialized]
     -- ^ Like 'getEventsRaw', but only retrieves events greater than or equal
     -- to the given version.
-  , storeEventsRaw :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
+  , storeEventsRaw :: store -> UUID -> [serialized] -> m ()
     -- ^ Stores the events for a given 'Projection' using that projection's
     -- UUID.
   , getSequencedEventsRaw :: store -> SequenceNumber -> m [StoredEvent serialized]
@@ -116,16 +116,15 @@ getEventsFromVersion uuid vers = do
 -- type to serialize them.
 storeEvents
   :: (Monad m, Serializable event serialized)
-  => UUID -> [event] -> EventStoreT store serialized m [StoredEvent event]
+  => UUID -> [event] -> EventStoreT store serialized m ()
 storeEvents uuid events = do
   EventStore store EventStoreDefinition{..} <- askEventStore
-  serialized <- lift $ storeEventsRaw store uuid (serialize <$> events)
-  return $ zipWith (<$) events serialized
+  lift $ storeEventsRaw store uuid (serialize <$> events)
 
 -- | Like 'storeEvents', but just store a single event.
 storeEvent
   :: (Monad m, Serializable event serialized)
-  => UUID -> event -> EventStoreT store serialized m [StoredEvent event]
+  => UUID -> event -> EventStoreT store serialized m ()
 storeEvent projId event = storeEvents projId [event]
 
 -- | Convenience wrapper around 'getSequencedEventsRaw'

@@ -91,19 +91,11 @@ maxEventVersion uuid =
   let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?" [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
-sqliteStoreEvents :: (MonadIO m) => UUID -> [JSONString] -> SqlPersistT m [StoredEvent JSONString]
+sqliteStoreEvents :: (MonadIO m) => UUID -> [JSONString] -> SqlPersistT m ()
 sqliteStoreEvents uuid events = do
   versionNum <- maxEventVersion uuid
   let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
-
-  -- Note that the postgres backend doesn't need to do a SELECT after the
-  -- INSERT to get the keys, because insertMany uses the postgres RETURNING
-  -- statement.
   bulkInsert entities 4
-  sequenceNums <- selectKeysList [SqliteEventProjectionId ==. uuid, SqliteEventVersion >. versionNum] [Asc SqliteEventVersion]
-
-  return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
-    sequenceNums [versionNum + 1..] events
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
 bulkInsert

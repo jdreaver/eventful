@@ -24,5 +24,4 @@ spec = do
 
       it "doesn't fail with an error about too many variables" $ do
         let numEvents = sqliteMaxVariableNumber * 3
-        storedEvents <- runSqlPool (runEventStore store (storeEvents nil (Added <$> [1..numEvents]))) pool
-        length storedEvents `shouldBe` numEvents
+        runSqlPool (runEventStore store (storeEvents nil (Added <$> [1..numEvents]))) pool
