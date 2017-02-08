@@ -50,14 +50,16 @@ type SqliteEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
 
 sqliteEventStore :: (MonadIO m) => SqliteEventStore m
 sqliteEventStore =
-  EventStore () $
-    EventStoreDefinition
-    (const getProjectionIds)
-    (const maxEventVersion)
-    (\_ uuid -> getSqliteAggregateEvents uuid Nothing)
-    (\_ uuid vers -> getSqliteAggregateEvents uuid (Just vers))
-    (const sqliteStoreEvents)
-    (const getAllEventsFromSequence)
+  let
+    getAllUuidsRaw () = getProjectionIds
+    getLatestVersionRaw () = maxEventVersion
+    getEventsRaw () uuid = getSqliteAggregateEvents uuid Nothing
+    getEventsFromVersionRaw () uuid vers = getSqliteAggregateEvents uuid (Just vers)
+    storeEventsRaw' () = sqliteStoreEvents
+    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
+    getSequencedEventsRaw () = getAllEventsFromSequence
+  in EventStore () EventStoreDefinition{..}
+
 
 sqliteEventToStored :: Entity SqliteEvent -> StoredEvent JSONString
 sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid version data')) =

@@ -39,7 +39,7 @@ readAndApplyCommand store = do
         -- The command is valid. Apply the event to the store.
         Right event -> do
           putStrLn $ "Command valid. Event: " ++ show event
-          void . atomically . runEventStore store $ storeEvent uuid event
+          void . atomically . runEventStore store $ storeEvent AnyVersion uuid event
         -- The command is invalid. Show the user the error.
         Left err -> putStrLn $ "Command invalid: Error: " ++ show err
 

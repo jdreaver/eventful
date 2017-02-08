@@ -46,7 +46,8 @@ memoryEventStoreDefinition =
     getLatestVersionRaw tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
     getEventsRaw tvar uuid = toList . flip lookupEventMapRaw uuid <$> readTVar tvar
     getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
-    storeEventsRaw tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
+    storeEventsRaw' tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
+    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
     getSequencedEventsRaw tvar seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
   in EventStoreDefinition{..}
 

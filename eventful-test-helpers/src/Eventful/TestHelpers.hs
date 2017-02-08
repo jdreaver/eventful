@@ -95,7 +95,7 @@ eventStoreSpec makeStore runAsIO = do
   context "when a few events are inserted" $ do
     let events = [Added 1, Added 4, Added (-3)]
     (store, runargs) <- runIO makeStore
-    _ <- runIO . runAsIO runargs . runEventStore store $ storeEvents nil events
+    _ <- runIO . runAsIO runargs . runEventStore store $ storeEvents expectNoStream nil events
 
     it "should return events" $ do
       events' <- runAsIO runargs $ runEventStore store $ getEvents nil
@@ -169,8 +169,8 @@ insertExampleEvents = do
   let
     uuid1 = uuidFromInteger 1
     uuid2 = uuidFromInteger 2
-  void $ storeEvents uuid1 [Added 1]
-  void $ storeEvents uuid2 [Added 2, Added 3]
-  void $ storeEvents uuid1 [Added 4]
-  void $ storeEvents uuid2 [Added 5]
+  void $ storeEvents expectNoStream uuid1 [Added 1]
+  void $ storeEvents expectNoStream uuid2 [Added 2, Added 3]
+  void $ storeEvents (ExactVersion 0) uuid1 [Added 4]
+  void $ storeEvents (ExactVersion 1) uuid2 [Added 5]
   return (uuid1, uuid2)
