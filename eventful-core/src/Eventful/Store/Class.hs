@@ -187,8 +187,16 @@ getSequencedEvents seqNum = do
 -- | Gets the latest projection from a store using 'getEvents'
 getLatestProjection
   :: (Monad m, Serializable event serialized)
-  => Projection proj event -> UUID -> EventStoreT store serialized m proj
-getLatestProjection proj uuid = latestProjection proj . fmap storedEventEvent <$> getEvents uuid
+  => Projection proj event -> UUID -> EventStoreT store serialized m (proj, EventVersion)
+getLatestProjection proj uuid = do
+  events <- getEvents uuid
+  let
+    latestVersion = maxEventVersion events
+    latestProj = latestProjection proj $ storedEventEvent <$> events
+  return (latestProj, latestVersion)
+  where
+    maxEventVersion [] = -1
+    maxEventVersion es = maximum $ storedEventVersion <$> es
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event

@@ -24,7 +24,7 @@ readAndApplyCommand store = do
   let uuid = nil
 
   -- Get current state and print it out
-  currentState <- atomically . runEventStore store $ getLatestProjection counterProjection nil
+  (currentState, _) <- atomically . runEventStore store $ getLatestProjection counterProjection nil
   putStrLn $ "Current state: " ++ show currentState
 
   -- Ask user for command
