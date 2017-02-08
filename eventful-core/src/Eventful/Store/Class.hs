@@ -4,7 +4,6 @@ module Eventful.Store.Class
   , EventStoreDefinition (..)
   , EventStoreT (..)
   , ExpectedVersion (..)
-  , expectNoStream
   , runEventStore
   , getAllUuids
   , getLatestVersion
@@ -71,13 +70,13 @@ data EventStoreDefinition store serialized m
 data ExpectedVersion
   = AnyVersion
     -- ^ Used when the writer doesn't care what version the stream is at.
+  | NoStream
+    -- ^ The stream shouldn't exist yet.
+  | StreamExists
+    -- ^ The stream should already exist.
   | ExactVersion EventVersion
     -- ^ Used to assert the stream is at a particular version.
   deriving (Show, Eq)
-
--- | The exact expected version for a stream that doesn't exist.
-expectNoStream :: ExpectedVersion
-expectNoStream = ExactVersion (-1)
 
 data EventWriteError
   = EventStreamNotAtExpectedVersion
@@ -91,11 +90,25 @@ transactionalExpectedWriteHelper
   => (store -> UUID -> m EventVersion)
   -> (store -> UUID -> [serialized] -> m ())
   -> store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
-transactionalExpectedWriteHelper _ storeEvents' store AnyVersion uuid events =
+transactionalExpectedWriteHelper getLatestVersion' storeEvents' store expected =
+  go expected getLatestVersion' storeEvents' store
+  where
+    go AnyVersion = transactionalExpectedWriteHelper' Nothing
+    go NoStream = transactionalExpectedWriteHelper' (Just $ (==) (-1))
+    go StreamExists = transactionalExpectedWriteHelper' (Just (> (-1)))
+    go (ExactVersion vers) = transactionalExpectedWriteHelper' (Just $ (==) vers)
+
+transactionalExpectedWriteHelper'
+  :: (Monad m)
+  => Maybe (EventVersion -> Bool)
+  -> (store -> UUID -> m EventVersion)
+  -> (store -> UUID -> [serialized] -> m ())
+  -> store  -> UUID -> [serialized] -> m (Maybe EventWriteError)
+transactionalExpectedWriteHelper' Nothing _ storeEvents' store uuid events =
   storeEvents' store uuid events >> return Nothing
-transactionalExpectedWriteHelper getLatestVersion' storeEvents' store (ExactVersion expectedVersion) uuid events = do
+transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' store uuid events = do
   latestVersion <- getLatestVersion' store uuid
-  if latestVersion == expectedVersion
+  if f latestVersion
   then storeEvents' store uuid events >> return Nothing
   else return $ Just EventStreamNotAtExpectedVersion
 
