@@ -141,6 +141,29 @@ eventStoreSpec makeStore runAsIO = do
       runAsIO runargs (runEventStore store $ getLatestProjection counterProjection uuid2)
         `shouldReturn` (Counter 10, 2)
 
+  describe "can handle event storage errors" $ do
+    (store, runargs) <- runIO makeStore
+
+    it "rejects some writes when event store isn't created" $ do
+      runAsIO runargs (runEventStore store $ storeEvents StreamExists nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion (-1))
+      runAsIO runargs (runEventStore store $ storeEvents (ExactVersion 0) nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion (-1))
+
+    it "should be able to store events starting with an empty stream" $ do
+      runAsIO runargs (runEventStore store $ storeEvents NoStream nil [Added 1]) `shouldReturn` Nothing
+
+    it "should reject storing events sometimes with a stream" $ do
+      runAsIO runargs (runEventStore store $ storeEvents NoStream nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion 0)
+      runAsIO runargs (runEventStore store $ storeEvents (ExactVersion 1) nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion 0)
+
+    it "should accepts storing events sometimes with a stream" $ do
+      runAsIO runargs (runEventStore store $ storeEvents AnyVersion nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (runEventStore store $ storeEvents (ExactVersion 1) nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (runEventStore store $ storeEvents StreamExists nil [Added 1]) `shouldReturn` Nothing
+
 sequencedEventStoreSpec
   :: (Serializable CounterEvent serialized, Monad m)
   => IO (EventStore store serialized m, runargs) -> (forall a. runargs -> m a -> IO a) -> Spec

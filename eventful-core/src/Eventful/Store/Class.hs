@@ -4,6 +4,7 @@ module Eventful.Store.Class
   , EventStoreDefinition (..)
   , EventStoreT (..)
   , ExpectedVersion (..)
+  , EventWriteError (..)
   , runEventStore
   , getAllUuids
   , getLatestVersion
@@ -79,7 +80,7 @@ data ExpectedVersion
   deriving (Show, Eq)
 
 data EventWriteError
-  = EventStreamNotAtExpectedVersion
+  = EventStreamNotAtExpectedVersion EventVersion
   deriving (Show, Eq)
 
 -- | Helper to create 'storeEventsRaw' given a function to get the latest
@@ -110,7 +111,7 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' store 
   latestVersion <- getLatestVersion' store uuid
   if f latestVersion
   then storeEvents' store uuid events >> return Nothing
-  else return $ Just EventStreamNotAtExpectedVersion
+  else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
 
 -- | Monad to run event store actions in. It us just a newtype around 'ReaderT'
 -- that holds an 'EventStore' and uses @m@ as the base monad.
