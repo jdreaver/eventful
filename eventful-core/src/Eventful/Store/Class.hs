@@ -208,12 +208,14 @@ commandStoredAggregate
   :: (Monad m, Serializable event serialized)
   => Aggregate state event cmd cmderror -> UUID -> cmd -> EventStoreT store serialized m (Either cmderror [event])
 commandStoredAggregate (Aggregate applyCommand proj) uuid command = do
-  latest <- getLatestProjection proj uuid
+  (latest, vers) <- getLatestProjection proj uuid
   case applyCommand latest command of
     (Left err) -> return $ Left err
     (Right events) -> do
-      _ <- storeEvents uuid events
-      return $ Right events
+      mError <- storeEvents (ExactVersion vers) uuid events
+      case mError of
+        (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
+        Nothing -> return $ Right events
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event
