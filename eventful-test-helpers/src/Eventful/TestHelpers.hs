@@ -95,7 +95,7 @@ eventStoreSpec makeStore runAsIO = do
   context "when a few events are inserted" $ do
     let events = [Added 1, Added 4, Added (-3)]
     (store, runargs) <- runIO makeStore
-    _ <- runIO . runAsIO runargs . runEventStore store $ storeEvents nil events
+    _ <- runIO . runAsIO runargs . runEventStore store $ storeEvents NoStream nil events
 
     it "should return events" $ do
       events' <- runAsIO runargs $ runEventStore store $ getEvents nil
@@ -110,7 +110,8 @@ eventStoreSpec makeStore runAsIO = do
         >>= (`shouldBe` drop 1 events)
 
     it "should return the latest projection" $ do
-      runAsIO runargs (runEventStore store (getLatestProjection counterProjection nil)) `shouldReturn` Counter 2
+      runAsIO runargs (runEventStore store (getLatestProjection counterProjection nil))
+        `shouldReturn` (Counter 2, 2)
 
   context "when events from multiple UUIDs are inserted" $ do
     (store, runargs) <- runIO makeStore
@@ -136,9 +137,32 @@ eventStoreSpec makeStore runAsIO = do
 
     it "should produce the correct projections" $ do
       runAsIO runargs (runEventStore store $ getLatestProjection counterProjection uuid1)
-        `shouldReturn` Counter 5
+        `shouldReturn` (Counter 5, 1)
       runAsIO runargs (runEventStore store $ getLatestProjection counterProjection uuid2)
-        `shouldReturn` Counter 10
+        `shouldReturn` (Counter 10, 2)
+
+  describe "can handle event storage errors" $ do
+    (store, runargs) <- runIO makeStore
+
+    it "rejects some writes when event store isn't created" $ do
+      runAsIO runargs (runEventStore store $ storeEvents StreamExists nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion (-1))
+      runAsIO runargs (runEventStore store $ storeEvents (ExactVersion 0) nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion (-1))
+
+    it "should be able to store events starting with an empty stream" $ do
+      runAsIO runargs (runEventStore store $ storeEvents NoStream nil [Added 1]) `shouldReturn` Nothing
+
+    it "should reject storing events sometimes with a stream" $ do
+      runAsIO runargs (runEventStore store $ storeEvents NoStream nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion 0)
+      runAsIO runargs (runEventStore store $ storeEvents (ExactVersion 1) nil [Added 1])
+        `shouldReturn` Just (EventStreamNotAtExpectedVersion 0)
+
+    it "should accepts storing events sometimes with a stream" $ do
+      runAsIO runargs (runEventStore store $ storeEvents AnyVersion nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (runEventStore store $ storeEvents (ExactVersion 1) nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (runEventStore store $ storeEvents StreamExists nil [Added 1]) `shouldReturn` Nothing
 
 sequencedEventStoreSpec
   :: (Serializable CounterEvent serialized, Monad m)
@@ -169,8 +193,8 @@ insertExampleEvents = do
   let
     uuid1 = uuidFromInteger 1
     uuid2 = uuidFromInteger 2
-  void $ storeEvents uuid1 [Added 1]
-  void $ storeEvents uuid2 [Added 2, Added 3]
-  void $ storeEvents uuid1 [Added 4]
-  void $ storeEvents uuid2 [Added 5]
+  void $ storeEvents NoStream uuid1 [Added 1]
+  void $ storeEvents NoStream uuid2 [Added 2, Added 3]
+  void $ storeEvents (ExactVersion 0) uuid1 [Added 4]
+  void $ storeEvents (ExactVersion 1) uuid2 [Added 5]
   return (uuid1, uuid2)

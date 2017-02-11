@@ -50,14 +50,16 @@ type SqliteEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
 
 sqliteEventStore :: (MonadIO m) => SqliteEventStore m
 sqliteEventStore =
-  EventStore () $
-    EventStoreDefinition
-    (const getProjectionIds)
-    (const maxEventVersion)
-    (\_ uuid -> getSqliteAggregateEvents uuid Nothing)
-    (\_ uuid vers -> getSqliteAggregateEvents uuid (Just vers))
-    (const sqliteStoreEvents)
-    (const getAllEventsFromSequence)
+  let
+    getAllUuidsRaw () = getProjectionIds
+    getLatestVersionRaw () = maxEventVersion
+    getEventsRaw () uuid = getSqliteAggregateEvents uuid Nothing
+    getEventsFromVersionRaw () uuid vers = getSqliteAggregateEvents uuid (Just vers)
+    storeEventsRaw' () = sqliteStoreEvents
+    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
+    getSequencedEventsRaw () = getAllEventsFromSequence
+  in EventStore () EventStoreDefinition{..}
+
 
 sqliteEventToStored :: Entity SqliteEvent -> StoredEvent JSONString
 sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid version data')) =
@@ -91,19 +93,11 @@ maxEventVersion uuid =
   let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?" [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
-sqliteStoreEvents :: (MonadIO m) => UUID -> [JSONString] -> SqlPersistT m [StoredEvent JSONString]
+sqliteStoreEvents :: (MonadIO m) => UUID -> [JSONString] -> SqlPersistT m ()
 sqliteStoreEvents uuid events = do
   versionNum <- maxEventVersion uuid
   let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
-
-  -- Note that the postgres backend doesn't need to do a SELECT after the
-  -- INSERT to get the keys, because insertMany uses the postgres RETURNING
-  -- statement.
   bulkInsert entities 4
-  sequenceNums <- selectKeysList [SqliteEventProjectionId ==. uuid, SqliteEventVersion >. versionNum] [Asc SqliteEventVersion]
-
-  return $ zipWith3 (\(SqliteEventKey seqNum) vers event -> StoredEvent uuid vers seqNum event)
-    sequenceNums [versionNum + 1..] events
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
 bulkInsert

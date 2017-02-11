@@ -46,11 +46,8 @@ memoryEventStoreDefinition =
     getLatestVersionRaw tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
     getEventsRaw tvar uuid = toList . flip lookupEventMapRaw uuid <$> readTVar tvar
     getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
-    storeEventsRaw tvar uuid events = do
-      store <- readTVar tvar
-      let (newMap, storedEvents) = storeEventMap store uuid events
-      writeTVar tvar newMap
-      return storedEvents
+    storeEventsRaw' tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
+    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
     getSequencedEventsRaw tvar seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
   in EventStoreDefinition{..}
 
@@ -69,10 +66,11 @@ lookupEventMapSeq (EventMap uuidMap _) seqNum =
   sortOn storedEventSequenceNumber $ filter ((> seqNum) . storedEventSequenceNumber) $ concat $ toList <$> toList uuidMap
 
 storeEventMap
-  :: EventMap -> UUID -> [Dynamic] -> (EventMap, [StoredEvent Dynamic])
+  :: EventMap -> UUID -> [Dynamic] -> EventMap
 storeEventMap store@(EventMap uuidMap seqNum) uuid events =
-  let versStart = latestEventVersion store uuid + 1
-      storedEvents = zipWith3 (StoredEvent uuid) [versStart..] [seqNum + 1..] events
-      newMap = Map.insertWith (flip (><)) uuid (Seq.fromList storedEvents) uuidMap
-      newSeq = seqNum + (SequenceNumber $ length events)
-  in (EventMap newMap newSeq, storedEvents)
+  let
+    versStart = latestEventVersion store uuid + 1
+    storedEvents = zipWith3 (StoredEvent uuid) [versStart..] [seqNum + 1..] events
+    newMap = Map.insertWith (flip (><)) uuid (Seq.fromList storedEvents) uuidMap
+    newSeq = seqNum + (SequenceNumber $ length events)
+  in EventMap newMap newSeq

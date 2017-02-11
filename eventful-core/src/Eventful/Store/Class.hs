@@ -3,6 +3,8 @@ module Eventful.Store.Class
     EventStore (..)
   , EventStoreDefinition (..)
   , EventStoreT (..)
+  , ExpectedVersion (..)
+  , EventWriteError (..)
   , runEventStore
   , getAllUuids
   , getLatestVersion
@@ -17,6 +19,8 @@ module Eventful.Store.Class
   , StoredEvent (..)
   , EventVersion (..)
   , SequenceNumber (..)
+    -- * Utility functions
+  , transactionalExpectedWriteHelper
   ) where
 
 import Control.Monad.Trans.Class
@@ -54,7 +58,7 @@ data EventStoreDefinition store serialized m
   , getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [StoredEvent serialized]
     -- ^ Like 'getEventsRaw', but only retrieves events greater than or equal
     -- to the given version.
-  , storeEventsRaw :: store -> UUID -> [serialized] -> m [StoredEvent serialized]
+  , storeEventsRaw :: store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
     -- ^ Stores the events for a given 'Projection' using that projection's
     -- UUID.
   , getSequencedEventsRaw :: store -> SequenceNumber -> m [StoredEvent serialized]
@@ -62,6 +66,54 @@ data EventStoreDefinition store serialized m
     -- and ordered by 'SequenceNumber'. This is used when replaying all the
     -- events in a store.
   }
+
+-- | ExpectedVersion is used to assert the event stream is at a certain version
+-- number. This is used when multiple writers are concurrently writing to the
+-- event store. If the expected version is incorrect, then storing fails.
+data ExpectedVersion
+  = AnyVersion
+    -- ^ Used when the writer doesn't care what version the stream is at.
+  | NoStream
+    -- ^ The stream shouldn't exist yet.
+  | StreamExists
+    -- ^ The stream should already exist.
+  | ExactVersion EventVersion
+    -- ^ Used to assert the stream is at a particular version.
+  deriving (Show, Eq)
+
+data EventWriteError
+  = EventStreamNotAtExpectedVersion EventVersion
+  deriving (Show, Eq)
+
+-- | Helper to create 'storeEventsRaw' given a function to get the latest
+-- stream version and a function to write to the event store. **NOTE**: This
+-- only works if the monad @m@ is transactional.
+transactionalExpectedWriteHelper
+  :: (Monad m)
+  => (store -> UUID -> m EventVersion)
+  -> (store -> UUID -> [serialized] -> m ())
+  -> store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
+transactionalExpectedWriteHelper getLatestVersion' storeEvents' store expected =
+  go expected getLatestVersion' storeEvents' store
+  where
+    go AnyVersion = transactionalExpectedWriteHelper' Nothing
+    go NoStream = transactionalExpectedWriteHelper' (Just $ (==) (-1))
+    go StreamExists = transactionalExpectedWriteHelper' (Just (> (-1)))
+    go (ExactVersion vers) = transactionalExpectedWriteHelper' (Just $ (==) vers)
+
+transactionalExpectedWriteHelper'
+  :: (Monad m)
+  => Maybe (EventVersion -> Bool)
+  -> (store -> UUID -> m EventVersion)
+  -> (store -> UUID -> [serialized] -> m ())
+  -> store  -> UUID -> [serialized] -> m (Maybe EventWriteError)
+transactionalExpectedWriteHelper' Nothing _ storeEvents' store uuid events =
+  storeEvents' store uuid events >> return Nothing
+transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' store uuid events = do
+  latestVersion <- getLatestVersion' store uuid
+  if f latestVersion
+  then storeEvents' store uuid events >> return Nothing
+  else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
 
 -- | Monad to run event store actions in. It us just a newtype around 'ReaderT'
 -- that holds an 'EventStore' and uses @m@ as the base monad.
@@ -118,17 +170,16 @@ getEventsFromVersion uuid vers = do
 -- type to serialize them.
 storeEvents
   :: (Monad m, Serializable event serialized)
-  => UUID -> [event] -> EventStoreT store serialized m [StoredEvent event]
-storeEvents uuid events = do
+  => ExpectedVersion -> UUID -> [event] -> EventStoreT store serialized m (Maybe EventWriteError)
+storeEvents expectedVersion uuid events = do
   EventStore store EventStoreDefinition{..} <- askEventStore
-  serialized <- lift $ storeEventsRaw store uuid (serialize <$> events)
-  return $ zipWith (<$) events serialized
+  lift $ storeEventsRaw store expectedVersion uuid (serialize <$> events)
 
 -- | Like 'storeEvents', but just store a single event.
 storeEvent
   :: (Monad m, Serializable event serialized)
-  => UUID -> event -> EventStoreT store serialized m [StoredEvent event]
-storeEvent projId event = storeEvents projId [event]
+  => ExpectedVersion -> UUID -> event -> EventStoreT store serialized m (Maybe EventWriteError)
+storeEvent expectedVersion projId event = storeEvents expectedVersion projId [event]
 
 -- | Convenience wrapper around 'getSequencedEventsRaw'
 getSequencedEvents :: (Monad m) => SequenceNumber -> EventStoreT store serialized m [StoredEvent serialized]
@@ -139,8 +190,16 @@ getSequencedEvents seqNum = do
 -- | Gets the latest projection from a store using 'getEvents'
 getLatestProjection
   :: (Monad m, Serializable event serialized)
-  => Projection proj event -> UUID -> EventStoreT store serialized m proj
-getLatestProjection proj uuid = latestProjection proj . fmap storedEventEvent <$> getEvents uuid
+  => Projection proj event -> UUID -> EventStoreT store serialized m (proj, EventVersion)
+getLatestProjection proj uuid = do
+  events <- getEvents uuid
+  let
+    latestVersion = maxEventVersion events
+    latestProj = latestProjection proj $ storedEventEvent <$> events
+  return (latestProj, latestVersion)
+  where
+    maxEventVersion [] = -1
+    maxEventVersion es = maximum $ storedEventVersion <$> es
 
 -- | Loads the latest version of a projection from the event store and tries to
 -- apply the 'Aggregate' command to it. If the command succeeds, then this
