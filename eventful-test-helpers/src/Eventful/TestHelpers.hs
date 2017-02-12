@@ -166,25 +166,28 @@ eventStoreSpec makeStore runAsIO = do
 
 sequencedEventStoreSpec
   :: (Serializable CounterEvent serialized, Monad m)
-  => IO (EventStore store serialized m, runargs) -> (forall a. runargs -> m a -> IO a) -> Spec
-sequencedEventStoreSpec makeStore runAsIO = do
+  => GetGloballyOrderedEvents store (StoredEvent serialized) m
+  -> IO (EventStore store serialized m, runargs)
+  -> (forall a. runargs -> m a -> IO a)
+  -> Spec
+sequencedEventStoreSpec globalDef makeStore runAsIO = do
   context "when the event store is empty" $ do
     (store, runargs) <- runIO makeStore
 
     it "shouldn't have any events" $ do
-      length <$> runAsIO runargs (runEventStore store (getSequencedEvents 0)) `shouldReturn` 0
+      length <$> runAsIO runargs (runEventStore store (getSequencedEvents globalDef 0)) `shouldReturn` 0
 
   context "when events from multiple UUIDs are inserted" $ do
     (store, runargs) <- runIO makeStore
     (uuid1, uuid2) <- runIO . runAsIO runargs . runEventStore store $ insertExampleEvents
 
     it "should have the correct events in global order" $ do
-      events' <- runAsIO runargs . runEventStore store $ getSequencedEvents 0
+      events' <- runAsIO runargs . runEventStore store $ getSequencedEvents globalDef 0
       let deserializedEvents = mapMaybe deserialize events'
-      (storedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
-      (storedEventProjectionId <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (storedEventVersion <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]
-      (storedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
+      (storedEventEvent . globallyOrderedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
+      (storedEventProjectionId . globallyOrderedEventEvent <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (storedEventVersion . globallyOrderedEventEvent <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]
+      (globallyOrderedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
 
 insertExampleEvents
   :: (Serializable CounterEvent serialized, Monad m)

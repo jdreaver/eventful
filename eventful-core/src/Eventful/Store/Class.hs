@@ -2,6 +2,7 @@ module Eventful.Store.Class
   ( -- * EventStore
     EventStore (..)
   , EventStoreDefinition (..)
+  , GetGloballyOrderedEvents (..)
   , EventStoreT (..)
   , ExpectedVersion (..)
   , EventWriteError (..)
@@ -17,6 +18,7 @@ module Eventful.Store.Class
   , commandStoredAggregate
     -- * Utility types
   , StoredEvent (..)
+  , GloballyOrderedEvent (..)
   , EventVersion (..)
   , SequenceNumber (..)
     -- * Utility functions
@@ -40,31 +42,37 @@ import Eventful.UUID
 data EventStore store serialized m
   = EventStore
   { eventStoreStore :: store
-  , eventStoreDefinition :: EventStoreDefinition store serialized m
+  , eventStoreDefinition :: EventStoreDefinition store serialized (StoredEvent serialized) m
   }
 
 -- | An 'EventStoreDefinition' defines how a @store@ performs the operations
--- expected of an 'EventStore'. This is where you define new event stores.
-data EventStoreDefinition store serialized m
+-- expected of an 'EventStore'. It stores @serialized@ events and returns a
+-- @stored@ type that includes metadata. This is where you define new event
+-- stores.
+data EventStoreDefinition store serialized stored m
   = EventStoreDefinition
   { getAllUuidsRaw :: store -> m [UUID]
     -- ^ Retrieves all the unique UUIDs in the event store. This is essentially
     -- a list of all the projections available in the event store.
   , getLatestVersionRaw :: store -> UUID -> m EventVersion
     -- ^ Gets the latest 'EventVersion' for a given 'Projection'.
-  , getEventsRaw :: store -> UUID -> m [StoredEvent serialized]
+  , getEventsRaw :: store -> UUID -> m [stored]
     -- ^ Retrieves all the events for a given 'Projection' using that
     -- projection's UUID.
-  , getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [StoredEvent serialized]
+  , getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [stored]
     -- ^ Like 'getEventsRaw', but only retrieves events greater than or equal
     -- to the given version.
   , storeEventsRaw :: store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
     -- ^ Stores the events for a given 'Projection' using that projection's
     -- UUID.
-  , getSequencedEventsRaw :: store -> SequenceNumber -> m [StoredEvent serialized]
-    -- ^ Gets all the events ordered starting with a given 'SequenceNumber',
-    -- and ordered by 'SequenceNumber'. This is used when replaying all the
-    -- events in a store.
+  }
+
+-- | Gets all the events ordered starting with a given 'SequenceNumber', and
+-- ordered by 'SequenceNumber'. This is used when replaying all the events in a
+-- store.
+newtype GetGloballyOrderedEvents store stored m =
+  GetGloballyOrderedEvents
+  { getSequencedEventsRaw :: store -> SequenceNumber -> m [GloballyOrderedEvent stored]
   }
 
 -- | ExpectedVersion is used to assert the event stream is at a certain version
@@ -182,9 +190,13 @@ storeEvent
 storeEvent expectedVersion projId event = storeEvents expectedVersion projId [event]
 
 -- | Convenience wrapper around 'getSequencedEventsRaw'
-getSequencedEvents :: (Monad m) => SequenceNumber -> EventStoreT store serialized m [StoredEvent serialized]
-getSequencedEvents seqNum = do
-  EventStore store EventStoreDefinition{..} <- askEventStore
+getSequencedEvents
+  :: (Monad m)
+  => GetGloballyOrderedEvents store stored m
+  -> SequenceNumber
+  -> EventStoreT store serialized m [GloballyOrderedEvent stored]
+getSequencedEvents (GetGloballyOrderedEvents getSequencedEventsRaw) seqNum = do
+  EventStore store _ <- askEventStore
   lift $ getSequencedEventsRaw store seqNum
 
 -- | Gets the latest projection from a store using 'getEvents'
@@ -224,9 +236,17 @@ data StoredEvent event
     -- ^ The UUID of the 'Projection' that the event belongs to.
   , storedEventVersion :: EventVersion
     -- ^ The version of the Projection corresponding to this event.
-  , storedEventSequenceNumber :: SequenceNumber
-    -- ^ The global sequence number of this event.
   , storedEventEvent :: event
+    -- ^ The actual event type. Note that this can be a serialized event or the
+    -- actual Haskell event type.
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
+
+-- | A 'GloballyOrderedEvent' is an event that has a global 'SequenceNumber'.
+data GloballyOrderedEvent event
+  = GloballyOrderedEvent
+  { globallyOrderedEventSequenceNumber :: SequenceNumber
+    -- ^ The global sequence number of this event.
+  , globallyOrderedEventEvent :: event
     -- ^ The actual event type. Note that this can be a serialized event or the
     -- actual Haskell event type.
   } deriving (Show, Eq, Functor, Foldable, Traversable)

@@ -2,6 +2,7 @@ module Eventful.Store.Memory
   ( MemoryEventStore
   , MemoryEventStoreT
   , memoryEventStore
+  , memoryGetGloballyOrderedEvents
   , module Eventful.Store.Class
   ) where
 
@@ -20,7 +21,7 @@ import Eventful.UUID
 
 data EventMap
   = EventMap
-  { _eventMapUuidMap :: Map UUID (Seq (StoredEvent Dynamic))
+  { _eventMapUuidMap :: Map UUID (Seq (GloballyOrderedEvent (StoredEvent Dynamic)))
   , _eventMapSeqNum :: SequenceNumber
   -- TODO: Add projection cache here
   }
@@ -37,7 +38,7 @@ memoryEventStore = do
   tvar <- newTVarIO (EventMap Map.empty 0)
   return $ EventStore tvar memoryEventStoreDefinition
 
-type MemoryEventStoreDefinition = EventStoreDefinition (TVar EventMap) Dynamic STM
+type MemoryEventStoreDefinition = EventStoreDefinition (TVar EventMap) Dynamic (StoredEvent Dynamic) STM
 
 memoryEventStoreDefinition :: MemoryEventStoreDefinition
 memoryEventStoreDefinition =
@@ -48,12 +49,15 @@ memoryEventStoreDefinition =
     getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
     storeEventsRaw' tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-    getSequencedEventsRaw tvar seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
   in EventStoreDefinition{..}
+
+memoryGetGloballyOrderedEvents :: GetGloballyOrderedEvents (TVar EventMap) (StoredEvent Dynamic) STM
+memoryGetGloballyOrderedEvents =
+  GetGloballyOrderedEvents $ \tvar seqNum -> flip lookupEventMapSeq seqNum <$> readTVar tvar
 
 lookupEventMapRaw :: EventMap -> UUID -> Seq (StoredEvent Dynamic)
 lookupEventMapRaw (EventMap uuidMap _) uuid =
-  fromMaybe Seq.empty $ Map.lookup uuid uuidMap
+   fmap globallyOrderedEventEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
 
 lookupEventsFromVersion :: EventMap -> UUID -> EventVersion -> Seq (StoredEvent Dynamic)
 lookupEventsFromVersion store uuid (EventVersion vers) = Seq.drop vers $ lookupEventMapRaw store uuid
@@ -61,16 +65,19 @@ lookupEventsFromVersion store uuid (EventVersion vers) = Seq.drop vers $ lookupE
 latestEventVersion :: EventMap -> UUID -> EventVersion
 latestEventVersion store uuid = EventVersion $ Seq.length (lookupEventMapRaw store uuid) - 1
 
-lookupEventMapSeq :: EventMap -> SequenceNumber -> [StoredEvent Dynamic]
+lookupEventMapSeq :: EventMap -> SequenceNumber -> [GloballyOrderedEvent (StoredEvent Dynamic)]
 lookupEventMapSeq (EventMap uuidMap _) seqNum =
-  sortOn storedEventSequenceNumber $ filter ((> seqNum) . storedEventSequenceNumber) $ concat $ toList <$> toList uuidMap
+  sortOn globallyOrderedEventSequenceNumber $
+  filter ((> seqNum) . globallyOrderedEventSequenceNumber) $
+  concat $
+  toList <$> toList uuidMap
 
 storeEventMap
   :: EventMap -> UUID -> [Dynamic] -> EventMap
 storeEventMap store@(EventMap uuidMap seqNum) uuid events =
   let
     versStart = latestEventVersion store uuid + 1
-    storedEvents = zipWith3 (StoredEvent uuid) [versStart..] [seqNum + 1..] events
+    storedEvents = zipWith GloballyOrderedEvent [seqNum + 1..] $ zipWith (StoredEvent uuid) [versStart..] events
     newMap = Map.insertWith (flip (><)) uuid (Seq.fromList storedEvents) uuidMap
     newSeq = seqNum + (SequenceNumber $ length events)
   in EventMap newMap newSeq

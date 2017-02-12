@@ -7,6 +7,7 @@ module Eventful.Store.Sqlite
   ( SqliteEventStore
   , SqliteEventStoreT
   , sqliteEventStore
+  , sqliteGetGloballyOrderedEvents
   , initializeSqliteEventStore
   , SqliteEvent (..)
   , SqliteEventId
@@ -57,13 +58,21 @@ sqliteEventStore =
     getEventsFromVersionRaw () uuid vers = getSqliteAggregateEvents uuid (Just vers)
     storeEventsRaw' () = sqliteStoreEvents
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-    getSequencedEventsRaw () = getAllEventsFromSequence
   in EventStore () EventStoreDefinition{..}
 
+sqliteGetGloballyOrderedEvents
+  :: (MonadIO m)
+  => GetGloballyOrderedEvents () (StoredEvent JSONString) (SqlPersistT m)
+sqliteGetGloballyOrderedEvents =
+  GetGloballyOrderedEvents $ const getAllEventsFromSequence
 
-sqliteEventToStored :: Entity SqliteEvent -> StoredEvent JSONString
-sqliteEventToStored (Entity (SqliteEventKey seqNum) (SqliteEvent uuid version data')) =
-  StoredEvent uuid version seqNum data'
+sqliteEventToGloballyOrdered :: Entity SqliteEvent -> GloballyOrderedEvent (StoredEvent JSONString)
+sqliteEventToGloballyOrdered (Entity (SqliteEventKey seqNum) event) =
+  GloballyOrderedEvent seqNum $ sqliteEventToStored event
+
+sqliteEventToStored :: SqliteEvent -> StoredEvent JSONString
+sqliteEventToStored (SqliteEvent uuid version data') =
+  StoredEvent uuid version data'
 
 -- sqliteEventFromSequenced :: StoredEvent event -> Entity SqliteEvent
 -- sqliteEventFromSequenced (StoredEvent uuid version seqNum event) =
@@ -74,19 +83,23 @@ getProjectionIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
 getProjectionIds =
   fmap unSingle <$> rawSql "SELECT DISTINCT projection_id FROM events" []
 
-getSqliteAggregateEvents :: (MonadIO m) => UUID -> Maybe EventVersion -> ReaderT SqlBackend m [StoredEvent JSONString]
+getSqliteAggregateEvents
+  :: (MonadIO m)
+  => UUID -> Maybe EventVersion -> ReaderT SqlBackend m [StoredEvent JSONString]
 getSqliteAggregateEvents uuid mVers = do
   let
     constraints =
       (SqliteEventProjectionId ==. uuid) :
       maybe [] (\vers -> [SqliteEventVersion >=. vers]) mVers
   entities <- selectList constraints [Asc SqliteEventVersion]
-  return $ sqliteEventToStored <$> entities
+  return $ sqliteEventToStored . entityVal <$> entities
 
-getAllEventsFromSequence :: (MonadIO m) => SequenceNumber -> ReaderT SqlBackend m [StoredEvent JSONString]
+getAllEventsFromSequence
+  :: (MonadIO m)
+  => SequenceNumber -> ReaderT SqlBackend m [GloballyOrderedEvent (StoredEvent JSONString)]
 getAllEventsFromSequence seqNum = do
   entities <- selectList [SqliteEventId >=. SqliteEventKey seqNum] [Asc SqliteEventId]
-  return $ sqliteEventToStored <$> entities
+  return $ sqliteEventToGloballyOrdered <$> entities
 
 maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
 maxEventVersion uuid =

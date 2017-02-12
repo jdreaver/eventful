@@ -35,11 +35,12 @@ chefTodoListMain = do
 
 chefTodoListLoop :: ConnectionPool -> ChefTodoModel -> IO ()
 chefTodoListLoop pool (ChefTodoModel latestSeq foodMap) = do
-  newEvents <- liftIO . flip runSqlPool pool . runEventStore sqliteEventStore $ getSequencedEvents (latestSeq + 1)
+  newEvents <- liftIO . flip runSqlPool pool . runEventStore sqliteEventStore $
+    getSequencedEvents sqliteGetGloballyOrderedEvents (latestSeq + 1)
   let
-    tabEvents = mapMaybe deserialize newEvents :: [StoredEvent TabEvent]
-    latestSeq' = maximumDef latestSeq (storedEventSequenceNumber <$> tabEvents)
-    foodMap' = foldl' applyEventToMap foodMap tabEvents
+    tabEvents = mapMaybe deserialize newEvents :: [GloballyOrderedEvent (StoredEvent TabEvent)]
+    latestSeq' = maximumDef latestSeq (globallyOrderedEventSequenceNumber <$> tabEvents)
+    foodMap' = foldl' applyEventToMap foodMap $ map globallyOrderedEventEvent tabEvents
 
   unless (null newEvents) $ printFood foodMap'
 
@@ -53,7 +54,7 @@ data ChefTodoModel =
   } deriving (Show, Eq)
 
 applyEventToMap :: Map UUID [Maybe Food] -> StoredEvent TabEvent -> Map UUID [Maybe Food]
-applyEventToMap foodMap (StoredEvent uuid _ _ (TabClosed _)) = Map.delete uuid foodMap
+applyEventToMap foodMap (StoredEvent uuid _ (TabClosed _)) = Map.delete uuid foodMap
 applyEventToMap foodMap storedEvent =
   let
     uuid = storedEventProjectionId storedEvent
