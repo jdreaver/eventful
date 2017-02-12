@@ -7,7 +7,7 @@ module Eventful.ReadModel.Class
 import Control.Monad (mapM_)
 
 import Eventful.Serializable
-import Eventful.Store
+import Eventful.Store.Class
 
 class (Monad m) => ReadModel m model serialized | model -> serialized where
   latestApplied :: model -> m SequenceNumber
