@@ -30,3 +30,8 @@ instance (ToJSON a, FromJSON a) => Serializable a Value where
     case fromJSON x of
       Success a -> Right a
       Error e -> Left e
+
+instance (Traversable f, Serializable a b) => Serializable (f a) (f b) where
+  serialize = fmap serialize
+  deserialize = traverse deserialize
+  deserializeEither = traverse deserializeEither

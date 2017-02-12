@@ -229,14 +229,7 @@ data StoredEvent event
   , storedEventEvent :: event
     -- ^ The actual event type. Note that this can be a serialized event or the
     -- actual Haskell event type.
-  } deriving (Show, Eq, Functor)
-
-instance (Serializable a b) => Serializable (StoredEvent a) (StoredEvent b) where
-  serialize = fmap serialize
-  deserialize (StoredEvent uuid vers seqNum event) =
-    StoredEvent uuid vers seqNum <$> deserialize event
-  deserializeEither (StoredEvent uuid vers seqNum event) =
-    StoredEvent uuid vers seqNum <$> deserializeEither event
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | Event versions are a strictly increasing series of integers for each
 -- projection. They allow us to order the events when they are replayed, and

@@ -27,6 +27,7 @@ default-extensions:
   - ConstraintKinds
   - DeriveFunctor
   - DeriveGeneric
+  - DeriveTraversable
   - FlexibleContexts
   - FlexibleInstances
   - FunctionalDependencies
