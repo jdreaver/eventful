@@ -7,7 +7,7 @@ import Control.Monad.Logger (runNoLoggingT)
 import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (mapMaybe)
+import Data.Maybe (catMaybes, mapMaybe)
 import Data.Monoid ((<>))
 import Data.Text (pack)
 import Database.Persist.Sql
@@ -57,9 +57,11 @@ applyEventToFood food _ = food
 
 printFood :: Map UUID [Maybe Food] -> IO ()
 printFood foodMap = do
-  let
-    allFoods :: [(UUID, Food)]
-    allFoods = concatMap (\(uuid, foods) -> mapMaybe (fmap (uuid,)) foods) $ Map.toList foodMap
   clearScreen
   setCursorPosition 0 0
-  forM_ allFoods $ \(uuid, Food (MenuItem desc _)) -> putStrLn $ "Tab: " ++ show uuid ++ ", Item: " ++ desc
+
+  forM_ (Map.keys foodMap) $ \uuid -> do
+    let foodItems = catMaybes $ foodMap Map.! uuid
+    unless (null foodItems) $ do
+      putStrLn $ "Tab: " ++ show uuid
+      forM_ foodItems $ \(Food (MenuItem desc _)) -> putStrLn $ "  - Item: " ++ desc
