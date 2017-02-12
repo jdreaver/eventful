@@ -10,6 +10,7 @@ license: MIT
 dependencies:
   - base
   - eventful-core
+  - eventful-memory
   - eventful-sqlite
 
   - aeson
