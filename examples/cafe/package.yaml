@@ -25,6 +25,7 @@ dependencies:
   - persistent-sqlite
   - persistent-template
   - safe
+  - stm
   - text
 
 default-extensions:

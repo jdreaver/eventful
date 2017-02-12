@@ -2,9 +2,8 @@ module Cafe.ChefTodoList
   ( chefTodoListMain
   ) where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent.STM
 import Control.Monad (forM_, unless)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Logger (runNoLoggingT)
 import Data.List (foldl')
 import Data.Map (Map)
@@ -30,22 +29,26 @@ chefTodoListMain :: IO ()
 chefTodoListMain = do
   dbFilePath <- execParser $ info (helper <*> parseDatabaseFileOption) (fullDesc <> progDesc "Chef Todo List Terminal")
   pool <- runNoLoggingT $ createSqlitePool (pack dbFilePath) 1
-  let model = ChefTodoModel (-1) Map.empty
-  chefTodoListLoop pool model
+  readModel <- chefTodoReadModel
+  runPollingReadModel readModel sqliteEventStore sqliteGetGloballyOrderedEvents (`runSqlPool` pool) 1
 
-chefTodoListLoop :: ConnectionPool -> ChefTodoModel -> IO ()
-chefTodoListLoop pool (ChefTodoModel latestSeq foodMap) = do
-  newEvents <- liftIO . flip runSqlPool pool . runEventStore sqliteEventStore $
-    getSequencedEvents sqliteGetGloballyOrderedEvents (latestSeq + 1)
+chefTodoReadModel :: IO (ReadModel (TVar ChefTodoModel) JSONString IO)
+chefTodoReadModel = do
+  tvar <- newTVarIO $ ChefTodoModel (-1) Map.empty
+  return $ ReadModel tvar getLatestSequence applyChefReadModelEvents
+  where
+    getLatestSequence tvar' = _chefTodoModelLatestSequenceNumber <$> readTVarIO tvar'
+
+applyChefReadModelEvents :: TVar ChefTodoModel -> [GloballyOrderedEvent (StoredEvent JSONString)] -> IO ()
+applyChefReadModelEvents tvar' events = do
+  (ChefTodoModel latestSeq foodMap) <- readTVarIO tvar'
   let
-    tabEvents = mapMaybe deserialize newEvents :: [GloballyOrderedEvent (StoredEvent TabEvent)]
+    tabEvents = mapMaybe deserialize events :: [GloballyOrderedEvent (StoredEvent TabEvent)]
     latestSeq' = maximumDef latestSeq (globallyOrderedEventSequenceNumber <$> tabEvents)
     foodMap' = foldl' applyEventToMap foodMap $ map globallyOrderedEventEvent tabEvents
 
-  unless (null newEvents) $ printFood foodMap'
-
-  threadDelay 1000000  -- 1 second in microseconds
-  chefTodoListLoop pool $ ChefTodoModel latestSeq' foodMap'
+  unless (null events) $ printFood foodMap'
+  atomically . writeTVar tvar' $ ChefTodoModel latestSeq' foodMap'
 
 data ChefTodoModel =
   ChefTodoModel

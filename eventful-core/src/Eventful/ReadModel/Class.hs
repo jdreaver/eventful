@@ -1,22 +1,47 @@
 module Eventful.ReadModel.Class
   ( ReadModel (..)
-  , EventHandler (..)
-  , combineHandlers
+  , runPollingReadModel
   ) where
 
-import Control.Monad (mapM_)
+import Control.Concurrent (threadDelay)
+import Control.Monad (forever)
+import Control.Monad.IO.Class (liftIO, MonadIO)
 
-import Eventful.Serializable
 import Eventful.Store.Class
 
-class (Monad m) => ReadModel m model serialized | model -> serialized where
-  latestApplied :: model -> m SequenceNumber
-  applyEvents :: model -> [StoredEvent serialized] -> m ()
+data ReadModel model serialized m =
+  ReadModel
+  { readModelModel :: model
+  , readModelLatestAppliedSequence :: model -> m SequenceNumber
+  , readModelApplyEvents :: model -> [GloballyOrderedEvent (StoredEvent serialized)] -> m ()
+  }
 
-data EventHandler m serialized = forall event. (Serializable event serialized, Monad m) => EventHandler (event -> m ())
+type PollingPeriodSeconds = Double
 
-combineHandlers :: (Monad m) => [EventHandler m serialized] -> (serialized -> m ())
-combineHandlers handlers event = mapM_ ($ event) (mkHandler <$> handlers)
+runPollingReadModel
+  :: (MonadIO m, Monad mstore)
+  => ReadModel model serialized m
+  -> EventStore store serialized mstore
+  -> GetGloballyOrderedEvents store (StoredEvent serialized) mstore
+  -> (forall a. mstore a -> m a)
+  -> PollingPeriodSeconds
+  -> m ()
+runPollingReadModel ReadModel{..} eventStore getGloballyOrderedEvents runStore waitSeconds = forever $ do
+  -- Get new events starting from latest applied sequence number
+  latestSeq <- readModelLatestAppliedSequence readModelModel
+  newEvents <- runStore . runEventStore eventStore $
+    getSequencedEvents getGloballyOrderedEvents (latestSeq + 1)
 
-mkHandler :: EventHandler m serialized -> (serialized -> m ())
-mkHandler (EventHandler handler) event = maybe (return ()) handler (deserialize event)
+  -- Apply the new events
+  readModelApplyEvents readModelModel newEvents
+
+  -- Wait before running again
+  liftIO $ threadDelay $ ceiling (waitSeconds * 1000000) -- threadDelay accepts microseconds
+
+-- data EventHandler m serialized = forall event. (Serializable event serialized, Monad m) => EventHandler (event -> m ())
+
+-- combineHandlers :: (Monad m) => [EventHandler m serialized] -> (serialized -> m ())
+-- combineHandlers handlers event = mapM_ ($ event) (mkHandler <$> handlers)
+
+-- mkHandler :: EventHandler m serialized -> (serialized -> m ())
+-- mkHandler (EventHandler handler) event = maybe (return ()) handler (deserialize event)
