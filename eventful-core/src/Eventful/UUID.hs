@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE CPP #-}
 
 -- | This module contains orphan 'UUID' instances and a few convenience
 -- functions around UUIDs. It would be great if this were its own entirely
@@ -21,6 +22,20 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
 import Text.Printf (printf)
 import Web.PathPieces
+
+#if MIN_VERSION_aeson(1,1,0)
+
+#else
+import Data.Aeson (ToJSON (..), FromJSON (..))
+
+instance ToJSON UUID where
+  toJSON uuid = toJSON (toText uuid)
+
+instance FromJSON UUID where
+  parseJSON text = do
+    uuid <- parseJSON text
+    maybe (fail $ "Error parsing UUID " ++ show uuid) pure (fromText uuid)
+#endif
 
 uuidFromText :: Text -> Maybe UUID
 uuidFromText = fromText
