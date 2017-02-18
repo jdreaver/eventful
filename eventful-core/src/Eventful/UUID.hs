@@ -16,7 +16,6 @@ module Eventful.UUID
 import Data.UUID
 import qualified Data.UUID.V4 as UUID4
 
-import Data.Aeson (ToJSON (..), FromJSON (..))
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text, pack)
@@ -31,14 +30,6 @@ uuidToText = toText
 
 uuidNextRandom :: IO UUID
 uuidNextRandom = UUID4.nextRandom
-
-instance ToJSON UUID where
-  toJSON uuid = toJSON (toText uuid)
-
-instance FromJSON UUID where
-  parseJSON text = do
-    uuid <- parseJSON text
-    maybe (fail $ "Error parsing UUID " ++ show uuid) pure (fromText uuid)
 
 instance PathPiece UUID where
   fromPathPiece = uuidFromText
