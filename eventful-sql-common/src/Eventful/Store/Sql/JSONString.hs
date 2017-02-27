@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Eventful.Store.Sqlite.Internal
+module Eventful.Store.Sql.JSONString
   ( JSONString
   ) where
 

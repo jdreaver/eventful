@@ -2,6 +2,7 @@ resolver: nightly-2017-02-18
 packages:
   - 'eventful-core'
   - 'eventful-memory'
+  - 'eventful-sql-common'
   - 'eventful-sqlite'
   - 'eventful-test-helpers'
   - 'examples/cafe'
