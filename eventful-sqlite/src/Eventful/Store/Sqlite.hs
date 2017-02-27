@@ -32,11 +32,12 @@ type SqliteEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
 sqliteEventStore :: (MonadIO m) => SqliteEventStore m
 sqliteEventStore =
   let
+    maxVersionSql = "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?"
     getAllUuidsRaw () = sqlGetProjectionIds
-    getLatestVersionRaw () = sqlMaxEventVersion
+    getLatestVersionRaw () = sqlMaxEventVersion maxVersionSql
     getEventsRaw () uuid = sqlGetAggregateEvents uuid Nothing
     getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents uuid (Just vers)
-    storeEventsRaw' () = sqlStoreEvents (bulkInsert 4)
+    storeEventsRaw' () = sqlStoreEvents maxVersionSql (bulkInsert 4)
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore () EventStoreDefinition{..}
 

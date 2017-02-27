@@ -1,24 +1,27 @@
-name: eventful-sql-common
+name: eventful-postgresql
 version: "0.1.0"
 maintainer: David Reaver
-synopsis: Common library for SQL event stores
-description: Common library for SQL event stores
+synopsis: Postgres implementations for eventful
+description: Postgres implementations for eventful
 maintainer: David Reaver
 stability: experimental
 license: MIT
+license-file: LICENSE.md
+
+extra-source-files:
+  - CHANGELOG.md
+  - README.md
 
 dependencies:
   - base
   - eventful-core
+  - eventful-sql-common
 
   - aeson
   - bytestring
   - mtl
   - persistent
-  - persistent-template
-  - split
-  - text
-  - uuid
+  - persistent-postgresql
 
 default-extensions:
   - ConstraintKinds
@@ -44,3 +47,22 @@ library:
   source-dirs:
     - src
   ghc-options: -Wall
+
+tests:
+  spec:
+    main: Spec.hs
+    ghc-options: -Wall
+    source-dirs:
+      - tests
+      - src
+    dependencies:
+      - hspec
+      - HUnit
+      - eventful-test-helpers
+  style:
+    main: HLint.hs
+    ghc-options: -Wall -Werror
+    source-dirs:
+      - tests
+    dependencies:
+      - hlint

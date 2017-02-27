@@ -16,6 +16,7 @@ import Eventful.Store.Sql.JSONString as X
 
 import Control.Monad.Reader
 import Data.Maybe (listToMaybe, maybe)
+import Data.Text (Text)
 import Database.Persist
 import Database.Persist.Sql
 import Database.Persist.TH
@@ -69,13 +70,13 @@ sqlGetAllEventsFromSequence seqNum = do
   entities <- selectList [SqlEventId >=. SqlEventKey seqNum] [Asc SqlEventId]
   return $ sqlEventToGloballyOrdered <$> entities
 
-sqlMaxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
-sqlMaxEventVersion uuid =
-  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?" [toPersistValue uuid]
+sqlMaxEventVersion :: (MonadIO m) => Text -> UUID -> ReaderT SqlBackend m EventVersion
+sqlMaxEventVersion maxVersionSql uuid =
+  let rawVals = rawSql maxVersionSql [toPersistValue uuid]
   in maybe 0 unSingle . listToMaybe <$> rawVals
 
-sqlStoreEvents :: (MonadIO m) => ([SqlEvent] -> SqlPersistT m ()) -> UUID -> [JSONString] -> SqlPersistT m ()
-sqlStoreEvents bulkInsert uuid events = do
-  versionNum <- sqlMaxEventVersion uuid
+sqlStoreEvents :: (MonadIO m) => Text -> ([SqlEvent] -> SqlPersistT m ()) -> UUID -> [JSONString] -> SqlPersistT m ()
+sqlStoreEvents maxVersionSql bulkInsert uuid events = do
+  versionNum <- sqlMaxEventVersion maxVersionSql uuid
   let entities = zipWith (SqlEvent uuid) [versionNum + 1..] events
   bulkInsert entities
