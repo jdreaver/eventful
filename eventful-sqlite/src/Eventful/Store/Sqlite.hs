@@ -1,44 +1,24 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE QuasiQuotes #-}  -- This is here so Hlint doesn't choke
-
 -- | Defines an Sqlite event store.
 
 module Eventful.Store.Sqlite
   ( SqliteEventStore
   , SqliteEventStoreT
   , sqliteEventStore
-  , sqliteGetGloballyOrderedEvents
   , initializeSqliteEventStore
-  , SqliteEvent (..)
-  , SqliteEventId
-  , migrateSqliteEvent
-  , getProjectionIds
   , bulkInsert
   , sqliteMaxVariableNumber
+  , sqlGetGloballyOrderedEvents
   , JSONString
   , module Eventful.Store.Class
   ) where
 
 import Control.Monad.Reader
 import Data.List.Split (chunksOf)
-import Data.Maybe (listToMaybe, maybe)
 import Database.Persist
 import Database.Persist.Sql
-import Database.Persist.TH
 
 import Eventful.Store.Class
-import Eventful.Store.Sqlite.Internal
-import Eventful.UUID
-
-share [mkPersist sqlSettings, mkMigrate "migrateSqliteEvent"] [persistLowerCase|
-SqliteEvent sql=events
-    Id SequenceNumber sql=sequence_number
-    projectionId UUID
-    version EventVersion
-    data JSONString
-    UniqueAggregateVersion projectionId version
-    deriving Show
-|]
+import Eventful.Store.Sql
 
 -- | The @store@ for SQLite is currently the @Unit@ type @()@. That is, all the
 -- info we need to run an SQLite event store is presumably stored in the
@@ -52,65 +32,14 @@ type SqliteEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
 sqliteEventStore :: (MonadIO m) => SqliteEventStore m
 sqliteEventStore =
   let
-    getAllUuidsRaw () = getProjectionIds
-    getLatestVersionRaw () = maxEventVersion
-    getEventsRaw () uuid = getSqliteAggregateEvents uuid Nothing
-    getEventsFromVersionRaw () uuid vers = getSqliteAggregateEvents uuid (Just vers)
-    storeEventsRaw' () = sqliteStoreEvents
+    maxVersionSql = "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?"
+    getAllUuidsRaw () = sqlGetProjectionIds
+    getLatestVersionRaw () = sqlMaxEventVersion maxVersionSql
+    getEventsRaw () uuid = sqlGetAggregateEvents uuid Nothing
+    getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents uuid (Just vers)
+    storeEventsRaw' () = sqlStoreEvents maxVersionSql (bulkInsert 4)
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore () EventStoreDefinition{..}
-
-sqliteGetGloballyOrderedEvents
-  :: (MonadIO m)
-  => GetGloballyOrderedEvents () (StoredEvent JSONString) (SqlPersistT m)
-sqliteGetGloballyOrderedEvents =
-  GetGloballyOrderedEvents $ const getAllEventsFromSequence
-
-sqliteEventToGloballyOrdered :: Entity SqliteEvent -> GloballyOrderedEvent (StoredEvent JSONString)
-sqliteEventToGloballyOrdered (Entity (SqliteEventKey seqNum) event) =
-  GloballyOrderedEvent seqNum $ sqliteEventToStored event
-
-sqliteEventToStored :: SqliteEvent -> StoredEvent JSONString
-sqliteEventToStored (SqliteEvent uuid version data') =
-  StoredEvent uuid version data'
-
--- sqliteEventFromSequenced :: StoredEvent event -> Entity SqliteEvent
--- sqliteEventFromSequenced (StoredEvent uuid version seqNum event) =
---   Entity (SqliteEventKey seqNum) (SqliteEvent uuid data' version)
---   where data' = toStrict (encode event)
-
-getProjectionIds :: (MonadIO m) => ReaderT SqlBackend m [UUID]
-getProjectionIds =
-  fmap unSingle <$> rawSql "SELECT DISTINCT projection_id FROM events" []
-
-getSqliteAggregateEvents
-  :: (MonadIO m)
-  => UUID -> Maybe EventVersion -> ReaderT SqlBackend m [StoredEvent JSONString]
-getSqliteAggregateEvents uuid mVers = do
-  let
-    constraints =
-      (SqliteEventProjectionId ==. uuid) :
-      maybe [] (\vers -> [SqliteEventVersion >=. vers]) mVers
-  entities <- selectList constraints [Asc SqliteEventVersion]
-  return $ sqliteEventToStored . entityVal <$> entities
-
-getAllEventsFromSequence
-  :: (MonadIO m)
-  => SequenceNumber -> ReaderT SqlBackend m [GloballyOrderedEvent (StoredEvent JSONString)]
-getAllEventsFromSequence seqNum = do
-  entities <- selectList [SqliteEventId >=. SqliteEventKey seqNum] [Asc SqliteEventId]
-  return $ sqliteEventToGloballyOrdered <$> entities
-
-maxEventVersion :: (MonadIO m) => UUID -> ReaderT SqlBackend m EventVersion
-maxEventVersion uuid =
-  let rawVals = rawSql "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?" [toPersistValue uuid]
-  in maybe 0 unSingle . listToMaybe <$> rawVals
-
-sqliteStoreEvents :: (MonadIO m) => UUID -> [JSONString] -> SqlPersistT m ()
-sqliteStoreEvents uuid events = do
-  versionNum <- maxEventVersion uuid
-  let entities = zipWith (SqliteEvent uuid) [versionNum + 1..] events
-  bulkInsert entities 4
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
 bulkInsert
@@ -119,10 +48,10 @@ bulkInsert
      , PersistEntityBackend val ~ SqlBackend
      , PersistEntity val
      )
-  => [val]
-  -> Int
+  => Int
+  -> [val]
   -> ReaderT (PersistEntityBackend val) m ()
-bulkInsert items numFields = forM_ (chunksOf chunkSize items) insertMany_
+bulkInsert numFields items = forM_ (chunksOf chunkSize items) insertMany_
   where
     chunkSize = quot sqliteMaxVariableNumber numFields
 
@@ -134,7 +63,7 @@ sqliteMaxVariableNumber = 999
 initializeSqliteEventStore :: (MonadIO m) => ConnectionPool -> m ()
 initializeSqliteEventStore pool = do
   -- Run migrations
-  _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqliteEvent) pool
+  _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqlEvent) pool
 
   -- Create index on projection_id so retrieval is very fast
   liftIO $ runSqlPool

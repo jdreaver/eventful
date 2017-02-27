@@ -29,7 +29,7 @@ chefTodoListMain = do
   dbFilePath <- execParser $ info (helper <*> parseDatabaseFileOption) (fullDesc <> progDesc "Chef Todo List Terminal")
   pool <- runNoLoggingT $ createSqlitePool (pack dbFilePath) 1
   readModel <- memoryReadModel Map.empty applyChefReadModelEvents
-  runPollingReadModel readModel sqliteEventStore sqliteGetGloballyOrderedEvents (`runSqlPool` pool) 1
+  runPollingReadModel readModel sqliteEventStore sqlGetGloballyOrderedEvents (`runSqlPool` pool) 1
 
 applyChefReadModelEvents
   :: Map UUID [Maybe Food]

@@ -1,8 +1,8 @@
-name: eventful-sqlite
+name: eventful-postgresql
 version: "0.1.0"
 maintainer: David Reaver
-synopsis: SQLite implementations for eventful
-description: SQLite implementations for eventful
+synopsis: Postgres implementations for eventful
+description: Postgres implementations for eventful
 maintainer: David Reaver
 stability: experimental
 license: MIT
@@ -21,9 +21,8 @@ dependencies:
   - bytestring
   - mtl
   - persistent
-  - persistent-sqlite
-  - split
-  - uuid
+  - persistent-postgresql
+  - text
 
 default-extensions:
   - ConstraintKinds

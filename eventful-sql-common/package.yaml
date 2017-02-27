@@ -1,28 +1,23 @@
-name: eventful-sqlite
+name: eventful-sql-common
 version: "0.1.0"
 maintainer: David Reaver
-synopsis: SQLite implementations for eventful
-description: SQLite implementations for eventful
+synopsis: Common library for SQL event stores
+description: Common library for SQL event stores
 maintainer: David Reaver
 stability: experimental
 license: MIT
-license-file: LICENSE.md
-
-extra-source-files:
-  - CHANGELOG.md
-  - README.md
 
 dependencies:
   - base
   - eventful-core
-  - eventful-sql-common
 
   - aeson
   - bytestring
   - mtl
   - persistent
-  - persistent-sqlite
+  - persistent-template
   - split
+  - text
   - uuid
 
 default-extensions:
@@ -49,22 +44,3 @@ library:
   source-dirs:
     - src
   ghc-options: -Wall
-
-tests:
-  spec:
-    main: Spec.hs
-    ghc-options: -Wall
-    source-dirs:
-      - tests
-      - src
-    dependencies:
-      - hspec
-      - HUnit
-      - eventful-test-helpers
-  style:
-    main: HLint.hs
-    ghc-options: -Wall -Werror
-    source-dirs:
-      - tests
-    dependencies:
-      - hlint
