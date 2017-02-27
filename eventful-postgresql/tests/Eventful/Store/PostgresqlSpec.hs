@@ -1,5 +1,8 @@
 module Eventful.Store.PostgresqlSpec (spec) where
 
+import Control.Monad.Reader (ask)
+import Data.Monoid ((<>))
+import Data.Text (Text, intercalate)
 import Database.Persist.Postgresql
 import Test.Hspec
 
@@ -14,7 +17,25 @@ makeStore = do
 
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
+  liftIO $ runSqlPool truncateTables pool
   return (postgresqlEventStore, pool)
+
+getTables :: MonadIO m => SqlPersistT m [Text]
+getTables = do
+    tables <-
+      rawSql
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+      []
+    return $ map unSingle tables
+
+truncateTables :: MonadIO m => SqlPersistT m ()
+truncateTables = do
+    tables <- getTables
+    sqlBackend <- ask
+    let
+      escapedTables = map (connEscapeName sqlBackend . DBName) tables
+      query = "TRUNCATE TABLE " <> intercalate ", " escapedTables <> " RESTART IDENTITY CASCADE"
+    rawExecute query []
 
 spec :: Spec
 spec = do
