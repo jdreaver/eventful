@@ -14,6 +14,7 @@ dependencies:
   - eventful-sqlite
 
   - aeson
+  - aeson-casing
   - aeson-pretty
   - ansi-terminal
   - bytestring

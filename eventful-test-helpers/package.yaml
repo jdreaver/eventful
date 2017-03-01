@@ -13,6 +13,7 @@ dependencies:
   - eventful-core
 
   - aeson
+  - aeson-casing
   - extra
   - hspec
   - monad-logger

@@ -16,6 +16,9 @@ module Cafe.Models.Tab
   ) where
 
 import Control.Lens
+import Data.Aeson
+import Data.Aeson.Casing
+import Data.Aeson.TH
 import Data.List (foldl')
 import Data.Maybe (catMaybes, isJust)
 
@@ -27,7 +30,7 @@ data MenuItem =
   , menuItemPrice :: Double
   } deriving (Show, Eq)
 
-deriveJSON (unPrefix "menuItem") ''MenuItem
+deriveJSON (aesonPrefix camelCase) ''MenuItem
 
 newtype Drink = Drink { unDrink :: MenuItem }
   deriving (Show, Eq, FromJSON, ToJSON)
@@ -51,7 +54,7 @@ data TabState =
   } deriving (Show, Eq)
 
 makeLenses ''TabState
-deriveJSON (unPrefix "_tabState") ''TabState
+deriveJSON (aesonPrefix camelCase) ''TabState
 
 tabSeed :: TabState
 tabSeed = TabState True [] [] [] []
@@ -81,7 +84,7 @@ data TabEvent
   | TabClosed Double
   deriving (Show, Eq)
 
-deriveJSON (unPrefix "_tabEvent") ''TabEvent
+deriveJSON (aesonPrefix camelCase) ''TabEvent
 
 tabApplyEvent :: TabState -> TabEvent -> TabState
 tabApplyEvent state (DrinksOrdered drinks) = state & tabStateOutstandingDrinks %~ (++ map Just drinks)

@@ -19,6 +19,7 @@ import Control.Monad.IO.Class as X
 import Control.Monad.Logger as X
 
 import Data.Aeson
+import Data.Aeson.Casing
 import Data.Aeson.TH
 import Data.Maybe
 import Test.Hspec
@@ -71,9 +72,9 @@ counterCommand (Counter k) (Decrement n) =
   then Right [Added (-n)]
   else Left OutOfBounds
 
-deriveJSON (unPrefix "_counterEvent")  ''CounterEvent
-deriveJSON (unPrefix "_counterCommand")  ''CounterCommand
-deriveJSON (unPrefix "_counterCommandError")  ''CounterCommandError
+deriveJSON (aesonPrefix camelCase) ''CounterEvent
+deriveJSON (aesonPrefix camelCase) ''CounterCommand
+deriveJSON (aesonPrefix camelCase) ''CounterCommandError
 
 -- Test harness for stores
 
