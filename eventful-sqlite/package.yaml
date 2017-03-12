@@ -23,6 +23,7 @@ dependencies:
   - persistent
   - persistent-sqlite
   - split
+  - text
   - uuid
 
 default-extensions:

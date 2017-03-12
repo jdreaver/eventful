@@ -41,4 +41,4 @@ spec :: Spec
 spec = do
   describe "Postgresql event store" $ do
     eventStoreSpec makeStore (flip runSqlPool)
-    sequencedEventStoreSpec sqlGetGloballyOrderedEvents makeStore (flip runSqlPool)
+    sequencedEventStoreSpec (sqlGetGloballyOrderedEvents defaultSqlEventStoreConfig) makeStore (flip runSqlPool)

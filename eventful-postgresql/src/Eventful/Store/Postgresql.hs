@@ -7,10 +7,13 @@ module Eventful.Store.Postgresql
   , initializePostgresqlEventStore
   , sqlGetGloballyOrderedEvents
   , JSONString
+  , defaultSqlEventStoreConfig
   , module Eventful.Store.Class
   ) where
 
 import Control.Monad.Reader
+import Data.Monoid ((<>))
+import Data.Text (Text)
 import Database.Persist
 import Database.Persist.Sql
 
@@ -29,14 +32,17 @@ type PostgresqlEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
 postgresqlEventStore :: (MonadIO m) => PostgresqlEventStore m
 postgresqlEventStore =
   let
-    maxVersionSql = "SELECT COALESCE(MAX(version), -1) FROM events WHERE projection_id = ?"
-    getAllUuidsRaw () = sqlGetProjectionIds
-    getLatestVersionRaw () = sqlMaxEventVersion maxVersionSql
-    getEventsRaw () uuid = sqlGetAggregateEvents uuid Nothing
-    getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents uuid (Just vers)
-    storeEventsRaw' () = sqlStoreEvents maxVersionSql insertMany_
+    getAllUuidsRaw () = sqlGetProjectionIds defaultSqlEventStoreConfig
+    getLatestVersionRaw () = sqlMaxEventVersion defaultSqlEventStoreConfig maxPostgresVersionSql
+    getEventsRaw () uuid = sqlGetAggregateEvents defaultSqlEventStoreConfig uuid Nothing
+    getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents defaultSqlEventStoreConfig uuid (Just vers)
+    storeEventsRaw' () = sqlStoreEvents defaultSqlEventStoreConfig maxPostgresVersionSql insertMany_
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore () EventStoreDefinition{..}
+
+maxPostgresVersionSql :: DBName -> DBName -> DBName -> Text
+maxPostgresVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
+  "SELECT COALESCE(MAX(" <> versionFieldName <> "), -1) FROM " <> tableName <> " WHERE " <> uuidFieldName <> " = ?"
 
 initializePostgresqlEventStore :: (MonadIO m) => ConnectionPool -> m ()
 initializePostgresqlEventStore pool = do

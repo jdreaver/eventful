@@ -17,7 +17,7 @@ spec :: Spec
 spec = do
   describe "Sqlite event store" $ do
     eventStoreSpec makeStore (flip runSqlPool)
-    sequencedEventStoreSpec sqlGetGloballyOrderedEvents makeStore (flip runSqlPool)
+    sequencedEventStoreSpec (sqlGetGloballyOrderedEvents defaultSqlEventStoreConfig) makeStore (flip runSqlPool)
 
     context "when inserting more than SQLITE_MAX_VARIABLE_NUMBER events" $ do
       (store, pool) <- runIO makeStore

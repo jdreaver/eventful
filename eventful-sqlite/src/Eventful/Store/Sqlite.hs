@@ -9,11 +9,14 @@ module Eventful.Store.Sqlite
   , sqliteMaxVariableNumber
   , sqlGetGloballyOrderedEvents
   , JSONString
+  , defaultSqlEventStoreConfig
   , module Eventful.Store.Class
   ) where
 
 import Control.Monad.Reader
 import Data.List.Split (chunksOf)
+import Data.Monoid
+import Data.Text (Text)
 import Database.Persist
 import Database.Persist.Sql
 
@@ -32,14 +35,17 @@ type SqliteEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
 sqliteEventStore :: (MonadIO m) => SqliteEventStore m
 sqliteEventStore =
   let
-    maxVersionSql = "SELECT IFNULL(MAX(version), -1) FROM events WHERE projection_id = ?"
-    getAllUuidsRaw () = sqlGetProjectionIds
-    getLatestVersionRaw () = sqlMaxEventVersion maxVersionSql
-    getEventsRaw () uuid = sqlGetAggregateEvents uuid Nothing
-    getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents uuid (Just vers)
-    storeEventsRaw' () = sqlStoreEvents maxVersionSql (bulkInsert 4)
+    getAllUuidsRaw () = sqlGetProjectionIds defaultSqlEventStoreConfig
+    getLatestVersionRaw () = sqlMaxEventVersion defaultSqlEventStoreConfig maxSqliteVersionSql
+    getEventsRaw () uuid = sqlGetAggregateEvents defaultSqlEventStoreConfig uuid Nothing
+    getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents defaultSqlEventStoreConfig uuid (Just vers)
+    storeEventsRaw' () = sqlStoreEvents defaultSqlEventStoreConfig maxSqliteVersionSql (bulkInsert 4)
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore () EventStoreDefinition{..}
+
+maxSqliteVersionSql :: DBName -> DBName -> DBName -> Text
+maxSqliteVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
+  "SELECT IFNULL(MAX(" <> versionFieldName <> "), -1) FROM " <> tableName <> " WHERE " <> uuidFieldName <> " = ?"
 
 -- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
 bulkInsert
@@ -66,8 +72,14 @@ initializeSqliteEventStore pool = do
   _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqlEvent) pool
 
   -- Create index on projection_id so retrieval is very fast
-  liftIO $ runSqlPool
-    (rawExecute "CREATE INDEX IF NOT EXISTS projection_id_index ON events (projection_id)" [])
-    pool
+  let
+    uuidColumn = unDBName $ fieldDBName (sqlEventStoreConfigUUIDField defaultSqlEventStoreConfig)
+    indexSql =
+      "CREATE INDEX IF NOT EXISTS " <>
+      uuidColumn <> "_index" <>
+      " ON events (" <>
+      uuidColumn <>
+      ")"
+  liftIO $ flip runSqlPool pool $ rawExecute indexSql []
 
   return ()
