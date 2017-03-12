@@ -14,7 +14,7 @@ makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.
   let
-    connString = "host=192.168.168.168 port=5432 user=postgres dbname=eventful_test password=password"
+    connString = "host=localhost port=5432 user=postgres dbname=eventful_test password=password"
     store = postgresqlEventStore defaultSqlEventStoreConfig
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
