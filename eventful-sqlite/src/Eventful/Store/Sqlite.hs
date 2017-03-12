@@ -5,14 +5,11 @@ module Eventful.Store.Sqlite
   , SqliteEventStoreT
   , sqliteEventStore
   , initializeSqliteEventStore
-  , bulkInsert
-  , sqliteMaxVariableNumber
   , module Eventful.Store.Class
   , module Eventful.Store.Sql
   ) where
 
 import Control.Monad.Reader
-import Data.List.Split (chunksOf)
 import Data.Monoid
 import Data.Text (Text)
 import Database.Persist
@@ -37,32 +34,13 @@ sqliteEventStore config =
     getLatestVersionRaw config' = sqlMaxEventVersion config' maxSqliteVersionSql
     getEventsRaw config' uuid = sqlGetAggregateEvents config' uuid Nothing
     getEventsFromVersionRaw config' uuid vers = sqlGetAggregateEvents config' uuid (Just vers)
-    storeEventsRaw' config' = sqlStoreEvents config' maxSqliteVersionSql (bulkInsert 4)
+    storeEventsRaw' config' = sqlStoreEvents config' maxSqliteVersionSql
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore config EventStoreDefinition{..}
 
 maxSqliteVersionSql :: DBName -> DBName -> DBName -> Text
 maxSqliteVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
   "SELECT IFNULL(MAX(" <> versionFieldName <> "), -1) FROM " <> tableName <> " WHERE " <> uuidFieldName <> " = ?"
-
--- | Insert all items but chunk so we don't hit SQLITE_MAX_VARIABLE_NUMBER
-bulkInsert
-  :: ( MonadIO m
-     , PersistStore (PersistEntityBackend val)
-     , PersistEntityBackend val ~ SqlBackend
-     , PersistEntity val
-     )
-  => Int
-  -> [val]
-  -> ReaderT (PersistEntityBackend val) m ()
-bulkInsert numFields items = forM_ (chunksOf chunkSize items) insertMany_
-  where
-    chunkSize = quot sqliteMaxVariableNumber numFields
-
--- | Search for SQLITE_MAX_VARIABLE_NUMBER here:
--- https://www.sqlite.org/limits.html
-sqliteMaxVariableNumber :: Int
-sqliteMaxVariableNumber = 999
 
 initializeSqliteEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)

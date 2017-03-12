@@ -34,7 +34,7 @@ postgresqlEventStore config =
     getLatestVersionRaw config' = sqlMaxEventVersion config' maxPostgresVersionSql
     getEventsRaw config' uuid = sqlGetAggregateEvents config' uuid Nothing
     getEventsFromVersionRaw config' uuid vers = sqlGetAggregateEvents config' uuid (Just vers)
-    storeEventsRaw' config' = sqlStoreEvents config' maxPostgresVersionSql insertMany_
+    storeEventsRaw' config' = sqlStoreEvents config' maxPostgresVersionSql
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore config EventStoreDefinition{..}
 

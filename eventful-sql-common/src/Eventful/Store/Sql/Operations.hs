@@ -113,11 +113,10 @@ sqlStoreEvents
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
   -> (DBName -> DBName -> DBName -> Text)
-  -> ([entity] -> SqlPersistT m ())
   -> UUID
   -> [serialized]
   -> SqlPersistT m ()
-sqlStoreEvents config@SqlEventStoreConfig{..} maxVersionSql bulkInsert uuid events = do
+sqlStoreEvents config@SqlEventStoreConfig{..} maxVersionSql uuid events = do
   versionNum <- sqlMaxEventVersion config maxVersionSql uuid
   let entities = zipWith (sqlEventStoreConfigSequenceMakeEntity uuid) [versionNum + 1..] events
-  bulkInsert entities
+  insertMany_ entities

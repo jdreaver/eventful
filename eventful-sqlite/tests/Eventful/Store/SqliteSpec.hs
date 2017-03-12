@@ -1,6 +1,5 @@
 module Eventful.Store.SqliteSpec (spec) where
 
-import Data.UUID (nil)
 import Database.Persist.Sqlite
 import Test.Hspec
 
@@ -19,11 +18,3 @@ spec = do
   describe "Sqlite event store" $ do
     eventStoreSpec makeStore (flip runSqlPool)
     sequencedEventStoreSpec sqlGetGloballyOrderedEvents makeStore (flip runSqlPool)
-
-    context "when inserting more than SQLITE_MAX_VARIABLE_NUMBER events" $ do
-      (store, pool) <- runIO makeStore
-
-      it "doesn't fail with an error about too many variables" $ do
-        let numEvents = sqliteMaxVariableNumber * 3
-        result <- runSqlPool (runEventStore store $ storeEvents NoStream nil (Added <$> [1..numEvents])) pool
-        result `shouldBe` Nothing

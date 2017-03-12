@@ -22,7 +22,6 @@ dependencies:
   - mtl
   - persistent
   - persistent-sqlite
-  - split
   - text
   - uuid
 
