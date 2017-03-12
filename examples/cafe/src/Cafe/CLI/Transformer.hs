@@ -25,5 +25,5 @@ runDB query = do
   liftIO $ runSqlPool query pool
 
 -- | Run a given event store action.
-runEventStoreCLI :: EventStoreT () JSONString (SqlPersistT IO) a -> CLI a
-runEventStoreCLI = runDB . runEventStore sqliteEventStore
+runEventStoreCLI :: EventStoreT (SqlEventStoreConfig SqlEvent JSONString) JSONString (SqlPersistT IO) a -> CLI a
+runEventStoreCLI = runDB . runEventStore (sqliteEventStore defaultSqlEventStoreConfig)

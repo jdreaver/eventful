@@ -9,16 +9,17 @@ import Test.Hspec
 import Eventful.Store.Postgresql
 import Eventful.TestHelpers
 
-makeStore :: (MonadIO m) => m (PostgresqlEventStore m, ConnectionPool)
+makeStore :: (MonadIO m) => m (PostgresqlEventStore SqlEvent JSONString m, ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.
-  let connString = "host=192.168.168.168 port=5432 user=postgres dbname=eventful_test password=password"
-
+  let
+    connString = "host=192.168.168.168 port=5432 user=postgres dbname=eventful_test password=password"
+    store = postgresqlEventStore defaultSqlEventStoreConfig
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
   liftIO $ runSqlPool truncateTables pool
-  return (postgresqlEventStore, pool)
+  return (store, pool)
 
 getTables :: MonadIO m => SqlPersistT m [Text]
 getTables = do

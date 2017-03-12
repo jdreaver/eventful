@@ -7,11 +7,12 @@ import Test.Hspec
 import Eventful.Store.Sqlite
 import Eventful.TestHelpers
 
-makeStore :: (MonadIO m) => m (SqliteEventStore m, ConnectionPool)
+makeStore :: (MonadIO m) => m (SqliteEventStore SqlEvent JSONString m, ConnectionPool)
 makeStore = do
   pool <- liftIO $ runNoLoggingT (createSqlitePool ":memory:" 1)
-  initializeSqliteEventStore pool
-  return (sqliteEventStore, pool)
+  let store = sqliteEventStore defaultSqlEventStoreConfig
+  initializeSqliteEventStore defaultSqlEventStoreConfig pool
+  return (store, pool)
 
 spec :: Spec
 spec = do
