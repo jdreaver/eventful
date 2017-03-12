@@ -7,17 +7,18 @@ import Test.Hspec
 import Eventful.Store.Sqlite
 import Eventful.TestHelpers
 
-makeStore :: (MonadIO m) => m (SqliteEventStore m, ConnectionPool)
+makeStore :: (MonadIO m) => m (SqliteEventStore SqlEvent JSONString m, ConnectionPool)
 makeStore = do
   pool <- liftIO $ runNoLoggingT (createSqlitePool ":memory:" 1)
-  initializeSqliteEventStore pool
-  return (sqliteEventStore, pool)
+  let store = sqliteEventStore defaultSqlEventStoreConfig
+  initializeSqliteEventStore defaultSqlEventStoreConfig pool
+  return (store, pool)
 
 spec :: Spec
 spec = do
   describe "Sqlite event store" $ do
     eventStoreSpec makeStore (flip runSqlPool)
-    sequencedEventStoreSpec (sqlGetGloballyOrderedEvents defaultSqlEventStoreConfig) makeStore (flip runSqlPool)
+    sequencedEventStoreSpec sqlGetGloballyOrderedEvents makeStore (flip runSqlPool)
 
     context "when inserting more than SQLITE_MAX_VARIABLE_NUMBER events" $ do
       (store, pool) <- runIO makeStore

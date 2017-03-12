@@ -38,10 +38,9 @@ data SqlEventStoreConfig entity serialized =
 
 sqlGetGloballyOrderedEvents
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
-  => SqlEventStoreConfig entity serialized
-  -> GetGloballyOrderedEvents () (StoredEvent serialized) (SqlPersistT m)
-sqlGetGloballyOrderedEvents config =
-  GetGloballyOrderedEvents $ const $ sqlGetAllEventsFromSequence config
+  => GetGloballyOrderedEvents (SqlEventStoreConfig entity serialized) (StoredEvent serialized) (SqlPersistT m)
+sqlGetGloballyOrderedEvents =
+  GetGloballyOrderedEvents sqlGetAllEventsFromSequence
 
 sqlEventToGloballyOrdered
   :: SqlEventStoreConfig entity serialized

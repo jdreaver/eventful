@@ -26,7 +26,7 @@ cliMain = do
 
   -- Set up DB connection
   pool <- runNoLoggingT $ createSqlitePool (pack optionsDatabaseFile) 1
-  initializeSqliteEventStore pool
+  initializeSqliteEventStore defaultSqlEventStoreConfig pool
   void $ liftIO $ runSqlPool (runMigrationSilent migrateTabEntity) pool
 
   runCLI pool (runCLICommand optionsCommand)

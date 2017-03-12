@@ -5,10 +5,8 @@ module Eventful.Store.Postgresql
   , PostgresqlEventStoreT
   , postgresqlEventStore
   , initializePostgresqlEventStore
-  , sqlGetGloballyOrderedEvents
-  , JSONString
-  , defaultSqlEventStoreConfig
   , module Eventful.Store.Class
+  , module Eventful.Store.Sql
   ) where
 
 import Control.Monad.Reader
@@ -20,25 +18,25 @@ import Database.Persist.Sql
 import Eventful.Store.Class
 import Eventful.Store.Sql
 
--- | The @store@ for Postgresql is currently the @Unit@ type @()@. That is, all the
--- info we need to run an Postgresql event store is presumably stored in the
--- database connection. In the future this will probably hold information like
--- what tables are used to store events, and could hold type information if we
--- allow the user to select the serialization method.
-type PostgresqlEventStore m = EventStore () JSONString (SqlPersistT m)
+-- | A 'PostgresqlEventStore' holds a 'SqlEventStoreConfig', which is where the
+-- store gets info about the events table.
+type PostgresqlEventStore entity serialized m = EventStore (SqlEventStoreConfig entity serialized) serialized (SqlPersistT m)
 
-type PostgresqlEventStoreT m = EventStoreT () JSONString (SqlPersistT m)
+type PostgresqlEventStoreT entity serialized m = EventStoreT (SqlEventStoreConfig entity serialized) serialized (SqlPersistT m)
 
-postgresqlEventStore :: (MonadIO m) => PostgresqlEventStore m
-postgresqlEventStore =
+postgresqlEventStore
+  :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
+  => SqlEventStoreConfig entity serialized
+  -> PostgresqlEventStore entity serialized m
+postgresqlEventStore config =
   let
-    getAllUuidsRaw () = sqlGetProjectionIds defaultSqlEventStoreConfig
-    getLatestVersionRaw () = sqlMaxEventVersion defaultSqlEventStoreConfig maxPostgresVersionSql
-    getEventsRaw () uuid = sqlGetAggregateEvents defaultSqlEventStoreConfig uuid Nothing
-    getEventsFromVersionRaw () uuid vers = sqlGetAggregateEvents defaultSqlEventStoreConfig uuid (Just vers)
-    storeEventsRaw' () = sqlStoreEvents defaultSqlEventStoreConfig maxPostgresVersionSql insertMany_
+    getAllUuidsRaw = sqlGetProjectionIds
+    getLatestVersionRaw config' = sqlMaxEventVersion config' maxPostgresVersionSql
+    getEventsRaw config' uuid = sqlGetAggregateEvents config' uuid Nothing
+    getEventsFromVersionRaw config' uuid vers = sqlGetAggregateEvents config' uuid (Just vers)
+    storeEventsRaw' config' = sqlStoreEvents config' maxPostgresVersionSql insertMany_
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-  in EventStore () EventStoreDefinition{..}
+  in EventStore config EventStoreDefinition{..}
 
 maxPostgresVersionSql :: DBName -> DBName -> DBName -> Text
 maxPostgresVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
