@@ -13,6 +13,7 @@ module Eventful.Store.Sql
   ) where
 
 import Eventful.Store.Sql.JSONString as X
+import Eventful.Store.Sql.Orphans as X ()
 
 import Control.Monad.Reader
 import Data.Maybe (listToMaybe, maybe)
