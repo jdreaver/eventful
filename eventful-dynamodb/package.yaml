@@ -1,0 +1,45 @@
+name: eventful-dynamodb
+version: "0.1.0"
+maintainer: David Reaver
+synopsis: Library for eventful DynamoDB event stores
+description: Library for eventful DynamoDB event stores
+maintainer: David Reaver
+stability: experimental
+license: MIT
+
+dependencies:
+  - base
+  - eventful-core
+
+  - amazonka
+  - amazonka-dynamodb
+  - bytestring
+  - lens
+  - safe
+  - text
+  - unordered-containers
+
+default-extensions:
+  - ConstraintKinds
+  - DeriveFunctor
+  - DeriveGeneric
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - MultiParamTypeClasses
+  - OverloadedStrings
+  - QuasiQuotes
+  - RankNTypes
+  - RecordWildCards
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TemplateHaskell
+  - TupleSections
+  - TypeFamilies
+
+library:
+  source-dirs:
+    - src
+  ghc-options: -Wall

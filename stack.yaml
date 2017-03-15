@@ -1,6 +1,7 @@
 resolver: nightly-2017-03-11
 packages:
   - 'eventful-core'
+  - 'eventful-dynamodb'
   - 'eventful-memory'
   - 'eventful-postgresql'
   - 'eventful-sql-common'
