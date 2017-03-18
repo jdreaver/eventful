@@ -5,18 +5,20 @@ module Eventful.Store.DynamoDB
   , defaultDynamoDBEventStoreConfig
   , dynamoDBEventStore
   , initializeDynamoDBEventStore
+  , deleteDynamoDBEventStoreTable
   , runAWSIO
   ) where
 
 import Eventful
 
+import Control.Exception (throw, toException)
 import Control.Lens
-import Control.Monad (forM_, void, when)
+import Control.Monad (forM_, unless, void, when)
 import Control.Monad.Trans.AWS (runAWST)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -131,18 +133,16 @@ initializeDynamoDBEventStore
   => DynamoDBEventStoreConfig
   -> ProvisionedThroughput
   -> m ()
-initializeDynamoDBEventStore DynamoDBEventStoreConfig{..} throughput = do
-  tablesResponse <- send $
-    listTables
-    & ltExclusiveStartTableName ?~ dynamoDBEventStoreConfigTableName
-    & ltLimit ?~ 1
-  when (null $ tablesResponse ^. ltrsTableNames) $
+initializeDynamoDBEventStore config@DynamoDBEventStoreConfig{..} throughput = do
+  eventTableExists <- getDynamoDBEventStoreTableExistence config
+  unless eventTableExists $ do
     void $ send $
       createTable
       dynamoDBEventStoreConfigTableName
       (uuidKey :| [versionKey])
       throughput
       & ctAttributeDefinitions .~ attributeDefs
+    void $ await tableExists (describeTable dynamoDBEventStoreConfigTableName)
   where
     uuidKey = keySchemaElement dynamoDBEventStoreUUIDAttributeName Hash
     versionKey = keySchemaElement dynamoDBEventStoreVersionAttributeName Range
@@ -150,6 +150,34 @@ initializeDynamoDBEventStore DynamoDBEventStoreConfig{..} throughput = do
       [ attributeDefinition dynamoDBEventStoreUUIDAttributeName S
       , attributeDefinition dynamoDBEventStoreVersionAttributeName N
       ]
+
+-- | Checks if the table for the event store exists.
+getDynamoDBEventStoreTableExistence
+  :: (MonadAWS m)
+  => DynamoDBEventStoreConfig
+  -> m Bool
+getDynamoDBEventStoreTableExistence DynamoDBEventStoreConfig{..} = do
+  tablesResponse <- trying _ServiceError $ send $
+    describeTable
+    dynamoDBEventStoreConfigTableName
+  case tablesResponse of
+    Right response' -> return $ isJust (response' ^. drsTable)
+    Left err ->
+      if err ^. serviceCode == ErrorCode "ResourceNotFound"
+      then return False
+      else throw $ toException (ServiceError err)
+
+-- | Convenience function to drop the event store table. Mainly used for
+-- testing this library.
+deleteDynamoDBEventStoreTable
+  :: (MonadAWS m)
+  => DynamoDBEventStoreConfig
+  -> m ()
+deleteDynamoDBEventStoreTable config@DynamoDBEventStoreConfig{..} = do
+  eventTableExists <- getDynamoDBEventStoreTableExistence config
+  when eventTableExists $ do
+    void $ send $ deleteTable dynamoDBEventStoreConfigTableName
+    void $ await tableNotExists (describeTable dynamoDBEventStoreConfigTableName)
 
 -- | Convenience function if you don't really care about your amazonka
 -- settings.

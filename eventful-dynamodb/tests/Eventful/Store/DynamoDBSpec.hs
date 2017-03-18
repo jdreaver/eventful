@@ -17,10 +17,8 @@ makeStore = do
   let
     store = dynamoDBEventStore defaultDynamoDBEventStoreConfig
   liftIO $ runResourceT . runAWS env $ do
-    -- Delete table
-    void $ send $ deleteTable (dynamoDBEventStoreConfigTableName defaultDynamoDBEventStoreConfig)
-
-    -- Recreate table
+    -- Delete and recreate table
+    deleteDynamoDBEventStoreTable defaultDynamoDBEventStoreConfig
     initializeDynamoDBEventStore defaultDynamoDBEventStoreConfig (provisionedThroughput 1 1)
 
   return (store, env)
