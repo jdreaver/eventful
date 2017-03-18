@@ -12,7 +12,7 @@ import Eventful
 
 import Control.Lens
 import Control.Monad (forM_, void, when)
-import Control.Monad.Trans.AWS (AWST, runAWST)
+import Control.Monad.Trans.AWS (runAWST)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty (NonEmpty (..))
@@ -27,8 +27,8 @@ import System.IO
 
 import Eventful.Store.DynamoDB.DynamoJSON
 
-type DynamoDBEventStore m = EventStore DynamoDBEventStoreConfig DynamoJSON (AWST m)
-type DynamoDBEventStoreT m = EventStoreT DynamoDBEventStoreConfig DynamoJSON (AWST m)
+type DynamoDBEventStore m = EventStore DynamoDBEventStoreConfig DynamoJSON m
+type DynamoDBEventStoreT m = EventStoreT DynamoDBEventStoreConfig DynamoJSON m
 
 data DynamoDBEventStoreConfig =
   DynamoDBEventStoreConfig
@@ -47,7 +47,7 @@ defaultDynamoDBEventStoreConfig =
   , dynamoDBEventStoreEventAttributeName = "Event"
   }
 
-dynamoDBEventStore :: (MonadAWS (AWST m)) => DynamoDBEventStoreConfig -> DynamoDBEventStore m
+dynamoDBEventStore :: (MonadAWS m) => DynamoDBEventStoreConfig -> DynamoDBEventStore m
 dynamoDBEventStore config =
   let
     -- TODO: Handle getting UUIDs, should probably just get rid of this silly
@@ -60,7 +60,7 @@ dynamoDBEventStore config =
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore config EventStoreDefinition{..}
 
-getDynamoEvents :: (MonadAWS (AWST m)) => DynamoDBEventStoreConfig -> UUID -> Maybe EventVersion -> AWST m [StoredEvent DynamoJSON]
+getDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> Maybe EventVersion -> m [StoredEvent DynamoJSON]
 getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid mStartingVersion = do
   -- TODO: Need to paginate this
   latestEvents <- fmap (view qrsItems) . send $ queryBase config uuid mStartingVersion
@@ -75,7 +75,7 @@ decodeDynamoEvent DynamoDBEventStoreConfig{..} uuid attributeMap = do
   event <- DynamoJSON <$> eventValue ^. avS
   return $ StoredEvent uuid version event
 
-latestEventVersion :: (MonadAWS (AWST m)) => DynamoDBEventStoreConfig -> UUID -> AWST m EventVersion
+latestEventVersion :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> m EventVersion
 latestEventVersion config@DynamoDBEventStoreConfig{..} uuid = do
   latestEvents <- fmap (view qrsItems) . send $
     queryBase config uuid Nothing
@@ -107,7 +107,7 @@ queryBase DynamoDBEventStoreConfig{..} uuid mStartingVersion =
     versionAttributeValue = maybe HM.empty (HM.singleton ":version" . mkVersionValue) mStartingVersion
     mkVersionValue (EventVersion version) = attributeValue & avN ?~ T.pack (show version)
 
-storeDynamoEvents :: (MonadAWS (AWST m)) => DynamoDBEventStoreConfig -> UUID -> [DynamoJSON] -> AWST m ()
+storeDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> [DynamoJSON] -> m ()
 storeDynamoEvents config@DynamoDBEventStoreConfig{..} uuid events = do
   latestVersion <- latestEventVersion config uuid
 
@@ -127,10 +127,10 @@ storeDynamoEvents config@DynamoDBEventStoreConfig{..} uuid events = do
 -- with the same name, then this function just uses that one. Note, there are
 -- no magic migrations going on here, trust this function at your own risk.
 initializeDynamoDBEventStore
-  :: (MonadAWS (AWST m))
+  :: (MonadAWS m)
   => DynamoDBEventStoreConfig
   -> ProvisionedThroughput
-  -> AWST m ()
+  -> m ()
 initializeDynamoDBEventStore DynamoDBEventStoreConfig{..} throughput = do
   tablesResponse <- send $
     listTables

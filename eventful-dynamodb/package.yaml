@@ -44,3 +44,22 @@ library:
   source-dirs:
     - src
   ghc-options: -Wall
+
+tests:
+  spec:
+    main: Spec.hs
+    ghc-options: -Wall
+    source-dirs:
+      - tests
+      - src
+    dependencies:
+      - hspec
+      - HUnit
+      - eventful-test-helpers
+  style:
+    main: HLint.hs
+    ghc-options: -Wall -Werror
+    source-dirs:
+      - tests
+    dependencies:
+      - hlint
