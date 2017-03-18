@@ -30,7 +30,6 @@ postgresqlEventStore
   -> PostgresqlEventStore entity serialized m
 postgresqlEventStore config =
   let
-    getAllUuidsRaw = sqlGetProjectionIds
     getLatestVersionRaw config' = sqlMaxEventVersion config' maxPostgresVersionSql
     getEventsRaw config' uuid = sqlGetAggregateEvents config' uuid Nothing
     getEventsFromVersionRaw config' uuid vers = sqlGetAggregateEvents config' uuid (Just vers)

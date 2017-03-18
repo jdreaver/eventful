@@ -84,13 +84,9 @@ eventStoreSpec
 eventStoreSpec makeStore runAsIO = do
   context "when the event store is empty" $ do
 
-    it "shouldn't have UUIDs" $ do
+    it "should return versions of -1 for a UUID" $ do
       -- TODO: Abstract out creating all of these stores and having to manually
       -- thread around makeStore, runAsIO, etc.
-      (store, runargs) <- liftIO makeStore
-      runAsIO runargs (runEventStore store getAllUuids) `shouldReturn` []
-
-    it "should return versions of -1 for UUIDs" $ do
       (store, runargs) <- liftIO makeStore
       runAsIO runargs (runEventStore store (getLatestVersion nil)) `shouldReturn` (-1)
 

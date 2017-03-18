@@ -7,7 +7,6 @@ module Eventful.Store.Class
   , ExpectedVersion (..)
   , EventWriteError (..)
   , runEventStore
-  , getAllUuids
   , getLatestVersion
   , getEvents
   , getEventsFromVersion
@@ -51,10 +50,7 @@ data EventStore store serialized m
 -- stores.
 data EventStoreDefinition store serialized stored m
   = EventStoreDefinition
-  { getAllUuidsRaw :: store -> m [UUID]
-    -- ^ Retrieves all the unique UUIDs in the event store. This is essentially
-    -- a list of all the projections available in the event store.
-  , getLatestVersionRaw :: store -> UUID -> m EventVersion
+  { getLatestVersionRaw :: store -> UUID -> m EventVersion
     -- ^ Gets the latest 'EventVersion' for a given 'Projection'.
   , getEventsRaw :: store -> UUID -> m [stored]
     -- ^ Retrieves all the events for a given 'Projection' using that
@@ -143,12 +139,6 @@ runEventStore store (EventStoreT action) = runReaderT action store
 
 askEventStore :: (Monad m) => EventStoreT store serialized m (EventStore store serialized m)
 askEventStore = EventStoreT ask
-
--- | Convenience wrapper around 'getAllUuidsRaw'
-getAllUuids :: (Monad m) => EventStoreT store serialized m [UUID]
-getAllUuids = do
-  EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ getAllUuidsRaw store
 
 -- | Convenience wrapper around 'getLatestVersion'
 getLatestVersion :: (Monad m) => UUID -> EventStoreT store serialized m EventVersion

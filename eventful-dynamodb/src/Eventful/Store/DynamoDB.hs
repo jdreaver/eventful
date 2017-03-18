@@ -54,9 +54,6 @@ defaultDynamoDBEventStoreConfig =
 dynamoDBEventStore :: (MonadAWS m) => DynamoDBEventStoreConfig -> DynamoDBEventStore m
 dynamoDBEventStore config =
   let
-    -- TODO: Handle getting UUIDs, should probably just get rid of this silly
-    -- function
-    getAllUuidsRaw _ = return []
     getLatestVersionRaw = latestEventVersion
     getEventsRaw config' uuid = getDynamoEvents config' uuid Nothing
     getEventsFromVersionRaw config' uuid vers = getDynamoEvents config' uuid (Just vers)

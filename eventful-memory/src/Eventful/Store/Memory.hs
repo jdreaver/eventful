@@ -3,6 +3,7 @@ module Eventful.Store.Memory
   , MemoryEventStoreT
   , memoryEventStore
   , memoryGetGloballyOrderedEvents
+  , memoryEventStoreGetAllUuids
   , module Eventful.Store.Class
   ) where
 
@@ -43,13 +44,15 @@ type MemoryEventStoreDefinition = EventStoreDefinition (TVar EventMap) Dynamic (
 memoryEventStoreDefinition :: MemoryEventStoreDefinition
 memoryEventStoreDefinition =
   let
-    getAllUuidsRaw tvar = fmap fst . Map.toList . _eventMapUuidMap <$> readTVar tvar
     getLatestVersionRaw tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
     getEventsRaw tvar uuid = toList . flip lookupEventMapRaw uuid <$> readTVar tvar
     getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
     storeEventsRaw' tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStoreDefinition{..}
+
+memoryEventStoreGetAllUuids :: TVar EventMap -> STM [UUID]
+memoryEventStoreGetAllUuids tvar = fmap fst . Map.toList . _eventMapUuidMap <$> readTVar tvar
 
 memoryGetGloballyOrderedEvents :: GetGloballyOrderedEvents (TVar EventMap) (StoredEvent Dynamic) STM
 memoryGetGloballyOrderedEvents =

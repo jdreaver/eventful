@@ -30,7 +30,6 @@ sqliteEventStore
   -> SqliteEventStore entity serialized m
 sqliteEventStore config =
   let
-    getAllUuidsRaw = sqlGetProjectionIds
     getLatestVersionRaw config' = sqlMaxEventVersion config' maxSqliteVersionSql
     getEventsRaw config' uuid = sqlGetAggregateEvents config' uuid Nothing
     getEventsFromVersionRaw config' uuid vers = sqlGetAggregateEvents config' uuid (Just vers)
