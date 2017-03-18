@@ -15,6 +15,8 @@ import Control.Exception (throw, toException)
 import Control.Lens
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.Trans.AWS (runAWST)
+import Data.Conduit (($$), (=$=))
+import qualified Data.Conduit.List as CL
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty (NonEmpty (..))
@@ -64,8 +66,10 @@ dynamoDBEventStore config =
 
 getDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> Maybe EventVersion -> m [StoredEvent DynamoJSON]
 getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid mStartingVersion = do
-  -- TODO: Need to paginate this
-  latestEvents <- fmap (view qrsItems) . send $ queryBase config uuid mStartingVersion
+  latestEvents <-
+    paginate (queryBase config uuid mStartingVersion) =$=
+    CL.concatMap (view qrsItems) $$
+    CL.consume
   return $ mapMaybe (decodeDynamoEvent config uuid) latestEvents
 
 decodeDynamoEvent :: DynamoDBEventStoreConfig -> UUID -> HashMap Text AttributeValue -> Maybe (StoredEvent DynamoJSON)

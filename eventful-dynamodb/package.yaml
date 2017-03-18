@@ -15,6 +15,7 @@ dependencies:
   - amazonka
   - amazonka-dynamodb
   - bytestring
+  - conduit
   - lens
   - safe
   - text
