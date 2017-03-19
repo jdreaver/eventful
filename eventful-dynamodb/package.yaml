@@ -20,6 +20,7 @@ dependencies:
   - safe
   - text
   - unordered-containers
+  - vector
 
 default-extensions:
   - ConstraintKinds
@@ -56,6 +57,8 @@ tests:
     dependencies:
       - hspec
       - HUnit
+      - QuickCheck
+      - quickcheck-instances
       - eventful-test-helpers
   style:
     main: HLint.hs

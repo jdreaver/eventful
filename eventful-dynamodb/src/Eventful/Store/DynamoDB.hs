@@ -15,6 +15,7 @@ import Control.Exception (throw, toException)
 import Control.Lens
 import Control.Monad (forM_, unless, void, when)
 import Control.Monad.Trans.AWS (runAWST)
+import Data.Aeson
 import Data.Conduit (($$), (=$=))
 import qualified Data.Conduit.List as CL
 import Data.HashMap.Strict (HashMap)
@@ -31,8 +32,8 @@ import System.IO
 
 import Eventful.Store.DynamoDB.DynamoJSON
 
-type DynamoDBEventStore m = EventStore DynamoDBEventStoreConfig DynamoJSON m
-type DynamoDBEventStoreT m = EventStoreT DynamoDBEventStoreConfig DynamoJSON m
+type DynamoDBEventStore m = EventStore DynamoDBEventStoreConfig Value m
+type DynamoDBEventStoreT m = EventStoreT DynamoDBEventStoreConfig Value m
 
 data DynamoDBEventStoreConfig =
   DynamoDBEventStoreConfig
@@ -61,7 +62,7 @@ dynamoDBEventStore config =
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore config EventStoreDefinition{..}
 
-getDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> Maybe EventVersion -> m [StoredEvent DynamoJSON]
+getDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> Maybe EventVersion -> m [StoredEvent Value]
 getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid mStartingVersion = do
   latestEvents <-
     paginate (queryBase config uuid mStartingVersion) =$=
@@ -69,13 +70,13 @@ getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid mStartingVersion = do
     CL.consume
   return $ mapMaybe (decodeDynamoEvent config uuid) latestEvents
 
-decodeDynamoEvent :: DynamoDBEventStoreConfig -> UUID -> HashMap Text AttributeValue -> Maybe (StoredEvent DynamoJSON)
+decodeDynamoEvent :: DynamoDBEventStoreConfig -> UUID -> HashMap Text AttributeValue -> Maybe (StoredEvent Value)
 decodeDynamoEvent DynamoDBEventStoreConfig{..} uuid attributeMap = do
   versionValue <- HM.lookup dynamoDBEventStoreVersionAttributeName attributeMap
   versionText <- versionValue ^. avN
   version <- EventVersion <$> readMay (T.unpack versionText)
-  eventValue <- HM.lookup dynamoDBEventStoreEventAttributeName attributeMap
-  event <- DynamoJSON <$> eventValue ^. avS
+  eventAttributeValue <- HM.lookup dynamoDBEventStoreEventAttributeName attributeMap
+  let event = attributeValueToValue eventAttributeValue
   return $ StoredEvent uuid version event
 
 latestEventVersion :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> m EventVersion
@@ -110,12 +111,12 @@ queryBase DynamoDBEventStoreConfig{..} uuid mStartingVersion =
     versionAttributeValue = maybe HM.empty (HM.singleton ":version" . mkVersionValue) mStartingVersion
     mkVersionValue (EventVersion version) = attributeValue & avN ?~ T.pack (show version)
 
-storeDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> [DynamoJSON] -> m ()
+storeDynamoEvents :: (MonadAWS m) => DynamoDBEventStoreConfig -> UUID -> [Value] -> m ()
 storeDynamoEvents config@DynamoDBEventStoreConfig{..} uuid events = do
   latestVersion <- latestEventVersion config uuid
 
   -- TODO: Use BatchWriteItem
-  forM_ (zip events [latestVersion + 1..]) $ \(DynamoJSON event, EventVersion version) ->
+  forM_ (zip events [latestVersion + 1..]) $ \(event, EventVersion version) ->
     send $
       putItem
       dynamoDBEventStoreConfigTableName
@@ -123,7 +124,7 @@ storeDynamoEvents config@DynamoDBEventStoreConfig{..} uuid events = do
         HM.fromList
         [ (dynamoDBEventStoreUUIDAttributeName, attributeValue & avS ?~ uuidToText uuid)
         , (dynamoDBEventStoreVersionAttributeName, attributeValue & avN ?~ T.pack (show version))
-        , (dynamoDBEventStoreEventAttributeName, attributeValue & avS ?~ event)
+        , (dynamoDBEventStoreEventAttributeName, valueToAttributeValue event)
         ]
 
 -- | Helpful function to create the events table. If a table already exists
