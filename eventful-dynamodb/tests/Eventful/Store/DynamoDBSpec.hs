@@ -1,6 +1,7 @@
 module Eventful.Store.DynamoDBSpec (spec) where
 
 import Control.Lens ((<&>))
+import Data.Aeson
 import Network.AWS
 import Network.AWS.DynamoDB
 import Test.Hspec
@@ -8,7 +9,7 @@ import Test.Hspec
 import Eventful.Store.DynamoDB
 import Eventful.TestHelpers
 
-makeStore :: IO (DynamoDBEventStore AWS, Env)
+makeStore :: IO (DynamoDBEventStore Value AWS, Env)
 makeStore = do
   let
     dynamo = setEndpoint False "localhost" 8000 dynamoDB
