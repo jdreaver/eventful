@@ -3,8 +3,6 @@
 module Eventful.Store.DynamoDB.DynamoJSONSpec (spec) where
 
 import Data.Aeson
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Vector as V
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
@@ -15,18 +13,7 @@ spec :: Spec
 spec = do
   describe "Value <-> AttributeValue conversion" $ do
     it "Value -> AttributeValue -> Value round trip is idempotent" $ property $
-      \value ->
-        let value' = removeEmptyObjects value
-        in attributeValueToValue (valueToAttributeValue value') == value'
-
--- Can't handle empty objects right now
-removeEmptyObjects :: Value -> Value
-removeEmptyObjects (Object xs) =
-  if HM.null xs
-  then Array V.empty
-  else Object $ removeEmptyObjects <$> xs
-removeEmptyObjects (Array xs) = Array $ removeEmptyObjects <$> xs
-removeEmptyObjects x = x
+      \value -> attributeValueToValue (valueToAttributeValue value) == value
 
 instance Arbitrary Value where
   arbitrary = sized sizedArbitraryValue
