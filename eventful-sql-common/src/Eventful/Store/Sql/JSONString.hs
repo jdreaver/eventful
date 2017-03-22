@@ -15,7 +15,7 @@ newtype JSONString = JSONString { unJSONString :: Text }
   deriving (Eq, PersistField)
 
 instance PersistFieldSql JSONString where
-  sqlType _ = SqlOther "json"
+  sqlType _ = SqlOther "jsonb"
 
 instance Show JSONString where
   show = show . unJSONString
