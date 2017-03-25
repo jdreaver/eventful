@@ -24,7 +24,7 @@ readAndApplyCommand store = do
   let uuid = nil
 
   -- Get current state and print it out
-  (currentState, _) <- atomically . runEventStore store $ getLatestProjection counterProjection nil
+  (currentState, _) <- atomically . runEventStore store $ getLatestProjection counterProjection uuid
   putStrLn $ "Current state: " ++ show currentState
 
   -- Ask user for command
@@ -37,9 +37,9 @@ readAndApplyCommand store = do
     (Just command) ->
       case aggregateCommand counterAggregate currentState command of
         -- The command is valid. Apply the event to the store.
-        Right event -> do
-          putStrLn $ "Command valid. Event: " ++ show event
-          void . atomically . runEventStore store $ storeEvent AnyVersion uuid event
+        Right events -> do
+          putStrLn $ "Command valid. Event: " ++ show events
+          void . atomically . runEventStore store $ storeEvents AnyVersion uuid events
         -- The command is invalid. Show the user the error.
         Left err -> putStrLn $ "Command invalid: Error: " ++ show err
 
