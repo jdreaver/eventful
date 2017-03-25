@@ -59,6 +59,7 @@ printFood :: Map UUID [Maybe Food] -> IO ()
 printFood foodMap = do
   clearScreen
   setCursorPosition 0 0
+  putStrLn "Chef's Todo List:"
 
   forM_ (Map.keys foodMap) $ \uuid -> do
     let foodItems = catMaybes $ foodMap Map.! uuid
