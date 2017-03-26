@@ -45,7 +45,6 @@ memoryEventStoreDefinition :: MemoryEventStoreDefinition
 memoryEventStoreDefinition =
   let
     getLatestVersionRaw tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
-    getEventsRaw tvar uuid = toList . flip lookupEventMapRaw uuid <$> readTVar tvar
     getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
     storeEventsRaw' tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
@@ -62,8 +61,9 @@ lookupEventMapRaw :: EventMap -> UUID -> Seq (StoredEvent Dynamic)
 lookupEventMapRaw (EventMap uuidMap _) uuid =
    fmap globallyOrderedEventEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
 
-lookupEventsFromVersion :: EventMap -> UUID -> EventVersion -> Seq (StoredEvent Dynamic)
-lookupEventsFromVersion store uuid (EventVersion vers) = Seq.drop vers $ lookupEventMapRaw store uuid
+lookupEventsFromVersion :: EventMap -> UUID -> Maybe EventVersion -> Seq (StoredEvent Dynamic)
+lookupEventsFromVersion store uuid Nothing = lookupEventMapRaw store uuid
+lookupEventsFromVersion store uuid (Just (EventVersion vers)) = Seq.drop vers $ lookupEventMapRaw store uuid
 
 latestEventVersion :: EventMap -> UUID -> EventVersion
 latestEventVersion store uuid = EventVersion $ Seq.length (lookupEventMapRaw store uuid) - 1

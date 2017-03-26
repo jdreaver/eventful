@@ -31,8 +31,7 @@ sqliteEventStore
 sqliteEventStore config =
   let
     getLatestVersionRaw config' = sqlMaxEventVersion config' maxSqliteVersionSql
-    getEventsRaw config' uuid = sqlGetAggregateEvents config' uuid Nothing
-    getEventsFromVersionRaw config' uuid vers = sqlGetAggregateEvents config' uuid (Just vers)
+    getEventsFromVersionRaw = sqlGetAggregateEvents
     storeEventsRaw' config' = sqlStoreEvents config' maxSqliteVersionSql
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore config EventStoreDefinition{..}

@@ -63,8 +63,7 @@ dynamoDBEventStore
 dynamoDBEventStore config =
   let
     getLatestVersionRaw = latestEventVersion
-    getEventsRaw config' uuid = getDynamoEvents config' uuid Nothing
-    getEventsFromVersionRaw config' uuid vers = getDynamoEvents config' uuid (Just vers)
+    getEventsFromVersionRaw = getDynamoEvents
     storeEventsRaw' = storeDynamoEvents
     storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
   in EventStore config EventStoreDefinition{..}

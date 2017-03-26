@@ -52,12 +52,10 @@ data EventStoreDefinition store serialized stored m
   = EventStoreDefinition
   { getLatestVersionRaw :: store -> UUID -> m EventVersion
     -- ^ Gets the latest 'EventVersion' for a given 'Projection'.
-  , getEventsRaw :: store -> UUID -> m [stored]
+  , getEventsFromVersionRaw :: store -> UUID -> Maybe EventVersion -> m [stored]
     -- ^ Retrieves all the events for a given 'Projection' using that
-    -- projection's UUID.
-  , getEventsFromVersionRaw :: store -> UUID -> EventVersion -> m [stored]
-    -- ^ Like 'getEventsRaw', but only retrieves events greater than or equal
-    -- to the given version.
+    -- projection's UUID. If an event version is provided then all events with
+    -- a version greater than or equal to that version are returned.
   , storeEventsRaw :: store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
     -- ^ Stores the events for a given 'Projection' using that projection's
     -- UUID.
@@ -153,7 +151,7 @@ getEvents
   => UUID -> EventStoreT store serialized m [StoredEvent event]
 getEvents uuid = do
   EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ mapMaybe deserialize <$> getEventsRaw store uuid
+  lift $ mapMaybe deserialize <$> getEventsFromVersionRaw store uuid Nothing
 
 -- | Like 'getEventsFromVersionRaw', but uses a 'Serializable' instance for the
 -- event type to try and deserialize them.
@@ -162,7 +160,7 @@ getEventsFromVersion
   => UUID -> EventVersion -> EventStoreT store serialized m [StoredEvent event]
 getEventsFromVersion uuid vers = do
   EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ mapMaybe deserialize <$> getEventsFromVersionRaw store uuid vers
+  lift $ mapMaybe deserialize <$> getEventsFromVersionRaw store uuid (Just vers)
 
 -- | Like 'storeEventsRaw', but uses a 'Serializable' instance for the event
 -- type to serialize them.
