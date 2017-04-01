@@ -1,9 +1,7 @@
 -- | Defines an Postgresql event store.
 
 module Eventful.Store.Postgresql
-  ( PostgresqlEventStore
-  , PostgresqlEventStoreT
-  , postgresqlEventStore
+  ( postgresqlEventStore
   , initializePostgresqlEventStore
   , module Eventful.Store.Class
   , module Eventful.Store.Sql
@@ -18,23 +16,17 @@ import Database.Persist.Sql
 import Eventful.Store.Class
 import Eventful.Store.Sql
 
--- | A 'PostgresqlEventStore' holds a 'SqlEventStoreConfig', which is where the
--- store gets info about the events table.
-type PostgresqlEventStore entity serialized m = EventStore (SqlEventStoreConfig entity serialized) serialized (SqlPersistT m)
-
-type PostgresqlEventStoreT entity serialized m = EventStoreT (SqlEventStoreConfig entity serialized) serialized (SqlPersistT m)
-
 postgresqlEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> PostgresqlEventStore entity serialized m
+  -> EventStore serialized (SqlPersistT m)
 postgresqlEventStore config =
   let
-    getLatestVersionRaw config' = sqlMaxEventVersion config' maxPostgresVersionSql
-    getEventsFromVersionRaw = sqlGetAggregateEvents
-    storeEventsRaw' config' = sqlStoreEvents config' maxPostgresVersionSql
-    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-  in EventStore config EventStoreDefinition{..}
+    getLatestVersion = sqlMaxEventVersion config maxPostgresVersionSql
+    getEvents = sqlGetAggregateEvents config
+    storeEvents' = sqlStoreEvents config maxPostgresVersionSql
+    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  in EventStore{..}
 
 maxPostgresVersionSql :: DBName -> DBName -> DBName -> Text
 maxPostgresVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =

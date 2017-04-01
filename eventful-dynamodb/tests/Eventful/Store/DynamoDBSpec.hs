@@ -6,10 +6,11 @@ import Network.AWS
 import Network.AWS.DynamoDB
 import Test.Hspec
 
+import Eventful.Store.Class
 import Eventful.Store.DynamoDB
 import Eventful.TestHelpers
 
-makeStore :: IO (DynamoDBEventStore Value AWS, Env)
+makeStore :: IO (EventStore Value AWS, Env)
 makeStore = do
   let
     dynamo = setEndpoint False "localhost" 8000 dynamoDB

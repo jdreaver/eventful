@@ -1,7 +1,5 @@
 module Eventful.Store.DynamoDB
-  ( DynamoDBEventStore
-  , DynamoDBEventStoreT
-  , DynamoDBEventStoreConfig (..)
+  ( DynamoDBEventStoreConfig (..)
   , defaultDynamoDBEventStoreConfig
   , dynamoDBEventStore
   , initializeDynamoDBEventStore
@@ -32,9 +30,6 @@ import System.IO
 
 import Eventful.Store.DynamoDB.DynamoJSON
 
-type DynamoDBEventStore serialized m = EventStore (DynamoDBEventStoreConfig serialized) serialized m
-type DynamoDBEventStoreT serialized m = EventStoreT (DynamoDBEventStoreConfig serialized) serialized m
-
 data DynamoDBEventStoreConfig serialized =
   DynamoDBEventStoreConfig
   { dynamoDBEventStoreConfigTableName :: Text
@@ -57,16 +52,15 @@ defaultDynamoDBEventStoreConfig =
   }
 
 dynamoDBEventStore
-  :: (MonadAWS m)
-  => DynamoDBEventStoreConfig serialized
-  -> DynamoDBEventStore serialized m
+  :: DynamoDBEventStoreConfig serialized
+  -> EventStore serialized AWS
 dynamoDBEventStore config =
   let
-    getLatestVersionRaw = latestEventVersion
-    getEventsFromVersionRaw = getDynamoEvents
-    storeEventsRaw' = storeDynamoEvents
-    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-  in EventStore config EventStoreDefinition{..}
+    getLatestVersion = latestEventVersion config
+    getEvents = getDynamoEvents config
+    storeEvents' = storeDynamoEvents config
+    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  in EventStore{..}
 
 getDynamoEvents
   :: (MonadAWS m)

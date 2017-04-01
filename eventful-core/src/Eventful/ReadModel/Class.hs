@@ -21,16 +21,14 @@ type PollingPeriodSeconds = Double
 runPollingReadModel
   :: (MonadIO m, Monad mstore)
   => ReadModel model serialized m
-  -> EventStore store serialized mstore
-  -> GetGloballyOrderedEvents store (StoredEvent serialized) mstore
+  -> GloballyOrderedEventStore serialized mstore
   -> (forall a. mstore a -> m a)
   -> PollingPeriodSeconds
   -> m ()
-runPollingReadModel ReadModel{..} eventStore getGloballyOrderedEvents runStore waitSeconds = forever $ do
+runPollingReadModel ReadModel{..} getGloballyOrderedEvents runStore waitSeconds = forever $ do
   -- Get new events starting from latest applied sequence number
   latestSeq <- readModelLatestAppliedSequence readModelModel
-  newEvents <- runStore . runEventStore eventStore $
-    getSequencedEvents getGloballyOrderedEvents (latestSeq + 1)
+  newEvents <- runStore $ getSequencedEvents getGloballyOrderedEvents (latestSeq + 1)
 
   -- Apply the new events
   readModelApplyEvents readModelModel newEvents
