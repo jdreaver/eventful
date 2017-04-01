@@ -10,7 +10,14 @@ spec :: Spec
 spec = do
   describe "TVar memory event store" $ do
     eventStoreSpec makeStore (const atomically)
-    sequencedEventStoreSpec memoryGetGloballyOrderedEvents makeStore (const atomically)
+    sequencedEventStoreSpec makeGlobalStore (const atomically)
 
 makeStore :: IO (MemoryEventStore, ())
-makeStore = (,()) <$> memoryEventStore
+makeStore = do
+  (store, _, ()) <- makeGlobalStore
+  return (store, ())
+
+makeGlobalStore :: IO (MemoryEventStore, GloballyOrderedMemoryEventStore, ())
+makeGlobalStore = do
+  (store, globalStore) <- memoryEventStore
+  return (store, globalStore, ())

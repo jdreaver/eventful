@@ -9,7 +9,7 @@ import Test.Hspec
 import Eventful.Store.Postgresql
 import Eventful.TestHelpers
 
-makeStore :: (MonadIO m) => m (PostgresqlEventStore SqlEvent JSONString m, ConnectionPool)
+makeStore :: (MonadIO m) => m (EventStore JSONString (SqlPersistT m), ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.
@@ -38,8 +38,16 @@ truncateTables = do
       query = "TRUNCATE TABLE " <> intercalate ", " escapedTables <> " RESTART IDENTITY CASCADE"
     rawExecute query []
 
+makeGlobalStore
+  :: (MonadIO m)
+  => m (EventStore JSONString (SqlPersistT m), GloballyOrderedEventStore JSONString (SqlPersistT m), ConnectionPool)
+makeGlobalStore = do
+  (store, pool) <- makeStore
+  return (store, sqlGloballyOrderedEventStore defaultSqlEventStoreConfig, pool)
+
+
 spec :: Spec
 spec = do
   describe "Postgresql event store" $ do
     eventStoreSpec makeStore (flip runSqlPool)
-    sequencedEventStoreSpec sqlGetGloballyOrderedEvents makeStore (flip runSqlPool)
+    sequencedEventStoreSpec makeGlobalStore (flip runSqlPool)

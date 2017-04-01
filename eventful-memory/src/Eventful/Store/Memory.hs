@@ -1,8 +1,7 @@
 module Eventful.Store.Memory
   ( MemoryEventStore
-  , MemoryEventStoreT
+  , GloballyOrderedMemoryEventStore
   , memoryEventStore
-  , memoryGetGloballyOrderedEvents
   , memoryEventStoreGetAllUuids
   , module Eventful.Store.Class
   ) where
@@ -28,34 +27,23 @@ data EventMap
   }
   deriving (Show)
 
--- | A 'MemoryEventStore' is a 'TVar EventMap', serializes to 'Dynamic', and
--- runs in 'STM'.
-type MemoryEventStore = EventStore (TVar EventMap) Dynamic STM
-type MemoryEventStoreT = EventStoreT (TVar EventMap) Dynamic STM
+type MemoryEventStore = EventStore Dynamic STM
+type GloballyOrderedMemoryEventStore = GloballyOrderedEventStore Dynamic STM
 
--- | Initializes the 'TVar' used in the event store and returns the store.
-memoryEventStore :: IO MemoryEventStore
+-- | Initializes memory event stores.
+memoryEventStore :: IO (MemoryEventStore, GloballyOrderedMemoryEventStore)
 memoryEventStore = do
   tvar <- newTVarIO (EventMap Map.empty 0)
-  return $ EventStore tvar memoryEventStoreDefinition
-
-type MemoryEventStoreDefinition = EventStoreDefinition (TVar EventMap) Dynamic (StoredEvent Dynamic) STM
-
-memoryEventStoreDefinition :: MemoryEventStoreDefinition
-memoryEventStoreDefinition =
   let
-    getLatestVersionRaw tvar uuid = flip latestEventVersion uuid <$> readTVar tvar
-    getEventsFromVersionRaw tvar uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
-    storeEventsRaw' tvar uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
-    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-  in EventStoreDefinition{..}
+    getLatestVersion uuid = flip latestEventVersion uuid <$> readTVar tvar
+    getEvents uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> readTVar tvar
+    storeEvents' uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
+    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
+    getSequencedEvents seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
+  return (EventStore{..}, GloballyOrderedEventStore{..})
 
 memoryEventStoreGetAllUuids :: TVar EventMap -> STM [UUID]
 memoryEventStoreGetAllUuids tvar = fmap fst . Map.toList . _eventMapUuidMap <$> readTVar tvar
-
-memoryGetGloballyOrderedEvents :: GetGloballyOrderedEvents (TVar EventMap) (StoredEvent Dynamic) STM
-memoryGetGloballyOrderedEvents =
-  GetGloballyOrderedEvents $ \tvar seqNum -> flip lookupEventMapSeq seqNum <$> readTVar tvar
 
 lookupEventMapRaw :: EventMap -> UUID -> Seq (StoredEvent Dynamic)
 lookupEventMapRaw (EventMap uuidMap _) uuid =

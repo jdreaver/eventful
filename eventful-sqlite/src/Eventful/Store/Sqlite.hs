@@ -1,9 +1,7 @@
 -- | Defines an Sqlite event store.
 
 module Eventful.Store.Sqlite
-  ( SqliteEventStore
-  , SqliteEventStoreT
-  , sqliteEventStore
+  ( sqliteEventStore
   , initializeSqliteEventStore
   , module Eventful.Store.Class
   , module Eventful.Store.Sql
@@ -18,23 +16,17 @@ import Database.Persist.Sql
 import Eventful.Store.Class
 import Eventful.Store.Sql
 
--- | A 'SqliteEventStore' holds a 'SqlEventStoreConfig', which is where the
--- store gets info about the events table.
-type SqliteEventStore entity serialized m = EventStore (SqlEventStoreConfig entity serialized) serialized (SqlPersistT m)
-
-type SqliteEventStoreT entity serialized m = EventStoreT (SqlEventStoreConfig entity serialized) serialized (SqlPersistT m)
-
 sqliteEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> SqliteEventStore entity serialized m
+  -> EventStore serialized (SqlPersistT m)
 sqliteEventStore config =
   let
-    getLatestVersionRaw config' = sqlMaxEventVersion config' maxSqliteVersionSql
-    getEventsFromVersionRaw = sqlGetAggregateEvents
-    storeEventsRaw' config' = sqlStoreEvents config' maxSqliteVersionSql
-    storeEventsRaw = transactionalExpectedWriteHelper getLatestVersionRaw storeEventsRaw'
-  in EventStore config EventStoreDefinition{..}
+    getLatestVersion = sqlMaxEventVersion config maxSqliteVersionSql
+    getEvents = sqlGetAggregateEvents config
+    storeEvents' = sqlStoreEvents config maxSqliteVersionSql
+    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  in EventStore{..}
 
 maxSqliteVersionSql :: DBName -> DBName -> DBName -> Text
 maxSqliteVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =

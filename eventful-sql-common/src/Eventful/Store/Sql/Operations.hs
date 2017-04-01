@@ -1,6 +1,6 @@
 module Eventful.Store.Sql.Operations
   ( SqlEventStoreConfig (..)
-  , sqlGetGloballyOrderedEvents
+  , sqlGloballyOrderedEventStore
   , sqlGetProjectionIds
   , sqlGetAggregateEvents
   , sqlMaxEventVersion
@@ -36,11 +36,12 @@ data SqlEventStoreConfig entity serialized =
   , sqlEventStoreConfigDataField :: EntityField entity serialized
   }
 
-sqlGetGloballyOrderedEvents
+sqlGloballyOrderedEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
-  => GetGloballyOrderedEvents (SqlEventStoreConfig entity serialized) (StoredEvent serialized) (SqlPersistT m)
-sqlGetGloballyOrderedEvents =
-  GetGloballyOrderedEvents sqlGetAllEventsFromSequence
+  => SqlEventStoreConfig entity serialized
+  -> GloballyOrderedEventStore serialized (SqlPersistT m)
+sqlGloballyOrderedEventStore config =
+  GloballyOrderedEventStore $ sqlGetAllEventsFromSequence config
 
 sqlEventToGloballyOrdered
   :: SqlEventStoreConfig entity serialized

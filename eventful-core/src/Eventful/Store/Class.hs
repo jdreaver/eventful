@@ -1,18 +1,11 @@
 module Eventful.Store.Class
   ( -- * EventStore
     EventStore (..)
-  , EventStoreDefinition (..)
-  , GetGloballyOrderedEvents (..)
-  , EventStoreT (..)
+  , GloballyOrderedEventStore (..)
   , ExpectedVersion (..)
   , EventWriteError (..)
-  , runEventStore
-  , getLatestVersion
-  , getEvents
-  , getEventsFromVersion
-  , storeEvents
-  , storeEvent
-  , getSequencedEvents
+  , getEventsDeserialized
+  , storeEventsSerialized
   , getLatestProjection
   , commandStoredAggregate
     -- * Utility types
@@ -24,8 +17,6 @@ module Eventful.Store.Class
   , transactionalExpectedWriteHelper
   ) where
 
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
 import Data.Aeson
 import Data.Maybe (mapMaybe)
 import Web.HttpApiData
@@ -36,27 +27,17 @@ import Eventful.Projection
 import Eventful.Serializable
 import Eventful.UUID
 
--- | The 'EventStore' is the core type of eventful. A @store@ operates in some
+-- | The 'EventStore' is the core type of eventful. A store operates in some
 -- monad @m@ and stores events by serializing them to the type @serialized@.
-data EventStore store serialized m
+data EventStore serialized m
   = EventStore
-  { eventStoreStore :: store
-  , eventStoreDefinition :: EventStoreDefinition store serialized (StoredEvent serialized) m
-  }
-
--- | An 'EventStoreDefinition' defines how a @store@ performs the operations
--- expected of an 'EventStore'. It stores @serialized@ events and returns a
--- @stored@ type that includes metadata. This is where you define new event
--- stores.
-data EventStoreDefinition store serialized stored m
-  = EventStoreDefinition
-  { getLatestVersionRaw :: store -> UUID -> m EventVersion
+  { getLatestVersion :: UUID -> m EventVersion
     -- ^ Gets the latest 'EventVersion' for a given 'Projection'.
-  , getEventsFromVersionRaw :: store -> UUID -> Maybe EventVersion -> m [stored]
+  , getEvents :: UUID -> Maybe EventVersion -> m [StoredEvent serialized]
     -- ^ Retrieves all the events for a given 'Projection' using that
     -- projection's UUID. If an event version is provided then all events with
     -- a version greater than or equal to that version are returned.
-  , storeEventsRaw :: store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
+  , storeEvents :: ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
     -- ^ Stores the events for a given 'Projection' using that projection's
     -- UUID.
   }
@@ -64,9 +45,9 @@ data EventStoreDefinition store serialized stored m
 -- | Gets all the events ordered starting with a given 'SequenceNumber', and
 -- ordered by 'SequenceNumber'. This is used when replaying all the events in a
 -- store.
-newtype GetGloballyOrderedEvents store stored m =
-  GetGloballyOrderedEvents
-  { getSequencedEventsRaw :: store -> SequenceNumber -> m [GloballyOrderedEvent stored]
+newtype GloballyOrderedEventStore serialized m =
+  GloballyOrderedEventStore
+  { getSequencedEvents :: SequenceNumber -> m [GloballyOrderedEvent (StoredEvent serialized)]
   }
 
 -- | ExpectedVersion is used to assert the event stream is at a certain version
@@ -92,11 +73,11 @@ data EventWriteError
 -- only works if the monad @m@ is transactional.
 transactionalExpectedWriteHelper
   :: (Monad m)
-  => (store -> UUID -> m EventVersion)
-  -> (store -> UUID -> [serialized] -> m ())
-  -> store -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
-transactionalExpectedWriteHelper getLatestVersion' storeEvents' store expected =
-  go expected getLatestVersion' storeEvents' store
+  => (UUID -> m EventVersion)
+  -> (UUID -> [serialized] -> m ())
+  -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
+transactionalExpectedWriteHelper getLatestVersion' storeEvents' expected =
+  go expected getLatestVersion' storeEvents'
   where
     go AnyVersion = transactionalExpectedWriteHelper' Nothing
     go NoStream = transactionalExpectedWriteHelper' (Just $ (==) (-1))
@@ -106,93 +87,43 @@ transactionalExpectedWriteHelper getLatestVersion' storeEvents' store expected =
 transactionalExpectedWriteHelper'
   :: (Monad m)
   => Maybe (EventVersion -> Bool)
-  -> (store -> UUID -> m EventVersion)
-  -> (store -> UUID -> [serialized] -> m ())
-  -> store  -> UUID -> [serialized] -> m (Maybe EventWriteError)
-transactionalExpectedWriteHelper' Nothing _ storeEvents' store uuid events =
-  storeEvents' store uuid events >> return Nothing
-transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' store uuid events = do
-  latestVersion <- getLatestVersion' store uuid
+  -> (UUID -> m EventVersion)
+  -> (UUID -> [serialized] -> m ())
+  -> UUID -> [serialized] -> m (Maybe EventWriteError)
+transactionalExpectedWriteHelper' Nothing _ storeEvents' uuid events =
+  storeEvents' uuid events >> return Nothing
+transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid events = do
+  latestVersion <- getLatestVersion' uuid
   if f latestVersion
-  then storeEvents' store uuid events >> return Nothing
+  then storeEvents' uuid events >> return Nothing
   else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
 
--- | Monad to run event store actions in. It us just a newtype around 'ReaderT'
--- that holds an 'EventStore' and uses @m@ as the base monad.
---
--- Note that there is a 'MonadTrans' instance, so if you have some action you
--- want to perform in the base monad @m@ you can just 'lift' it.
-newtype EventStoreT store serialized m a
-  = EventStoreT { unEventStoreT :: ReaderT (EventStore store serialized m) m a }
-  deriving (Functor, Applicative, Monad)
-
-instance MonadTrans (EventStoreT store serialized) where
-  lift = EventStoreT . lift
-
--- | Run an action in the 'EventStoreT' monad. This uses the passed
--- 'EventStore' to take your event store action and return an action in the
--- base event store monad.
-runEventStore :: EventStore store serialized m -> EventStoreT store serialized m a -> m a
-runEventStore store (EventStoreT action) = runReaderT action store
-
-askEventStore :: (Monad m) => EventStoreT store serialized m (EventStore store serialized m)
-askEventStore = EventStoreT ask
-
--- | Convenience wrapper around 'getLatestVersion'
-getLatestVersion :: (Monad m) => UUID -> EventStoreT store serialized m EventVersion
-getLatestVersion uuid = do
-  EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ getLatestVersionRaw store uuid
-
--- | Like 'getEventsRaw', but uses a 'Serializable' instance for the event type
--- to try and deserialize them.
-getEvents
+-- | Like 'getEvents', but run 'deserialize' on the returned events.
+getEventsDeserialized
   :: (Monad m, Serializable event serialized)
-  => UUID -> EventStoreT store serialized m [StoredEvent event]
-getEvents uuid = do
-  EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ mapMaybe deserialize <$> getEventsFromVersionRaw store uuid Nothing
+  => EventStore serialized m
+  -> UUID
+  -> Maybe EventVersion
+  -> m [StoredEvent event]
+getEventsDeserialized store uuid version = mapMaybe deserialize <$> getEvents store uuid version
 
--- | Like 'getEventsFromVersionRaw', but uses a 'Serializable' instance for the
--- event type to try and deserialize them.
-getEventsFromVersion
+-- | Like 'storeEvents', but run 'serialize' on the events first.
+storeEventsSerialized
   :: (Monad m, Serializable event serialized)
-  => UUID -> EventVersion -> EventStoreT store serialized m [StoredEvent event]
-getEventsFromVersion uuid vers = do
-  EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ mapMaybe deserialize <$> getEventsFromVersionRaw store uuid (Just vers)
-
--- | Like 'storeEventsRaw', but uses a 'Serializable' instance for the event
--- type to serialize them.
-storeEvents
-  :: (Monad m, Serializable event serialized)
-  => ExpectedVersion -> UUID -> [event] -> EventStoreT store serialized m (Maybe EventWriteError)
-storeEvents expectedVersion uuid events = do
-  EventStore store EventStoreDefinition{..} <- askEventStore
-  lift $ storeEventsRaw store expectedVersion uuid (serialize <$> events)
-
--- | Like 'storeEvents', but just store a single event.
-storeEvent
-  :: (Monad m, Serializable event serialized)
-  => ExpectedVersion -> UUID -> event -> EventStoreT store serialized m (Maybe EventWriteError)
-storeEvent expectedVersion projId event = storeEvents expectedVersion projId [event]
-
--- | Convenience wrapper around 'getSequencedEventsRaw'
-getSequencedEvents
-  :: (Monad m)
-  => GetGloballyOrderedEvents store stored m
-  -> SequenceNumber
-  -> EventStoreT store serialized m [GloballyOrderedEvent stored]
-getSequencedEvents (GetGloballyOrderedEvents getSequencedEventsRaw) seqNum = do
-  EventStore store _ <- askEventStore
-  lift $ getSequencedEventsRaw store seqNum
+  => EventStore serialized m
+  -> ExpectedVersion
+  -> UUID
+  -> [event]
+  -> m (Maybe EventWriteError)
+storeEventsSerialized store expectedVersion uuid events =
+  storeEvents store expectedVersion uuid $ serialize <$> events
 
 -- | Gets the latest projection from a store using 'getEvents'
 getLatestProjection
   :: (Monad m, Serializable event serialized)
-  => Projection proj event -> UUID -> EventStoreT store serialized m (proj, EventVersion)
-getLatestProjection proj uuid = do
-  events <- getEvents uuid
+  => EventStore serialized m -> Projection proj event -> UUID -> m (proj, EventVersion)
+getLatestProjection store proj uuid = do
+  events <- getEventsDeserialized store uuid Nothing
   let
     latestVersion = maxEventVersion events
     latestProj = latestProjection proj $ storedEventEvent <$> events
@@ -206,13 +137,13 @@ getLatestProjection proj uuid = do
 -- saves the events back to the store as well.
 commandStoredAggregate
   :: (Monad m, Serializable event serialized)
-  => Aggregate state event cmd cmderror -> UUID -> cmd -> EventStoreT store serialized m (Either cmderror [event])
-commandStoredAggregate (Aggregate applyCommand proj) uuid command = do
-  (latest, vers) <- getLatestProjection proj uuid
+  => EventStore serialized m -> Aggregate state event cmd cmderror -> UUID -> cmd -> m (Either cmderror [event])
+commandStoredAggregate store (Aggregate applyCommand proj) uuid command = do
+  (latest, vers) <- getLatestProjection store proj uuid
   case applyCommand latest command of
     (Left err) -> return $ Left err
     (Right events) -> do
-      mError <- storeEvents (ExactVersion vers) uuid events
+      mError <- storeEvents store (ExactVersion vers) uuid (serialize <$> events)
       case mError of
         (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
         Nothing -> return $ Right events

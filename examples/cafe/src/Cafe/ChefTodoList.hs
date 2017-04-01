@@ -20,6 +20,7 @@ import Eventful.ReadModel.Memory
 import Eventful.Store.Sqlite
 
 import Cafe.CLI.Options (parseDatabaseFileOption)
+import Cafe.CLI.Transformer
 import Cafe.Models.Tab
 
 -- | Create an in-memory read model that polls the SQLite event store and
@@ -29,7 +30,7 @@ chefTodoListMain = do
   dbFilePath <- execParser $ info (helper <*> parseDatabaseFileOption) (fullDesc <> progDesc "Chef Todo List Terminal")
   pool <- runNoLoggingT $ createSqlitePool (pack dbFilePath) 1
   readModel <- memoryReadModel Map.empty applyChefReadModelEvents
-  runPollingReadModel readModel (sqliteEventStore defaultSqlEventStoreConfig) sqlGetGloballyOrderedEvents (`runSqlPool` pool) 1
+  runPollingReadModel readModel cliGloballyOrderedEventStore (`runSqlPool` pool) 1
 
 applyChefReadModelEvents
   :: Map UUID [Maybe Food]

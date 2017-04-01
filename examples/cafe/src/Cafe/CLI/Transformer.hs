@@ -2,7 +2,8 @@ module Cafe.CLI.Transformer
   ( CLI
   , runCLI
   , runDB
-  , runEventStoreCLI
+  , cliEventStore
+  , cliGloballyOrderedEventStore
   ) where
 
 import Control.Monad.Reader
@@ -24,6 +25,8 @@ runDB query = do
   pool <- ask
   liftIO $ runSqlPool query pool
 
--- | Run a given event store action.
-runEventStoreCLI :: EventStoreT (SqlEventStoreConfig SqlEvent JSONString) JSONString (SqlPersistT IO) a -> CLI a
-runEventStoreCLI = runDB . runEventStore (sqliteEventStore defaultSqlEventStoreConfig)
+cliEventStore :: (MonadIO m) => EventStore JSONString (SqlPersistT m)
+cliEventStore = sqliteEventStore defaultSqlEventStoreConfig
+
+cliGloballyOrderedEventStore :: (MonadIO m) => GloballyOrderedEventStore JSONString (SqlPersistT m)
+cliGloballyOrderedEventStore = sqlGloballyOrderedEventStore defaultSqlEventStoreConfig
