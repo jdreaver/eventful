@@ -7,6 +7,7 @@ module Main where
 
 import Control.Concurrent.STM
 import Control.Monad (forever, void)
+import Data.Dynamic (toDyn)
 import Safe (readMay)
 
 import Eventful
@@ -24,7 +25,7 @@ readAndApplyCommand store = do
   let uuid = nil
 
   -- Get current state and print it out
-  (currentState, _) <- atomically $ getLatestProjection store counterProjection uuid
+  (currentState, _) <- atomically $ getLatestProjection store dynamicSerializer counterProjection uuid
   putStrLn $ "Current state: " ++ show currentState
 
   -- Ask user for command
@@ -39,7 +40,7 @@ readAndApplyCommand store = do
         -- The command is valid. Apply the event to the store.
         Right events -> do
           putStrLn $ "Command valid. Event: " ++ show events
-          void . atomically $ storeEventsSerialized store AnyVersion uuid events
+          void . atomically $ storeEvents store AnyVersion uuid (toDyn <$> events)
         -- The command is invalid. Show the user the error.
         Left err -> putStrLn $ "Command invalid: Error: " ++ show err
 

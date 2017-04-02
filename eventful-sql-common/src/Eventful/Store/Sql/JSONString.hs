@@ -1,5 +1,6 @@
 module Eventful.Store.Sql.JSONString
   ( JSONString
+  , jsonStringSerializer
   ) where
 
 import Data.Aeson
@@ -8,7 +9,7 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import Database.Persist
 import Database.Persist.Sql
 
-import Eventful.Serializable
+import Eventful.Serializer
 
 -- | A more specific type than just ByteString for JSON data.
 newtype JSONString = JSONString { unJSONString :: Text }
@@ -20,10 +21,12 @@ instance PersistFieldSql JSONString where
 instance Show JSONString where
   show = show . unJSONString
 
-instance (ToJSON a, FromJSON a) => Serializable a JSONString where
-  serialize = encodeJSON
-  deserialize = decodeJSON
-  deserializeEither = decodeJSONEither
+jsonStringSerializer :: (ToJSON a, FromJSON a) => Serializer a JSONString
+jsonStringSerializer =
+  Serializer
+  encodeJSON
+  decodeJSON
+  decodeJSONEither
 
 encodeJSON :: (ToJSON a) => a -> JSONString
 encodeJSON = JSONString . TLE.decodeUtf8 . encode

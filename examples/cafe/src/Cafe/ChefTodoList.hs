@@ -38,7 +38,7 @@ applyChefReadModelEvents
   -> IO (Map UUID [Maybe Food])
 applyChefReadModelEvents foodMap events = do
   let
-    tabEvents = mapMaybe deserialize events :: [GloballyOrderedEvent (StoredEvent TabEvent)]
+    tabEvents = mapMaybe (traverse (traverse (deserialize jsonStringSerializer))) events :: [GloballyOrderedEvent (StoredEvent TabEvent)]
     foodMap' = foldl' applyEventToMap foodMap $ map globallyOrderedEventEvent tabEvents
   unless (null events) $ printFood foodMap'
   return foodMap'

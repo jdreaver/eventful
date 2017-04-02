@@ -43,16 +43,16 @@ runCLICommand ListMenu = liftIO $ do
   mapM_ printPair (zip [0 :: Int ..] $ map unDrink allDrinks)
 runCLICommand (ViewTab tabId) = do
   uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
-  latest <- runDB $ getLatestProjection cliEventStore tabProjection uuid
+  latest <- runDB $ getLatestProjection cliEventStore jsonStringSerializer tabProjection uuid
   liftIO $ printJSONPretty latest
 runCLICommand (TabCommand tabId command) = do
   uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
-  result <- runDB $ commandStoredAggregate cliEventStore tabAggregate uuid command
+  result <- runDB $ commandStoredAggregate cliEventStore jsonStringSerializer tabAggregate  uuid command
   case result of
     Left err -> liftIO . putStrLn $ "Error! " ++ show err
     Right events -> do
       liftIO . putStrLn $ "Events: " ++ show events
-      latest <- runDB $ getLatestProjection cliEventStore tabProjection uuid
+      latest <- runDB $ getLatestProjection cliEventStore jsonStringSerializer tabProjection uuid
       liftIO . putStrLn $ "Latest state:"
       liftIO $ printJSONPretty latest
 

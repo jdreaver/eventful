@@ -6,7 +6,7 @@ import Network.AWS
 import Network.AWS.DynamoDB
 import Test.Hspec
 
-import Eventful.Store.Class
+import Eventful
 import Eventful.Store.DynamoDB
 import Eventful.TestHelpers
 
@@ -28,4 +28,4 @@ makeStore = do
 spec :: Spec
 spec = do
   describe "DynamoDB event store" $ do
-    eventStoreSpec makeStore (\env action -> runResourceT $ runAWS env action)
+    eventStoreSpec makeStore (\env action -> runResourceT $ runAWS env action) jsonSerializer

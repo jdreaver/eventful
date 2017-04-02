@@ -23,5 +23,5 @@ makeGlobalStore = do
 spec :: Spec
 spec = do
   describe "Sqlite event store" $ do
-    eventStoreSpec makeStore (flip runSqlPool)
-    sequencedEventStoreSpec makeGlobalStore (flip runSqlPool)
+    eventStoreSpec makeStore (flip runSqlPool) jsonStringSerializer
+    sequencedEventStoreSpec makeGlobalStore (flip runSqlPool) jsonStringSerializer

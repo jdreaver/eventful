@@ -4,8 +4,6 @@ module Eventful.Store.Class
   , GloballyOrderedEventStore (..)
   , ExpectedVersion (..)
   , EventWriteError (..)
-  , getEventsDeserialized
-  , storeEventsSerialized
   , getLatestProjection
   , commandStoredAggregate
     -- * Utility types
@@ -24,7 +22,7 @@ import Web.PathPieces
 
 import Eventful.Aggregate
 import Eventful.Projection
-import Eventful.Serializable
+import Eventful.Serializer
 import Eventful.UUID
 
 -- | The 'EventStore' is the core type of eventful. A store operates in some
@@ -98,32 +96,16 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid e
   then storeEvents' uuid events >> return Nothing
   else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
 
--- | Like 'getEvents', but run 'deserialize' on the returned events.
-getEventsDeserialized
-  :: (Monad m, Serializable event serialized)
-  => EventStore serialized m
-  -> UUID
-  -> Maybe EventVersion
-  -> m [StoredEvent event]
-getEventsDeserialized store uuid version = mapMaybe deserialize <$> getEvents store uuid version
-
--- | Like 'storeEvents', but run 'serialize' on the events first.
-storeEventsSerialized
-  :: (Monad m, Serializable event serialized)
-  => EventStore serialized m
-  -> ExpectedVersion
-  -> UUID
-  -> [event]
-  -> m (Maybe EventWriteError)
-storeEventsSerialized store expectedVersion uuid events =
-  storeEvents store expectedVersion uuid $ serialize <$> events
-
 -- | Gets the latest projection from a store using 'getEvents'
 getLatestProjection
-  :: (Monad m, Serializable event serialized)
-  => EventStore serialized m -> Projection proj event -> UUID -> m (proj, EventVersion)
-getLatestProjection store proj uuid = do
-  events <- getEventsDeserialized store uuid Nothing
+  :: (Monad m)
+  => EventStore serialized m
+  -> Serializer event serialized
+  -> Projection proj event
+  -> UUID
+  -> m (proj, EventVersion)
+getLatestProjection store Serializer{..} proj uuid = do
+  events <- mapMaybe (traverse deserialize) <$> getEvents store uuid Nothing
   let
     latestVersion = maxEventVersion events
     latestProj = latestProjection proj $ storedEventEvent <$> events
@@ -136,10 +118,15 @@ getLatestProjection store proj uuid = do
 -- apply the 'Aggregate' command to it. If the command succeeds, then this
 -- saves the events back to the store as well.
 commandStoredAggregate
-  :: (Monad m, Serializable event serialized)
-  => EventStore serialized m -> Aggregate state event cmd cmderror -> UUID -> cmd -> m (Either cmderror [event])
-commandStoredAggregate store (Aggregate applyCommand proj) uuid command = do
-  (latest, vers) <- getLatestProjection store proj uuid
+  :: (Monad m)
+  => EventStore serialized m
+  -> Serializer event serialized
+  -> Aggregate state event cmd cmderror
+  -> UUID
+  -> cmd
+  -> m (Either cmderror [event])
+commandStoredAggregate store serializer@Serializer{..} (Aggregate applyCommand proj) uuid command = do
+  (latest, vers) <- getLatestProjection store serializer proj uuid
   case applyCommand latest command of
     (Left err) -> return $ Left err
     (Right events) -> do

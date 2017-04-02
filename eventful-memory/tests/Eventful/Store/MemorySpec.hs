@@ -3,14 +3,15 @@ module Eventful.Store.MemorySpec (spec) where
 import Control.Concurrent.STM
 import Test.Hspec
 
+import Eventful
 import Eventful.Store.Memory
 import Eventful.TestHelpers
 
 spec :: Spec
 spec = do
   describe "TVar memory event store" $ do
-    eventStoreSpec makeStore (const atomically)
-    sequencedEventStoreSpec makeGlobalStore (const atomically)
+    eventStoreSpec makeStore (const atomically) dynamicSerializer
+    sequencedEventStoreSpec makeGlobalStore (const atomically) dynamicSerializer
 
 makeStore :: IO (MemoryEventStore, ())
 makeStore = do
