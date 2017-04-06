@@ -2,7 +2,11 @@
 
 module Eventful.Aggregate
   ( Aggregate (..)
+  , allAggregateStates
   ) where
+
+import Data.Foldable (foldl')
+import Data.List (scanl')
 
 import Eventful.Projection
 
@@ -16,3 +20,20 @@ data Aggregate state event cmd cmderror =
   { aggregateCommand :: state -> cmd -> Either cmderror [event]
   , aggregateProjection :: Projection state event
   }
+
+-- | Given a list commands, produce all of the states the aggregate's
+-- projection sees, interspersed with command errors. This is useful for unit
+-- testing aggregates.
+allAggregateStates
+  :: Aggregate state event cmd cmderror
+  -> [cmd]
+  -> [Either cmderror state]
+allAggregateStates (Aggregate applyCommand (Projection seed apply)) events =
+  map snd $ scanl' go (seed, Right seed) events
+  where
+    go (state, _) command =
+      case applyCommand state command of
+        Left err -> (state, Left err)
+        Right outputEvents ->
+          let state' = foldl' apply state outputEvents
+          in (state', Right state')

@@ -42,11 +42,29 @@ library:
     - src
   ghc-options: -Wall
 
-executables:
-  cafe-main:
-    main: bank-main.hs
+# executables:
+#   bank-main:
+#     main: bank-main.hs
+#     ghc-options: -Wall
+#     source-dirs:
+#       - executables
+#     dependencies:
+#       - examples-bank
+
+tests:
+  spec:
+    main: Spec.hs
     ghc-options: -Wall
     source-dirs:
-      - executables
+      - tests
+      - src
     dependencies:
-      - examples-bank
+      - hspec
+      - HUnit
+  style:
+    main: HLint.hs
+    ghc-options: -Wall -Werror
+    source-dirs:
+      - tests
+    dependencies:
+      - hlint
