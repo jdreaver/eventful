@@ -1,0 +1,52 @@
+name: examples-bank
+version: "0.1.0"
+maintainer: David Reaver
+synopsis: Example bank application for eventful
+description: Example bank application for eventful
+maintainer: David Reaver
+stability: experimental
+license: MIT
+
+dependencies:
+  - base
+  - eventful-core
+  - eventful-sqlite
+
+  - aeson
+  - aeson-casing
+  - bytestring
+  - containers
+  - lens
+  - monad-logger
+  - mtl
+  - optparse-applicative
+  - persistent
+  - persistent-sqlite
+  - persistent-template
+  - safe
+  - stm
+  - text
+
+default-extensions:
+  - ExistentialQuantification
+  - GeneralizedNewtypeDeriving
+  - MultiParamTypeClasses
+  - RecordWildCards
+  - ScopedTypeVariables
+  - TemplateHaskell
+  - TupleSections
+  - TypeFamilies
+
+library:
+  source-dirs:
+    - src
+  ghc-options: -Wall
+
+executables:
+  cafe-main:
+    main: bank-main.hs
+    ghc-options: -Wall
+    source-dirs:
+      - executables
+    dependencies:
+      - examples-bank

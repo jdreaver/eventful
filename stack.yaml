@@ -7,5 +7,6 @@ packages:
   - 'eventful-sql-common'
   - 'eventful-sqlite'
   - 'eventful-test-helpers'
+  - 'examples/bank'
   - 'examples/cafe'
   - 'examples/counter-cli'
