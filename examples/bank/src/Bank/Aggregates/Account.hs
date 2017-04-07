@@ -16,6 +16,9 @@ module Bank.Aggregates.Account
   , accountAggregate
   ) where
 
+import Data.Aeson.Casing
+import Data.Aeson.TH
+
 import Eventful
 
 data Account =
@@ -47,6 +50,12 @@ data AccountEvent
   | AccountAccountCredited AccountCredited
   | AccountAccountDebited AccountDebited
   deriving (Show, Eq)
+
+deriveJSON (aesonPrefix camelCase) ''Account
+deriveJSON (aesonPrefix camelCase) ''AccountOpened
+deriveJSON (aesonPrefix camelCase) ''AccountCredited
+deriveJSON (aesonPrefix camelCase) ''AccountDebited
+deriveJSON defaultOptions ''AccountEvent
 
 applyAccountEvent :: Account -> AccountEvent -> Account
 applyAccountEvent account (AccountAccountOpened (AccountOpened name amount)) =
@@ -90,6 +99,7 @@ data DebitAccountData =
 
 data AccountCommandError
   = AccountAlreadyOpenError
+  | InvalidInitialDepositError
   | NotEnoughFundsError NotEnoughFundsData
   deriving (Show, Eq)
 
@@ -98,11 +108,17 @@ data NotEnoughFundsData =
   { notEnoughFundsRemainingFunds :: Double
   } deriving  (Show, Eq)
 
+deriveJSON (aesonPrefix camelCase) ''NotEnoughFundsData
+deriveJSON defaultOptions ''AccountCommandError
+
 applyAccountCommand :: Account -> AccountCommand -> Either AccountCommandError [AccountEvent]
 applyAccountCommand account (OpenAccount (OpenAccountData owner amount)) =
   case accountOwner account of
     Just _ -> Left AccountAlreadyOpenError
-    Nothing -> Right [AccountAccountOpened $ AccountOpened owner amount]
+    Nothing ->
+      if amount < 0
+      then Left InvalidInitialDepositError
+      else Right [AccountAccountOpened $ AccountOpened owner amount]
 applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
   Right [AccountAccountCredited $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =

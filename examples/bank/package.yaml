@@ -14,6 +14,7 @@ dependencies:
 
   - aeson
   - aeson-casing
+  - aeson-pretty
   - bytestring
   - containers
   - lens
@@ -42,14 +43,14 @@ library:
     - src
   ghc-options: -Wall
 
-# executables:
-#   bank-main:
-#     main: bank-main.hs
-#     ghc-options: -Wall
-#     source-dirs:
-#       - executables
-#     dependencies:
-#       - examples-bank
+executables:
+  bank-main:
+    main: bank-main.hs
+    ghc-options: -Wall
+    source-dirs:
+      - executables
+    dependencies:
+      - examples-bank
 
 tests:
   spec:
