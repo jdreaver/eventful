@@ -2,7 +2,7 @@ module Bank.CLI
   ( bankCLIMain
   ) where
 
-import Control.Monad.Logger (runNoLoggingT)
+import Control.Monad.Logger (NoLoggingT (..), runNoLoggingT)
 import Data.Text (pack)
 import Database.Persist.Sqlite
 
@@ -16,7 +16,6 @@ bankCLIMain = do
   Options{..} <- runOptionsParser
 
   -- Set up DB connection
-  pool <- runNoLoggingT $ createSqlitePool (pack optionsDatabaseFile) 1
-  initializeSqliteEventStore defaultSqlEventStoreConfig pool
-
-  runCLICommand pool optionsCommand
+  runNoLoggingT $ withSqlitePool (pack optionsDatabaseFile) 1 $ \pool -> NoLoggingT $ do
+    initializeSqliteEventStore defaultSqlEventStoreConfig pool
+    runCLICommand pool optionsCommand
