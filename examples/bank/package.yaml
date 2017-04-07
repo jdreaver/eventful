@@ -13,7 +13,6 @@ dependencies:
   - eventful-sqlite
 
   - aeson
-  - aeson-casing
   - aeson-pretty
   - bytestring
   - containers

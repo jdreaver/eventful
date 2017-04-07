@@ -16,10 +16,11 @@ module Bank.Aggregates.Account
   , accountAggregate
   ) where
 
-import Data.Aeson.Casing
 import Data.Aeson.TH
 
 import Eventful
+
+import Bank.Json
 
 data Account =
   Account
@@ -51,10 +52,10 @@ data AccountEvent
   | AccountAccountDebited AccountDebited
   deriving (Show, Eq)
 
-deriveJSON (aesonPrefix camelCase) ''Account
-deriveJSON (aesonPrefix camelCase) ''AccountOpened
-deriveJSON (aesonPrefix camelCase) ''AccountCredited
-deriveJSON (aesonPrefix camelCase) ''AccountDebited
+deriveJSON (unPrefixLower "account") ''Account
+deriveJSON (unPrefixLower "accountOpened") ''AccountOpened
+deriveJSON (unPrefixLower "accountCredited") ''AccountCredited
+deriveJSON (unPrefixLower "accountDebited") ''AccountDebited
 deriveJSON defaultOptions ''AccountEvent
 
 applyAccountEvent :: Account -> AccountEvent -> Account
@@ -105,10 +106,10 @@ data AccountCommandError
 
 data NotEnoughFundsData =
   NotEnoughFundsData
-  { notEnoughFundsRemainingFunds :: Double
+  { notEnoughFundsDataRemainingFunds :: Double
   } deriving  (Show, Eq)
 
-deriveJSON (aesonPrefix camelCase) ''NotEnoughFundsData
+deriveJSON (unPrefixLower "notEnoughFundsData") ''NotEnoughFundsData
 deriveJSON defaultOptions ''AccountCommandError
 
 applyAccountCommand :: Account -> AccountCommand -> Either AccountCommandError [AccountEvent]
