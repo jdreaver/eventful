@@ -1,3 +1,6 @@
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Eventful.Serializer
   ( Serializer (..)
   , simpleSerializer
@@ -5,12 +8,17 @@ module Eventful.Serializer
   , jsonSerializer
   , jsonTextSerializer
   , dynamicSerializer
+  , EventSumType (..)
+  , eventSumTypeSerializer
   ) where
 
+import Control.Applicative ((<|>))
 import Data.Aeson
 import Data.Dynamic
+import Data.Maybe (fromMaybe)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
+import GHC.Generics
 
 -- | Used to define how to serialize and deserialize events in event stores.
 data Serializer a b =
@@ -71,3 +79,94 @@ jsonTextSerializer =
 -- | A 'Serializer' for 'Dynamic' values
 dynamicSerializer :: (Typeable a) => Serializer a Dynamic
 dynamicSerializer = simpleSerializer toDyn fromDynamic
+
+-- | A 'Serializer' from one 'EventSumType' instance to another. WARNING: If
+-- not all events in the source 'EventSumType' are in the @serialized@
+-- 'EventSumType', then this function will be partial!
+eventSumTypeSerializer :: (Typeable a, EventSumType a, EventSumType b) => Serializer a b
+eventSumTypeSerializer = simpleSerializer serialize' deserialize'
+  where
+    serialize' event =
+      fromMaybe
+      (error $ "Failure in eventSumTypeSerializer. Can't serialize " ++ show (typeOf event))
+      (eventFromDyn $ eventToDyn event)
+    deserialize' = eventFromDyn . eventToDyn
+
+-- | This is a type class for serializing sum types of events to 'Dynamic'
+-- without the associated constructor. This is useful when transforming between
+-- two sum types of events. A common pattern is to put all the events in an
+-- application in one big event sum type, and then have a smaller sum type for
+-- each 'Projection'. Then, you can use 'eventSumTypeSerializer' to transform
+-- between the two.
+--
+-- It is meant to be derived with 'Generic'. For example:
+--
+-- @
+--    data EventA = EventA deriving (Show)
+--    data EventB = EventB deriving (Show)
+--    data EventC = EventC deriving (Show)
+--
+--    data AllEvents
+--      = AllEventsEventA EventA
+--      | AllEventsEventB EventB
+--      | AllEventsEventC EventC
+--      deriving (Show, Generic)
+--
+--    instance EventSumType AllEvents
+--
+--    data MyEvents
+--      = MyEventsEventA EventA
+--      | MyEventsEventB EventB
+--      deriving (Show, Generic)
+--
+--    instance EventSumType MyEvents
+-- @
+--
+-- Now we can serialize to 'Dynamic' without a constructor tag:
+--
+-- >>> eventToDyn (MyEventsEventA EventA)
+-- <<EventA>>
+--
+-- We can also go from a 'MyEvents' value to an 'AllEvents' value:
+--
+-- >>> eventFromDyn (eventToDyn (MyEventsEventA EventA)) :: Maybe AllEvents
+-- Just (AllEventsEventA EventA)
+--
+class EventSumType a where
+  -- | Convert an event to a 'Dynamic' without the constructor tag
+  eventToDyn :: a -> Dynamic
+
+  -- | Go from a 'Dynamic' to an event with the constructor tag. Note, this
+  -- function is @O(n)@ to the number of constructors.
+  eventFromDyn :: Dynamic -> Maybe a
+
+  default eventToDyn :: (Generic a, EventSumType' (Rep a)) => a -> Dynamic
+  eventToDyn x = eventToDyn' (from x)
+
+  default eventFromDyn :: (Generic a, EventSumType' (Rep a)) => Dynamic -> Maybe a
+  eventFromDyn = fmap to . eventFromDyn'
+
+-- Auxiliary type class for 'EventSumType' Generic fun
+class EventSumType' f where
+  eventToDyn' :: f p -> Dynamic
+  eventFromDyn' :: Dynamic -> Maybe (f p)
+
+-- M1 is the top-level metadata. We don't need the metadata so we just pass on
+-- through.
+instance (EventSumType' f) => EventSumType' (M1 i t f) where
+  eventToDyn' (M1 x) = eventToDyn' x
+  eventFromDyn' = fmap M1 . eventFromDyn'
+
+-- The :+: operator is for when a type has multiple constructors. When
+-- serializing, we just pass on through. When deserializing, we try the first
+-- constructor, and if that fails then the second.
+instance (EventSumType' f, EventSumType' g) => EventSumType' (f :+: g) where
+  eventToDyn' (L1 x) = eventToDyn' x
+  eventToDyn' (R1 x) = eventToDyn' x
+  eventFromDyn' dyn = (L1 <$> eventFromDyn' dyn) <|> (R1 <$> eventFromDyn' dyn)
+
+-- K1 R represents an actual constructor. This is where we do the actual
+-- conversion to/from 'Dynamic'.
+instance (Typeable c) => EventSumType' (K1 R c) where
+  eventToDyn' (K1 x) = toDyn x
+  eventFromDyn' dyn = K1 <$> fromDynamic dyn
