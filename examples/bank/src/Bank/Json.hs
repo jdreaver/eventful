@@ -2,12 +2,13 @@
 
 module Bank.Json
   ( unPrefixLower
+  , dropPrefix
+  , dropSuffix
   ) where
 
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Char (toLower)
-import Data.Monoid ((<>))
 
 -- | Aeson Options that match FrontRow usage
 unPrefixLower :: String -> Options
@@ -19,12 +20,17 @@ unCapitalize [] = []
 unCapitalize (c:cs) = toLower c : cs
 
 dropPrefix :: String -> String -> String
-dropPrefix prefix input = go prefix input
+dropPrefix = dropPrefix' "dropPrefix" id
+
+dropSuffix :: String -> String -> String
+dropSuffix prefix input = reverse $ dropPrefix' "dropSuffix" reverse (reverse prefix) (reverse input)
+
+dropPrefix' :: String -> (String -> String) -> String -> String -> String
+dropPrefix' fnName strTrans prefix input = go prefix input
   where
-    go pre [] = error $ contextual $ "prefix leftover: " <> pre
+    go pre [] = error $ contextual $ "prefix leftover: " ++ strTrans pre
     go [] (c:cs) = c : cs
     go (p:preRest) (c:cRest)
       | p == c = go preRest cRest
-      | otherwise = error $ contextual $ "not equal: " <>  (p:preRest)  <> " " <> (c:cRest)
-
-    contextual msg = "dropPrefix: " <> msg <> ". " <> prefix <> " " <> input
+      | otherwise = error $ contextual $ "not equal: " ++  strTrans (p:preRest)  ++ " " ++ strTrans (c:cRest)
+    contextual msg = fnName ++ ": " ++ msg ++ ". " ++ strTrans prefix ++ " " ++ strTrans input

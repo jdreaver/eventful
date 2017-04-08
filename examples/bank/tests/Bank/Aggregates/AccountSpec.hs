@@ -11,9 +11,9 @@ spec = do
     it "should handle a series of account events" $ do
       let
         events =
-          [ AccountAccountOpened $ AccountOpened "Bob" 10
-          , AccountAccountDebited $ AccountDebited 5 "ATM"
-          , AccountAccountCredited $ AccountCredited 10 "Paycheck"
+          [ AccountOpened' $ AccountOpened "Bob" 10
+          , AccountDebited' $ AccountDebited 5 "ATM"
+          , AccountCredited' $ AccountCredited 10 "Paycheck"
           ]
         states =
           [ Account 0 Nothing

@@ -17,9 +17,11 @@ module Bank.Aggregates.Account
   ) where
 
 import Data.Aeson.TH
+import GHC.Generics
 
 import Eventful
 
+import Bank.Events
 import Bank.Json
 
 data Account =
@@ -28,42 +30,22 @@ data Account =
   , accountOwner :: Maybe String
   } deriving (Show, Eq)
 
-data AccountOpened =
-  AccountOpened
-  { accountOpenedOwner :: String
-  , accountOpenedInitialFunding :: Double
-  } deriving (Show, Eq)
-
-data AccountCredited =
-  AccountCredited
-  { accountCreditedAmount :: Double
-  , accountCreditedReason :: String
-  } deriving (Show, Eq)
-
-data AccountDebited =
-  AccountDebited
-  { accountDebitedAmount :: Double
-  , accountDebitedReason :: String
-  } deriving (Show, Eq)
+deriveJSON (unPrefixLower "account") ''Account
 
 data AccountEvent
-  = AccountAccountOpened AccountOpened
-  | AccountAccountCredited AccountCredited
-  | AccountAccountDebited AccountDebited
-  deriving (Show, Eq)
+  = AccountOpened' AccountOpened
+  | AccountCredited' AccountCredited
+  | AccountDebited' AccountDebited
+  deriving (Show, Eq, Generic)
 
-deriveJSON (unPrefixLower "account") ''Account
-deriveJSON (unPrefixLower "accountOpened") ''AccountOpened
-deriveJSON (unPrefixLower "accountCredited") ''AccountCredited
-deriveJSON (unPrefixLower "accountDebited") ''AccountDebited
-deriveJSON defaultOptions ''AccountEvent
+instance EventSumType AccountEvent
 
 applyAccountEvent :: Account -> AccountEvent -> Account
-applyAccountEvent account (AccountAccountOpened (AccountOpened name amount)) =
+applyAccountEvent account (AccountOpened' (AccountOpened name amount)) =
   account { accountOwner = Just name, accountBalance = amount }
-applyAccountEvent account (AccountAccountCredited (AccountCredited amount _)) =
+applyAccountEvent account (AccountCredited' (AccountCredited amount _)) =
   account { accountBalance = accountBalance account + amount }
-applyAccountEvent account (AccountAccountDebited (AccountDebited amount _)) =
+applyAccountEvent account (AccountDebited' (AccountDebited amount _)) =
   account { accountBalance = accountBalance account - amount }
 
 type AccountProjection = Projection Account AccountEvent
@@ -119,13 +101,13 @@ applyAccountCommand account (OpenAccount (OpenAccountData owner amount)) =
     Nothing ->
       if amount < 0
       then Left InvalidInitialDepositError
-      else Right [AccountAccountOpened $ AccountOpened owner amount]
+      else Right [AccountOpened' $ AccountOpened owner amount]
 applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
-  Right [AccountAccountCredited $ AccountCredited amount reason]
+  Right [AccountCredited' $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
   if accountBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountBalance account)
-  else Right [AccountAccountDebited $ AccountDebited amount reason]
+  else Right [AccountDebited' $ AccountDebited amount reason]
 
 type AccountAggregate = Aggregate Account AccountEvent AccountCommand AccountCommandError
 
