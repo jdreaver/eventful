@@ -1,6 +1,7 @@
 module Bank.Aggregates.Account
   ( Account (..)
   , AccountEvent (..)
+  , accountEventSerializer
   , AccountOpened (..)
   , AccountCredited (..)
   , AccountDebited (..)
@@ -17,7 +18,6 @@ module Bank.Aggregates.Account
   ) where
 
 import Data.Aeson.TH
-import GHC.Generics
 
 import Eventful
 
@@ -36,9 +36,9 @@ data AccountEvent
   = AccountOpened' AccountOpened
   | AccountCredited' AccountCredited
   | AccountDebited' AccountDebited
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq)
 
-instance EventSumType AccountEvent
+mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
 
 applyAccountEvent :: Account -> AccountEvent -> Account
 applyAccountEvent account (AccountOpened' (AccountOpened name amount)) =
