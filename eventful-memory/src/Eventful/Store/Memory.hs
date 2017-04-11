@@ -7,7 +7,6 @@ module Eventful.Store.Memory
   ) where
 
 import Control.Concurrent.STM
-import Data.Dynamic
 import Data.Foldable (toList)
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
@@ -19,19 +18,19 @@ import qualified Data.Sequence as Seq
 import Eventful.Store.Class
 import Eventful.UUID
 
-data EventMap
+data EventMap serialized
   = EventMap
-  { _eventMapUuidMap :: Map UUID (Seq (GloballyOrderedEvent (StoredEvent Dynamic)))
+  { _eventMapUuidMap :: Map UUID (Seq (GloballyOrderedEvent (StoredEvent serialized)))
   , _eventMapSeqNum :: SequenceNumber
   -- TODO: Add projection cache here
   }
   deriving (Show)
 
-type MemoryEventStore = EventStore Dynamic STM
-type GloballyOrderedMemoryEventStore = GloballyOrderedEventStore Dynamic STM
+type MemoryEventStore serialized = EventStore serialized STM
+type GloballyOrderedMemoryEventStore serialized = GloballyOrderedEventStore serialized STM
 
 -- | Initializes memory event stores.
-memoryEventStore :: IO (MemoryEventStore, GloballyOrderedMemoryEventStore)
+memoryEventStore :: IO (MemoryEventStore serialized, GloballyOrderedMemoryEventStore serialized)
 memoryEventStore = do
   tvar <- newTVarIO (EventMap Map.empty 0)
   let
@@ -42,21 +41,21 @@ memoryEventStore = do
     getSequencedEvents seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
   return (EventStore{..}, GloballyOrderedEventStore{..})
 
-memoryEventStoreGetAllUuids :: TVar EventMap -> STM [UUID]
+memoryEventStoreGetAllUuids :: TVar (EventMap serialized) -> STM [UUID]
 memoryEventStoreGetAllUuids tvar = fmap fst . Map.toList . _eventMapUuidMap <$> readTVar tvar
 
-lookupEventMapRaw :: EventMap -> UUID -> Seq (StoredEvent Dynamic)
+lookupEventMapRaw :: EventMap serialized -> UUID -> Seq (StoredEvent serialized)
 lookupEventMapRaw (EventMap uuidMap _) uuid =
    fmap globallyOrderedEventEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
 
-lookupEventsFromVersion :: EventMap -> UUID -> Maybe EventVersion -> Seq (StoredEvent Dynamic)
+lookupEventsFromVersion :: EventMap serialized -> UUID -> Maybe EventVersion -> Seq (StoredEvent serialized)
 lookupEventsFromVersion store uuid Nothing = lookupEventMapRaw store uuid
 lookupEventsFromVersion store uuid (Just (EventVersion vers)) = Seq.drop vers $ lookupEventMapRaw store uuid
 
-latestEventVersion :: EventMap -> UUID -> EventVersion
+latestEventVersion :: EventMap serialized -> UUID -> EventVersion
 latestEventVersion store uuid = EventVersion $ Seq.length (lookupEventMapRaw store uuid) - 1
 
-lookupEventMapSeq :: EventMap -> SequenceNumber -> [GloballyOrderedEvent (StoredEvent Dynamic)]
+lookupEventMapSeq :: EventMap serialized -> SequenceNumber -> [GloballyOrderedEvent (StoredEvent serialized)]
 lookupEventMapSeq (EventMap uuidMap _) seqNum =
   sortOn globallyOrderedEventSequenceNumber $
   filter ((> seqNum) . globallyOrderedEventSequenceNumber) $
@@ -64,7 +63,7 @@ lookupEventMapSeq (EventMap uuidMap _) seqNum =
   toList <$> toList uuidMap
 
 storeEventMap
-  :: EventMap -> UUID -> [Dynamic] -> EventMap
+  :: EventMap serialized -> UUID -> [serialized] -> EventMap serialized
 storeEventMap store@(EventMap uuidMap seqNum) uuid events =
   let
     versStart = latestEventVersion store uuid + 1

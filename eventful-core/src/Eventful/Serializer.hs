@@ -2,14 +2,19 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Eventful.Serializer
-  ( Serializer (..)
+  ( -- * Class
+    Serializer (..)
   , simpleSerializer
   , composeSerializers
+    -- * Common serializers
+  , idSerializer
   , jsonSerializer
   , jsonTextSerializer
   , dynamicSerializer
+    -- * Sum types
   , EventSumType (..)
   , eventSumTypeSerializer
+  , mkSumTypeSerializer
   ) where
 
 import Control.Applicative ((<|>))
@@ -19,6 +24,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import GHC.Generics
+
+import Eventful.Serializer.Internal
 
 -- | Used to define how to serialize and deserialize events in event stores.
 data Serializer a b =
@@ -50,6 +57,10 @@ composeSerializers serializer1 serializer2 = Serializer serialize' deserialize' 
     serialize' = serialize serializer2 . serialize serializer1
     deserialize' x = deserialize serializer2 x >>= deserialize serializer1
     deserializeEither' x = deserializeEither serializer2 x >>= deserializeEither serializer1
+
+-- | Simple "serializer" for keeping the same type.
+idSerializer :: Serializer a a
+idSerializer = simpleSerializer id Just
 
 -- | A 'Serializer' for aeson 'Value's
 jsonSerializer :: (ToJSON a, FromJSON a) => Serializer a Value
