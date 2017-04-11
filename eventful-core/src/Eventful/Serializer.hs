@@ -2,15 +2,19 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Eventful.Serializer
-  ( Serializer (..)
+  ( -- * Class
+    Serializer (..)
   , simpleSerializer
   , composeSerializers
+    -- * Common serializers
   , idSerializer
   , jsonSerializer
   , jsonTextSerializer
   , dynamicSerializer
+    -- * Sum types
   , EventSumType (..)
   , eventSumTypeSerializer
+  , mkSumTypeSerializer
   ) where
 
 import Control.Applicative ((<|>))
@@ -20,6 +24,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import GHC.Generics
+
+import Eventful.Serializer.Internal
 
 -- | Used to define how to serialize and deserialize events in event stores.
 data Serializer a b =

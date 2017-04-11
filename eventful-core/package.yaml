@@ -19,6 +19,7 @@ dependencies:
   - containers
   - http-api-data
   - path-pieces
+  - template-haskell
   - text
   - transformers
   - uuid
