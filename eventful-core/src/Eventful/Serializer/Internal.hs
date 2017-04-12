@@ -1,9 +1,11 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Eventful.Serializer.Internal
   ( mkSumTypeSerializer
   ) where
 
 import Data.Char (toLower)
-import Data.List (find)
+import Data.List (lookup)
 import Language.Haskell.TH
 
 -- | This is a template haskell function that creates a 'Serializer' between
@@ -58,28 +60,27 @@ import Language.Haskell.TH
 mkSumTypeSerializer :: String -> Name -> Name -> Q [Dec]
 mkSumTypeSerializer serializerName sourceType targetType = do
   -- Get the constructors for both types and match them up based on event type.
-  sourceConstructors <- reify sourceType >>= typeConstructors sourceType
-  targetConstructors <- reify targetType >>= typeConstructors targetType
+  sourceConstructors <- typeConstructors sourceType
+  targetConstructors <- typeConstructors targetType
   bothConstructors <- mapM (matchConstructor targetConstructors) sourceConstructors
 
+  -- Construct the serialization function
   let
-    sourceTypeName = nameBase sourceType
-    targetTypeName = nameBase targetType
-
-    -- Construct the serialization function
-    serializeFuncName = mkName $ firstCharToLower sourceTypeName ++ "To" ++ targetTypeName
-    serializeTypeDecl = AppT (AppT ArrowT (ConT sourceType)) (ConT targetType)
+    serializeFuncName = mkName $ firstCharToLower (nameBase sourceType) ++ "To" ++ nameBase targetType
     serializeFuncClauses = map mkSerializeFunc bothConstructors
+  serializeTypeDecl <- [t| $(conT sourceType) -> $(conT targetType) |]
 
-    -- Construct the deserialization function
-    deserializeFuncName = mkName $ firstCharToLower targetTypeName ++ "To" ++ sourceTypeName
-    deserializeTypeDecl = AppT (AppT ArrowT (ConT targetType)) (AppT (ConT ''Maybe) (ConT sourceType))
+  -- Construct the deserialization function
+  let
+    deserializeFuncName = mkName $ firstCharToLower (nameBase targetType) ++ "To" ++ nameBase sourceType
     wildcardDeserializeClause = Clause [WildP] (NormalB (ConE 'Nothing)) []
     deserializeFuncClauses = map mkDeserializeFunc bothConstructors ++ [wildcardDeserializeClause]
+  deserializeTypeDecl <- [t| $(conT targetType) -> Maybe $(conT sourceType) |]
 
-    -- Construct the serializer
-    serializerTypeDecl = AppT (AppT (ConT (mkName "Serializer")) (ConT sourceType)) (ConT targetType)
-    serializerExp = AppE (AppE (VarE (mkName "simpleSerializer")) (VarE serializeFuncName)) (VarE deserializeFuncName)
+  -- Construct the serializer
+  serializerTypeDecl <- [t| $(conT $ mkName "Serializer") $(conT sourceType) $(conT targetType) |]
+  serializerExp <- [e| $(varE $ mkName "simpleSerializer") $(varE serializeFuncName) $(varE deserializeFuncName) |]
+  let
     serializerClause = Clause [] (NormalB serializerExp) []
 
   return
@@ -97,23 +98,26 @@ mkSumTypeSerializer serializerName sourceType targetType = do
     ]
 
 -- | Extract the constructors and event types for the given type.
-typeConstructors :: Name -> Info -> Q [(Type, Name)]
-typeConstructors typeName (TyConI (DataD _ _ _ _ constructors _)) = mapM go constructors
-  where
-    go (NormalC name []) = fail $ "Constructor " ++ nameBase name ++ " doesn't have any arguments"
-    go (NormalC name [(_, type')]) = return (type', name)
-    go (NormalC name _) = fail $ "Constructor " ++ nameBase name ++ " has more than one argument"
-    go _ = fail $ "Invalid constructor in " ++ nameBase typeName
-typeConstructors name _ = fail $ nameBase name ++ " must be a sum type"
+typeConstructors :: Name -> Q [(Type, Name)]
+typeConstructors typeName = do
+  info <- reify typeName
+  case info of
+    (TyConI (DataD _ _ _ _ constructors _)) -> mapM go constructors
+      where
+        go (NormalC name []) = fail $ "Constructor " ++ nameBase name ++ " doesn't have any arguments"
+        go (NormalC name [(_, type')]) = return (type', name)
+        go (NormalC name _) = fail $ "Constructor " ++ nameBase name ++ " has more than one argument"
+        go _ = fail $ "Invalid constructor in " ++ nameBase typeName
+    _ -> fail $ nameBase typeName ++ " must be a sum type"
 
 -- | Find the corresponding target constructor for a given source constructor.
 matchConstructor :: [(Type, Name)] -> (Type, Name) -> Q BothConstructors
 matchConstructor targetConstructors (type', sourceConstructor) = do
-  (_, targetConstructor) <-
+  targetConstructor <-
     maybe
     (fail $ "Can't find constructor in target type corresponding to " ++ nameBase sourceConstructor)
     return
-    (find ((== type') . fst) targetConstructors)
+    (lookup type' targetConstructors)
   return $ BothConstructors type' sourceConstructor targetConstructor
 
 -- | Utility type to hold the source and target constructors for a given event
