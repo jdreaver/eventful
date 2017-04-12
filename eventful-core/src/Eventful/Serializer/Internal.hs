@@ -3,7 +3,7 @@ module Eventful.Serializer.Internal
   ) where
 
 import Data.Char (toLower)
-import Data.List (find)
+import Data.List (lookup)
 import Language.Haskell.TH
 
 -- | This is a template haskell function that creates a 'Serializer' between
@@ -109,11 +109,11 @@ typeConstructors name _ = fail $ nameBase name ++ " must be a sum type"
 -- | Find the corresponding target constructor for a given source constructor.
 matchConstructor :: [(Type, Name)] -> (Type, Name) -> Q BothConstructors
 matchConstructor targetConstructors (type', sourceConstructor) = do
-  (_, targetConstructor) <-
+  targetConstructor <-
     maybe
     (fail $ "Can't find constructor in target type corresponding to " ++ nameBase sourceConstructor)
     return
-    (find ((== type') . fst) targetConstructors)
+    (lookup type' targetConstructors)
   return $ BothConstructors type' sourceConstructor targetConstructor
 
 -- | Utility type to hold the source and target constructors for a given event
