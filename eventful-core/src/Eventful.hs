@@ -3,6 +3,7 @@ module Eventful
   ) where
 
 import Eventful.Aggregate as X
+import Eventful.EventSumType as X
 import Eventful.Projection as X
 import Eventful.ReadModel.Class as X
 import Eventful.Serializer as X
