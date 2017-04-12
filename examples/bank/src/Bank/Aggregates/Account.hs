@@ -32,11 +32,13 @@ data Account =
 
 deriveJSON (unPrefixLower "account") ''Account
 
-data AccountEvent
-  = AccountOpened' AccountOpened
-  | AccountCredited' AccountCredited
-  | AccountDebited' AccountDebited
-  deriving (Show, Eq)
+mkEventSumType' "AccountEvent"
+  [ ''AccountOpened
+  , ''AccountCredited
+  , ''AccountDebited
+  ]
+deriving instance Show AccountEvent
+deriving instance Eq AccountEvent
 
 mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
 
