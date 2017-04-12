@@ -9,6 +9,7 @@ import GHC.Generics
 import Eventful
 
 import Bank.Events.Account as X
+import Bank.Events.Customer as X
 import Bank.Json
 
 -- | This ADT is the definitive collection of all possible events in the
@@ -20,6 +21,11 @@ data BankEvent
   = AccountOpenedEvent AccountOpened
   | AccountCreditedEvent AccountCredited
   | AccountDebitedEvent AccountDebited
+
+  -- Customer events
+  | CustomerCreatedEvent CustomerCreated
+  | CustomerAccountAddedEvent CustomerAccountAdded
+  | CustomerAccountRemovedEvent CustomerAccountRemoved
   deriving (Show, Eq, Generic)
 
 instance EventSumType BankEvent
