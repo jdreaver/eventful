@@ -2,6 +2,7 @@ module Bank.CLI.RunCommand
   ( runCLICommand
   ) where
 
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
@@ -37,6 +38,32 @@ runCLICommand pool (OpenAccountCLI openData) = do
   result <- runDB pool $
     commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate uuid command
   printJSONPretty (fmap (serialize accountEventSerializer) <$> result)
+runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
+  putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
+
+  -- TODO: Put this in a proper process manager or saga.
+
+  transferId <- uuidNextRandom
+  let startCommand = TransferToAccount $ TransferToAccountData transferId amount targetId
+  startResult <- runDB pool $
+    commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate sourceId startCommand
+  printJSONPretty (fmap (serialize accountEventSerializer) <$> startResult)
+  case startResult of
+    Left err -> print err
+    Right _ -> do
+      let acceptCommand = AcceptTransfer (AcceptTransferData sourceId amount)
+      acceptResult <- runDB pool $
+        commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate targetId acceptCommand
+      printJSONPretty (fmap (serialize accountEventSerializer) <$> acceptResult)
+      let
+        finalEvent =
+          case acceptResult of
+            Left err -> AccountTransferRejected' $ AccountTransferRejected transferId (show err)
+            Right _ -> AccountTransferCompleted' $ AccountTransferCompleted transferId
+      printJSONPretty $ serialize accountEventSerializer finalEvent
+      void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [serialize (cliSerializer accountEventSerializer) finalEvent]
+      runCLICommand pool (ViewAccountCLI sourceId)
+      runCLICommand pool (ViewAccountCLI targetId)
 
 runDB :: ConnectionPool -> SqlPersistT IO a -> IO a
 runDB = flip runSqlPool

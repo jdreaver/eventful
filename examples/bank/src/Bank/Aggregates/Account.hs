@@ -13,6 +13,7 @@ module Bank.Aggregates.Account
   , CreditAccountData (..)
   , DebitAccountData (..)
   , TransferToAccountData (..)
+  , AcceptTransferData (..)
   , AccountCommandError (..)
   , NotEnoughFundsData (..)
   , AccountAggregate
@@ -23,6 +24,7 @@ module Bank.Aggregates.Account
 
 import Data.Aeson.TH
 import Data.List (delete, lookup)
+import Data.Maybe (isJust)
 
 import Eventful
 
@@ -105,6 +107,7 @@ data AccountCommand
   | CreditAccount CreditAccountData
   | DebitAccount DebitAccountData
   | TransferToAccount TransferToAccountData
+  | AcceptTransfer AcceptTransferData
   deriving (Show, Eq)
 
 data OpenAccountData =
@@ -132,10 +135,17 @@ data TransferToAccountData =
   , transferToAccountDataTargetAccount :: UUID
   } deriving (Show, Eq)
 
+data AcceptTransferData =
+  AcceptTransferData
+  { acceptTransferSourceId :: UUID
+  , acceptTransferDataAmount :: Double
+  } deriving (Show, Eq)
+
 data AccountCommandError
   = AccountAlreadyOpenError
   | InvalidInitialDepositError
   | NotEnoughFundsError NotEnoughFundsData
+  | AccountNotOwnedError
   deriving (Show, Eq)
 
 data NotEnoughFundsData =
@@ -164,6 +174,10 @@ applyAccountCommand account (TransferToAccount (TransferToAccountData uuid amoun
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountTransferStarted' $ AccountTransferStarted uuid amount targetId]
+applyAccountCommand account (AcceptTransfer (AcceptTransferData sourceId amount)) =
+  if isJust (accountOwner account)
+  then Right [AccountCredited' $ AccountCredited amount ("Transfer from " ++ show sourceId)]
+  else Left AccountNotOwnedError
 
 type AccountAggregate = Aggregate Account AccountEvent AccountCommand AccountCommandError
 

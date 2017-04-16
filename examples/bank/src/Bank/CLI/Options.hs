@@ -27,6 +27,7 @@ data CLICommand
   = CreateCustomerCLI CreateCustomerData
   | ViewAccountCLI UUID
   | OpenAccountCLI OpenAccountData
+  | TransferToAccountCLI UUID Double UUID
   deriving (Show, Eq)
 
 parseOptions :: Parser Options
@@ -36,7 +37,8 @@ parseOptions =
   subparser (
     command "create-customer" (info (helper <*> parseCreateCustomer) (progDesc "Create a customer")) <>
     command "view-account" (info (helper <*> parseViewAccount) (progDesc "View an account")) <>
-    command "open-account" (info (helper <*> parseOpenAccount) (progDesc "Open a new account"))
+    command "open-account" (info (helper <*> parseOpenAccount) (progDesc "Open a new account")) <>
+    command "transfer" (info (helper <*> parseTransfer) (progDesc "Transfer funds to an account"))
   )
 
 parseDatabaseFileOption :: Parser FilePath
@@ -80,6 +82,25 @@ parseOpenAccount =
     metavar "amount" <>
     value 0 <>
     help "Initial funds for account."
+  )
+
+parseTransfer :: Parser CLICommand
+parseTransfer =
+  TransferToAccountCLI <$>
+  option parseUUID (
+    long "account-id" <>
+    metavar "uuid" <>
+    help "Source account UUID"
+  ) <*>
+  option auto (
+    long "amount" <>
+    metavar "amount" <>
+    help "Amount to transfer"
+  ) <*>
+  option parseUUID (
+    long "target-id" <>
+    metavar "uuid" <>
+    help "Target account UUID"
   )
 
 parseUUID :: ReadM UUID
