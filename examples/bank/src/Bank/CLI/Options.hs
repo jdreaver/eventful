@@ -12,6 +12,7 @@ import Options.Applicative
 import Eventful
 
 import Bank.Aggregates.Account
+import Bank.Aggregates.Customer
 
 runOptionsParser :: IO Options
 runOptionsParser = execParser $ info (helper <*> parseOptions) (fullDesc <> progDesc "eventful bank CLI")
@@ -23,7 +24,8 @@ data Options
   } deriving (Show)
 
 data CLICommand
-  = ViewAccountCLI UUID
+  = CreateCustomerCLI CreateCustomerData
+  | ViewAccountCLI UUID
   | OpenAccountCLI OpenAccountData
   deriving (Show, Eq)
 
@@ -32,6 +34,7 @@ parseOptions =
   Options <$>
   parseDatabaseFileOption <*>
   subparser (
+    command "create-customer" (info (helper <*> parseCreateCustomer) (progDesc "Create a customer")) <>
     command "view-account" (info (helper <*> parseViewAccount) (progDesc "View an account")) <>
     command "open-account" (info (helper <*> parseOpenAccount) (progDesc "Open a new account"))
   )
@@ -46,6 +49,15 @@ parseDatabaseFileOption =
       help "File path for SQLite database. Default is ./database.db"
     )
 
+parseCreateCustomer :: Parser CLICommand
+parseCreateCustomer =
+  CreateCustomerCLI . CreateCustomerData <$>
+  strOption (
+    long "name" <>
+    metavar "name" <>
+    help "Customer's name"
+  )
+
 parseViewAccount :: Parser CLICommand
 parseViewAccount =
   ViewAccountCLI <$>
@@ -58,10 +70,10 @@ parseViewAccount =
 parseOpenAccount :: Parser CLICommand
 parseOpenAccount =
   fmap OpenAccountCLI . OpenAccountData <$>
-  strOption (
-    long "name" <>
-    metavar "name" <>
-    help "Name for the account owner"
+  option parseUUID (
+    long "owner-id" <>
+    metavar "uuid" <>
+    help "UUID for the account owner"
   ) <*>
   option auto (
     long "initial-funds" <>

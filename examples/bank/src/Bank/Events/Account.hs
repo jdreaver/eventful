@@ -6,11 +6,13 @@ module Bank.Events.Account
 
 import Data.Aeson.TH
 
+import Eventful (UUID)
+
 import Bank.Json
 
 data AccountOpened =
   AccountOpened
-  { accountOpenedOwner :: String
+  { accountOpenedOwner :: UUID
   , accountOpenedInitialFunding :: Double
   } deriving (Show, Eq)
 

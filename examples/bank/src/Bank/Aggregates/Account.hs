@@ -27,7 +27,7 @@ import Bank.Json
 data Account =
   Account
   { accountBalance :: Double
-  , accountOwner :: Maybe String
+  , accountOwner :: Maybe UUID
   } deriving (Show, Eq)
 
 deriveJSON (unPrefixLower "account") ''Account
@@ -43,8 +43,8 @@ deriving instance Eq AccountEvent
 mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
 
 applyAccountEvent :: Account -> AccountEvent -> Account
-applyAccountEvent account (AccountOpened' (AccountOpened name amount)) =
-  account { accountOwner = Just name, accountBalance = amount }
+applyAccountEvent account (AccountOpened' (AccountOpened uuid amount)) =
+  account { accountOwner = Just uuid, accountBalance = amount }
 applyAccountEvent account (AccountCredited' (AccountCredited amount _)) =
   account { accountBalance = accountBalance account + amount }
 applyAccountEvent account (AccountDebited' (AccountDebited amount _)) =
@@ -66,7 +66,7 @@ data AccountCommand
 
 data OpenAccountData =
   OpenAccountData
-  { openAccountDataOwner :: String
+  { openAccountDataOwner :: UUID
   , openAccountDataInitialFunding :: Double
   } deriving (Show, Eq)
 

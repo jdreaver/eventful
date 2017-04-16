@@ -24,8 +24,6 @@ data BankEvent
 
   -- Customer events
   | CustomerCreatedEvent CustomerCreated
-  | CustomerAccountAddedEvent CustomerAccountAdded
-  | CustomerAccountRemovedEvent CustomerAccountRemoved
   deriving (Show, Eq, Generic)
 
 instance EventSumType BankEvent
