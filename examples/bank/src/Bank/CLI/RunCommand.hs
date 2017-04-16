@@ -51,7 +51,7 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   case startResult of
     Left err -> print err
     Right _ -> do
-      let acceptCommand = AcceptTransfer (AcceptTransferData sourceId amount)
+      let acceptCommand = AcceptTransfer (AcceptTransferData transferId sourceId amount)
       acceptResult <- runDB pool $
         commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate targetId acceptCommand
       printJSONPretty (fmap (serialize accountEventSerializer) <$> acceptResult)

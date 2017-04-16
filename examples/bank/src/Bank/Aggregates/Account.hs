@@ -61,6 +61,7 @@ mkEventSumType' "AccountEvent"
   , ''AccountTransferStarted
   , ''AccountTransferCompleted
   , ''AccountTransferRejected
+  , ''AccountCreditedFromTransfer
   ]
 deriving instance Show AccountEvent
 deriving instance Eq AccountEvent
@@ -93,6 +94,8 @@ applyAccountEvent account (AccountTransferRejected' (AccountTransferRejected uui
   where
     transfers = accountPendingTransfers account
     transfers' = maybe transfers (\trans -> delete (uuid, trans) transfers) (lookup uuid transfers)
+applyAccountEvent account (AccountCreditedFromTransfer' (AccountCreditedFromTransfer _ _ amount)) =
+  account { accountBalance = accountBalance account + amount }
 
 type AccountProjection = Projection Account AccountEvent
 
@@ -137,7 +140,8 @@ data TransferToAccountData =
 
 data AcceptTransferData =
   AcceptTransferData
-  { acceptTransferSourceId :: UUID
+  { acceptTransferTransferId :: UUID
+  , acceptTransferSourceId :: UUID
   , acceptTransferDataAmount :: Double
   } deriving (Show, Eq)
 
@@ -174,9 +178,9 @@ applyAccountCommand account (TransferToAccount (TransferToAccountData uuid amoun
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountTransferStarted' $ AccountTransferStarted uuid amount targetId]
-applyAccountCommand account (AcceptTransfer (AcceptTransferData sourceId amount)) =
+applyAccountCommand account (AcceptTransfer (AcceptTransferData transferId sourceId amount)) =
   if isJust (accountOwner account)
-  then Right [AccountCredited' $ AccountCredited amount ("Transfer from " ++ show sourceId)]
+  then Right [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
   else Left AccountNotOwnedError
 
 type AccountAggregate = Aggregate Account AccountEvent AccountCommand AccountCommandError

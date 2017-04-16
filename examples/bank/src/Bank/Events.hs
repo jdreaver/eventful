@@ -24,6 +24,7 @@ data BankEvent
   | AccountTransferStartedEvent AccountTransferStarted
   | AccountTransferCompletedEvent AccountTransferCompleted
   | AccountTransferRejectedEvent AccountTransferRejected
+  | AccountCreditedFromTransferEvent AccountCreditedFromTransfer
 
   -- Customer events
   | CustomerCreatedEvent CustomerCreated
