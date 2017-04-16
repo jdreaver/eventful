@@ -17,6 +17,8 @@ module Bank.Aggregates.Account
   , NotEnoughFundsData (..)
   , AccountAggregate
   , accountAggregate
+
+  , accountAvailableBalance
   ) where
 
 import Data.Aeson.TH
@@ -156,11 +158,11 @@ applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
   Right [AccountCredited' $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
   if accountAvailableBalance account - amount < 0
-  then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountBalance account)
+  then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountDebited' $ AccountDebited amount reason]
 applyAccountCommand account (TransferToAccount (TransferToAccountData uuid amount targetId)) =
   if accountAvailableBalance account - amount < 0
-  then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountBalance account)
+  then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountTransferStarted' $ AccountTransferStarted uuid amount targetId]
 
 type AccountAggregate = Aggregate Account AccountEvent AccountCommand AccountCommandError

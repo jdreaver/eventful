@@ -4,6 +4,7 @@ import Test.Hspec
 import Eventful
 
 import Bank.Aggregates.Account
+import Bank.Events
 
 spec :: Spec
 spec = do
@@ -22,6 +23,34 @@ spec = do
           , Account 15 (Just nil) []
           ]
       allProjections accountProjection events `shouldBe` states
+
+    it "should handle successful account transfers" $ do
+      let
+        transferUuid = read "754d7bd9-fd0b-4006-b33a-f41fd5c3ca5e" :: UUID
+        targetAccount = read "44e9fd39-0179-4050-8706-d5a1d2c6d093" :: UUID
+        events =
+          [ AccountOpened' $ AccountOpened nil 10
+          , AccountTransferStarted' $ AccountTransferStarted transferUuid 6 targetAccount
+          ]
+        states =
+          [ Account 0 Nothing []
+          , Account 10 (Just nil) []
+          , Account 10 (Just nil) [(transferUuid, PendingAccountTransfer 6 targetAccount)]
+          ]
+      allProjections accountProjection events `shouldBe` states
+
+      let
+        stateAfterStarted = latestProjection accountProjection events
+
+      accountAvailableBalance stateAfterStarted `shouldBe` 4
+      aggregateCommand accountAggregate stateAfterStarted (DebitAccount (DebitAccountData 9 "blah"))
+        `shouldBe` Left (NotEnoughFundsError (NotEnoughFundsData 4))
+
+      let
+        events' = events ++ [AccountTransferCompleted' $ AccountTransferCompleted transferUuid]
+        completedState = latestProjection accountProjection events'
+
+      completedState `shouldBe` Account 4 (Just nil) []
 
   describe "Account aggregate" $ do
     it "should handle a series of commands" $ do
