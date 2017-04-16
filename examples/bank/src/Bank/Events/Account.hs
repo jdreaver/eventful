@@ -2,6 +2,9 @@ module Bank.Events.Account
   ( AccountOpened (..)
   , AccountCredited (..)
   , AccountDebited (..)
+  , AccountTransferStarted (..)
+  , AccountTransferCompleted (..)
+  , AccountTransferRejected (..)
   ) where
 
 import Data.Aeson.TH
@@ -28,6 +31,27 @@ data AccountDebited =
   , accountDebitedReason :: String
   } deriving (Show, Eq)
 
+data AccountTransferStarted =
+  AccountTransferStarted
+  { accountTransferStartedTransferId :: UUID
+  , accountTransferStartedAmount :: Double
+  , accountTransferStartedTargetAccount :: UUID
+  } deriving (Show, Eq)
+
+data AccountTransferCompleted =
+  AccountTransferCompleted
+  { accountTransferCompletedTransferId :: UUID
+  } deriving (Show, Eq)
+
+data AccountTransferRejected =
+  AccountTransferRejected
+  { accountTransferRejectedTransferId :: UUID
+  , accountTransferRejectedReason :: String
+  } deriving (Show, Eq)
+
 deriveJSON (unPrefixLower "accountOpened") ''AccountOpened
 deriveJSON (unPrefixLower "accountCredited") ''AccountCredited
 deriveJSON (unPrefixLower "accountDebited") ''AccountDebited
+deriveJSON (unPrefixLower "accountTransferStarted") ''AccountTransferStarted
+deriveJSON (unPrefixLower "accountTransferCompleted") ''AccountTransferCompleted
+deriveJSON (unPrefixLower "accountTransferRejected") ''AccountTransferRejected

@@ -16,10 +16,10 @@ spec = do
           , AccountCredited' $ AccountCredited 10 "Paycheck"
           ]
         states =
-          [ Account 0 Nothing
-          , Account 10 (Just nil)
-          , Account 5 (Just nil)
-          , Account 15 (Just nil)
+          [ Account 0 Nothing []
+          , Account 10 (Just nil) []
+          , Account 5 (Just nil) []
+          , Account 15 (Just nil) []
           ]
       allProjections accountProjection events `shouldBe` states
 
@@ -33,10 +33,10 @@ spec = do
           , OpenAccount $ OpenAccountData nil 200
           ]
         results =
-          [ Right $ Account 0 Nothing
-          , Right $ Account 100 (Just nil)
+          [ Right $ Account 0 Nothing []
+          , Right $ Account 100 (Just nil) []
           , Left $ NotEnoughFundsError $ NotEnoughFundsData 100
-          , Right $ Account 300 (Just nil)
+          , Right $ Account 300 (Just nil) []
           , Left AccountAlreadyOpenError
           ]
       allAggregateStates accountAggregate commands `shouldBe` results

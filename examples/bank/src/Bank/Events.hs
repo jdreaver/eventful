@@ -21,6 +21,9 @@ data BankEvent
   = AccountOpenedEvent AccountOpened
   | AccountCreditedEvent AccountCredited
   | AccountDebitedEvent AccountDebited
+  | AccountTransferStartedEvent AccountTransferStarted
+  | AccountTransferCompletedEvent AccountTransferCompleted
+  | AccountTransferRejectedEvent AccountTransferRejected
 
   -- Customer events
   | CustomerCreatedEvent CustomerCreated
