@@ -69,17 +69,31 @@ deriving instance Eq AccountEvent
 mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
 
 applyAccountEvent :: Account -> AccountEvent -> Account
-applyAccountEvent account (AccountOpened' (AccountOpened uuid amount)) =
-  account { accountOwner = Just uuid, accountBalance = amount }
-applyAccountEvent account (AccountCredited' (AccountCredited amount _)) =
-  account { accountBalance = accountBalance account + amount }
-applyAccountEvent account (AccountDebited' (AccountDebited amount _)) =
-  account { accountBalance = accountBalance account - amount }
-applyAccountEvent account (AccountTransferStarted' (AccountTransferStarted uuid amount targetId)) =
+applyAccountEvent account (AccountOpened' event) = applyAccountOpened account event
+applyAccountEvent account (AccountCredited' event) = applyAccountCredited account event
+applyAccountEvent account (AccountDebited' event) = applyAccountDebited account event
+applyAccountEvent account (AccountTransferStarted' event) = applyAccountTransferStarted account event
+applyAccountEvent account (AccountTransferCompleted' event) = applyAccountTransferCompleted account event
+applyAccountEvent account (AccountTransferRejected' event) = applyAccountTransferRejected account event
+applyAccountEvent account (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer account event
+
+applyAccountOpened :: Account -> AccountOpened -> Account
+applyAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
+
+applyAccountCredited :: Account -> AccountCredited -> Account
+applyAccountCredited account (AccountCredited amount _) = account { accountBalance = accountBalance account + amount }
+
+applyAccountDebited :: Account -> AccountDebited -> Account
+applyAccountDebited account (AccountDebited amount _) = account { accountBalance = accountBalance account - amount }
+
+applyAccountTransferStarted :: Account -> AccountTransferStarted -> Account
+applyAccountTransferStarted account (AccountTransferStarted uuid amount targetId) =
   account { accountPendingTransfers = (uuid, transfer) : accountPendingTransfers account }
   where
     transfer = PendingAccountTransfer amount targetId
-applyAccountEvent account (AccountTransferCompleted' (AccountTransferCompleted uuid)) =
+
+applyAccountTransferCompleted :: Account -> AccountTransferCompleted -> Account
+applyAccountTransferCompleted account (AccountTransferCompleted uuid) =
   -- If the transfer isn't present, something is wrong, but we can't fail in an
   -- event handler.
   maybe account go (lookup uuid (accountPendingTransfers account))
@@ -89,12 +103,16 @@ applyAccountEvent account (AccountTransferCompleted' (AccountTransferCompleted u
       { accountBalance = accountBalance account - amount
       , accountPendingTransfers = delete (uuid, trans) (accountPendingTransfers account)
       }
-applyAccountEvent account (AccountTransferRejected' (AccountTransferRejected uuid _)) =
+
+applyAccountTransferRejected :: Account -> AccountTransferRejected -> Account
+applyAccountTransferRejected account (AccountTransferRejected uuid _) =
   account { accountPendingTransfers = transfers' }
   where
     transfers = accountPendingTransfers account
     transfers' = maybe transfers (\trans -> delete (uuid, trans) transfers) (lookup uuid transfers)
-applyAccountEvent account (AccountCreditedFromTransfer' (AccountCreditedFromTransfer _ _ amount)) =
+
+applyAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Account
+applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
   account { accountBalance = accountBalance account + amount }
 
 type AccountProjection = Projection Account AccountEvent
