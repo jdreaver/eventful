@@ -39,6 +39,9 @@ data Account =
   , accountPendingTransfers :: [(UUID, PendingAccountTransfer)]
   } deriving (Show, Eq)
 
+accountDefault :: Account
+accountDefault = Account 0 Nothing []
+
 data PendingAccountTransfer =
   PendingAccountTransfer
   { pendingAccountTransferAmount :: Double
@@ -54,29 +57,6 @@ accountAvailableBalance account = accountBalance account - pendingBalance
   where
     transfers = map snd $ accountPendingTransfers account
     pendingBalance = if null transfers then 0 else sum (map pendingAccountTransferAmount transfers)
-
-mkSumType' "AccountEvent"
-  [ ''AccountOpened
-  , ''AccountCredited
-  , ''AccountDebited
-  , ''AccountTransferStarted
-  , ''AccountTransferCompleted
-  , ''AccountTransferRejected
-  , ''AccountCreditedFromTransfer
-  ]
-deriving instance Show AccountEvent
-deriving instance Eq AccountEvent
-
-mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
-
-applyAccountEvent :: Account -> AccountEvent -> Account
-applyAccountEvent account (AccountOpened' event) = applyAccountOpened account event
-applyAccountEvent account (AccountCredited' event) = applyAccountCredited account event
-applyAccountEvent account (AccountDebited' event) = applyAccountDebited account event
-applyAccountEvent account (AccountTransferStarted' event) = applyAccountTransferStarted account event
-applyAccountEvent account (AccountTransferCompleted' event) = applyAccountTransferCompleted account event
-applyAccountEvent account (AccountTransferRejected' event) = applyAccountTransferRejected account event
-applyAccountEvent account (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer account event
 
 applyAccountOpened :: Account -> AccountOpened -> Account
 applyAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
@@ -116,13 +96,19 @@ applyAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Ac
 applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
   account { accountBalance = accountBalance account + amount }
 
-type AccountProjection = Projection Account AccountEvent
+mkProjection ''Account 'accountDefault
+  [ ''AccountOpened
+  , ''AccountCredited
+  , ''AccountDebited
+  , ''AccountTransferStarted
+  , ''AccountTransferCompleted
+  , ''AccountTransferRejected
+  , ''AccountCreditedFromTransfer
+  ]
+deriving instance Show AccountEvent
+deriving instance Eq AccountEvent
 
-accountProjection :: AccountProjection
-accountProjection =
-  Projection
-  (Account 0 Nothing [])
-  applyAccountEvent
+mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
 
 data AccountCommand
   = OpenAccount OpenAccountData
@@ -186,20 +172,20 @@ applyAccountCommand account (OpenAccount (OpenAccountData owner amount)) =
     Nothing ->
       if amount < 0
       then Left InvalidInitialDepositError
-      else Right [AccountOpened' $ AccountOpened owner amount]
+      else Right [AccountAccountOpened $ AccountOpened owner amount]
 applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
-  Right [AccountCredited' $ AccountCredited amount reason]
+  Right [AccountAccountCredited $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountDebited' $ AccountDebited amount reason]
+  else Right [AccountAccountDebited $ AccountDebited amount reason]
 applyAccountCommand account (TransferToAccount (TransferToAccountData uuid amount targetId)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountTransferStarted' $ AccountTransferStarted uuid amount targetId]
+  else Right [AccountAccountTransferStarted $ AccountTransferStarted uuid amount targetId]
 applyAccountCommand account (AcceptTransfer (AcceptTransferData transferId sourceId amount)) =
   if isJust (accountOwner account)
-  then Right [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
+  then Right [AccountAccountCreditedFromTransfer $ AccountCreditedFromTransfer transferId sourceId amount]
   else Left AccountNotOwnedError
 
 type AccountAggregate = Aggregate Account AccountEvent AccountCommand AccountCommandError
