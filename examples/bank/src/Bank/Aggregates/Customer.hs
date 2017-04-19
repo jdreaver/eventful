@@ -14,6 +14,7 @@ module Bank.Aggregates.Customer
 import Data.Aeson.TH
 
 import Eventful
+import Eventful.TH
 
 import Bank.Events
 import Bank.Json

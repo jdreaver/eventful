@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Eventful.Serializer.Internal
+module Eventful.TH.SumTypeSerializer
   ( mkSumTypeSerializer
   ) where
 

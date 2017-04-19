@@ -1,4 +1,4 @@
-module Eventful.SumType
+module Eventful.TH.SumType
   ( mkSumType
   , mkSumType'
   ) where

@@ -5,6 +5,7 @@ import GHC.Generics
 import Test.Hspec
 
 import Eventful.Serializer
+import Eventful.TH.SumTypeSerializer
 
 data EventA = EventA deriving (Show, Eq)
 data EventB = EventB deriving (Show, Eq)

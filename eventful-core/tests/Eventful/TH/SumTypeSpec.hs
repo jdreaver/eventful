@@ -1,8 +1,8 @@
-module Eventful.SumTypeSpec (spec) where
+module Eventful.TH.SumTypeSpec (spec) where
 
 import Test.Hspec
 
-import Eventful.SumType
+import Eventful.TH.SumType
 
 data EventA = EventA deriving (Show, Eq)
 data EventB = EventB deriving (Show, Eq)

@@ -27,6 +27,7 @@ import Data.List (delete, lookup)
 import Data.Maybe (isJust)
 
 import Eventful
+import Eventful.TH
 
 import Bank.Events
 import Bank.Json
