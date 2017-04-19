@@ -54,7 +54,7 @@ accountAvailableBalance account = accountBalance account - pendingBalance
     transfers = map snd $ accountPendingTransfers account
     pendingBalance = if null transfers then 0 else sum (map pendingAccountTransferAmount transfers)
 
-mkEventSumType' "AccountEvent"
+mkSumType' "AccountEvent"
   [ ''AccountOpened
   , ''AccountCredited
   , ''AccountDebited

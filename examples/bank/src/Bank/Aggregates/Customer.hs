@@ -25,7 +25,7 @@ data Customer =
 
 deriveJSON (unPrefixLower "customer") ''Customer
 
-mkEventSumType' "CustomerEvent"
+mkSumType' "CustomerEvent"
   [ ''CustomerCreated
   ]
 deriving instance Show CustomerEvent

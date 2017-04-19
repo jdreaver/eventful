@@ -3,9 +3,9 @@ module Eventful
   ) where
 
 import Eventful.Aggregate as X
-import Eventful.EventSumType as X
 import Eventful.Projection as X
 import Eventful.ReadModel.Class as X
 import Eventful.Serializer as X
 import Eventful.Store.Class as X
+import Eventful.SumType as X
 import Eventful.UUID as X
