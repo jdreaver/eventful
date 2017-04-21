@@ -23,7 +23,7 @@ module Bank.Aggregates.Account
   ) where
 
 import Data.Aeson.TH
-import Data.List (delete, lookup)
+import Data.List (delete, find)
 import Data.Maybe (isJust)
 
 import Eventful
@@ -36,7 +36,7 @@ data Account =
   Account
   { accountBalance :: Double
   , accountOwner :: Maybe UUID
-  , accountPendingTransfers :: [(UUID, PendingAccountTransfer)]
+  , accountPendingTransfers :: [PendingAccountTransfer]
   } deriving (Show, Eq)
 
 accountDefault :: Account
@@ -44,7 +44,8 @@ accountDefault = Account 0 Nothing []
 
 data PendingAccountTransfer =
   PendingAccountTransfer
-  { pendingAccountTransferAmount :: Double
+  { pendingAccountTransferId :: UUID
+  , pendingAccountTransferAmount :: Double
   , pendingAccountTransferTargetAccount :: UUID
   } deriving (Show, Eq)
 
@@ -55,8 +56,12 @@ deriveJSON (unPrefixLower "pendingAccountTransfer") ''PendingAccountTransfer
 accountAvailableBalance :: Account -> Double
 accountAvailableBalance account = accountBalance account - pendingBalance
   where
-    transfers = map snd $ accountPendingTransfers account
+    transfers = accountPendingTransfers account
     pendingBalance = if null transfers then 0 else sum (map pendingAccountTransferAmount transfers)
+
+findAccountTransfer :: Account -> UUID -> Maybe PendingAccountTransfer
+findAccountTransfer account transferId =
+  find ((== transferId) . pendingAccountTransferId) (accountPendingTransfers account)
 
 applyAccountOpened :: Account -> AccountOpened -> Account
 applyAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
@@ -69,20 +74,20 @@ applyAccountDebited account (AccountDebited amount _) = account { accountBalance
 
 applyAccountTransferStarted :: Account -> AccountTransferStarted -> Account
 applyAccountTransferStarted account (AccountTransferStarted uuid amount targetId) =
-  account { accountPendingTransfers = (uuid, transfer) : accountPendingTransfers account }
+  account { accountPendingTransfers = transfer : accountPendingTransfers account }
   where
-    transfer = PendingAccountTransfer amount targetId
+    transfer = PendingAccountTransfer uuid amount targetId
 
 applyAccountTransferCompleted :: Account -> AccountTransferCompleted -> Account
 applyAccountTransferCompleted account (AccountTransferCompleted uuid) =
   -- If the transfer isn't present, something is wrong, but we can't fail in an
   -- event handler.
-  maybe account go (lookup uuid (accountPendingTransfers account))
+  maybe account go (findAccountTransfer account uuid)
   where
-    go trans@(PendingAccountTransfer amount _) =
+    go trans =
       account
-      { accountBalance = accountBalance account - amount
-      , accountPendingTransfers = delete (uuid, trans) (accountPendingTransfers account)
+      { accountBalance = accountBalance account - pendingAccountTransferAmount trans
+      , accountPendingTransfers = delete trans (accountPendingTransfers account)
       }
 
 applyAccountTransferRejected :: Account -> AccountTransferRejected -> Account
@@ -90,7 +95,7 @@ applyAccountTransferRejected account (AccountTransferRejected uuid _) =
   account { accountPendingTransfers = transfers' }
   where
     transfers = accountPendingTransfers account
-    transfers' = maybe transfers (\trans -> delete (uuid, trans) transfers) (lookup uuid transfers)
+    transfers' = maybe transfers (flip delete transfers) (findAccountTransfer account uuid)
 
 applyAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Account
 applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =

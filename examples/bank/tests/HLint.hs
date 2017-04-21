@@ -13,6 +13,7 @@ arguments =
   , "-i=Unused LANGUAGE pragma" -- This fails on DeriveGeneric
   , "-i=Use list comprehension"
   , "-i=Use newtype instead of data"
+  , "-i=Use section"
   ]
 
 main :: IO ()

@@ -35,7 +35,7 @@ spec = do
         states =
           [ Account 0 Nothing []
           , Account 10 (Just nil) []
-          , Account 10 (Just nil) [(transferUuid, PendingAccountTransfer 6 targetAccount)]
+          , Account 10 (Just nil) [PendingAccountTransfer transferUuid 6 targetAccount]
           ]
       allProjections accountProjection events `shouldBe` states
 
