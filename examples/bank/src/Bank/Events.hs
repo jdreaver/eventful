@@ -4,9 +4,8 @@ module Bank.Events
   ) where
 
 import Data.Aeson.TH
-import GHC.Generics
 
-import Eventful
+import Eventful.TH
 
 import Bank.Events.Account as X
 import Bank.Events.Customer as X
@@ -16,20 +15,21 @@ import Bank.Json
 -- system. The reason we put them in a single ADT is so we have a consistent
 -- serialization format for each events that are shared across
 -- projections/aggregates.
-data BankEvent
-  -- Account events
-  = AccountOpenedEvent AccountOpened
-  | AccountCreditedEvent AccountCredited
-  | AccountDebitedEvent AccountDebited
-  | AccountTransferStartedEvent AccountTransferStarted
-  | AccountTransferCompletedEvent AccountTransferCompleted
-  | AccountTransferRejectedEvent AccountTransferRejected
-  | AccountCreditedFromTransferEvent AccountCreditedFromTransfer
+mkSumType "BankEvent" (++ "'")
+  [ -- Account events
+    ''AccountOpened
+  , ''AccountCredited
+  , ''AccountDebited
+  , ''AccountTransferStarted
+  , ''AccountTransferCompleted
+  , ''AccountTransferRejected
+  , ''AccountCreditedFromTransfer
 
   -- Customer events
-  | CustomerCreatedEvent CustomerCreated
-  deriving (Show, Eq, Generic)
+  ,  ''CustomerCreated
+  ]
 
-instance EventSumType BankEvent
+deriving instance Show BankEvent
+deriving instance Eq BankEvent
 
-deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "Event" }) ''BankEvent
+deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "'" }) ''BankEvent

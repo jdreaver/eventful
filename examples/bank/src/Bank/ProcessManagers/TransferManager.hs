@@ -36,8 +36,8 @@ transferManagerProjection =
   applyAccountEvent
 
 applyAccountEvent :: TransferManager -> BankEvent -> TransferManager
-applyAccountEvent manager (AccountTransferStartedEvent event) = applyAccountTransferStarted manager event
-applyAccountEvent manager (AccountCreditedFromTransferEvent event) = applyAccountCreditedFromTransfer manager event
+applyAccountEvent manager (AccountTransferStarted' event) = applyAccountTransferStarted manager event
+applyAccountEvent manager (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer manager event
 applyAccountEvent manager _ = manager
 
 applyAccountTransferStarted :: TransferManager -> AccountTransferStarted -> TransferManager
@@ -57,7 +57,7 @@ applyAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
   where
     events = maybe [] mkEvent (transferManagerData manager)
     mkEvent (TransferManagerTransferData transferId sourceId _) =
-      [(sourceId, AccountTransferCompletedEvent $ AccountTransferCompleted transferId)]
+      [(sourceId, AccountTransferCompleted' $ AccountTransferCompleted transferId)]
 
 cancelTransfer :: TransferManager -> TransferManager
 cancelTransfer manager =
@@ -70,7 +70,7 @@ cancelTransfer manager =
     mkEvent (TransferManagerTransferData transferId sourceId _) =
       -- TODO: Find a way to get the actual error so we can put it in this
       -- event.
-      [(sourceId, AccountTransferRejectedEvent $ AccountTransferRejected transferId "Rejected in transfer saga")]
+      [(sourceId, AccountTransferRejected' $ AccountTransferRejected transferId "Rejected in transfer saga")]
 
 type TransferProcessManager = ProcessManager TransferManager BankEvent AccountCommand
 

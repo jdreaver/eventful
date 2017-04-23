@@ -58,8 +58,8 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
       let
         finalEvent =
           case acceptResult of
-            Left err -> AccountTransferRejectedEvent $ AccountTransferRejected transferId (show err)
-            Right _ -> AccountTransferCompletedEvent $ AccountTransferCompleted transferId
+            Left err -> AccountTransferRejected' $ AccountTransferRejected transferId (show err)
+            Right _ -> AccountTransferCompleted' $ AccountTransferCompleted transferId
       printJSONPretty finalEvent
       void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [serialize jsonStringSerializer finalEvent]
       runCLICommand pool (ViewAccountCLI sourceId)

@@ -98,13 +98,13 @@ applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount
   account { accountBalance = accountBalance account + amount }
 
 applyAccountEvent :: Account -> BankEvent -> Account
-applyAccountEvent account (AccountOpenedEvent event) = applyAccountOpened account event
-applyAccountEvent account (AccountCreditedEvent event) = applyAccountCredited account event
-applyAccountEvent account (AccountDebitedEvent event) = applyAccountDebited account event
-applyAccountEvent account (AccountTransferStartedEvent event) = applyAccountTransferStarted account event
-applyAccountEvent account (AccountTransferCompletedEvent event) = applyAccountTransferCompleted account event
-applyAccountEvent account (AccountTransferRejectedEvent event) = applyAccountTransferRejected account event
-applyAccountEvent account (AccountCreditedFromTransferEvent event) = applyAccountCreditedFromTransfer account event
+applyAccountEvent account (AccountOpened' event) = applyAccountOpened account event
+applyAccountEvent account (AccountCredited' event) = applyAccountCredited account event
+applyAccountEvent account (AccountDebited' event) = applyAccountDebited account event
+applyAccountEvent account (AccountTransferStarted' event) = applyAccountTransferStarted account event
+applyAccountEvent account (AccountTransferCompleted' event) = applyAccountTransferCompleted account event
+applyAccountEvent account (AccountTransferRejected' event) = applyAccountTransferRejected account event
+applyAccountEvent account (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer account event
 applyAccountEvent account _ = account
 
 type AccountProjection = Projection Account BankEvent
@@ -175,20 +175,20 @@ applyAccountCommand account (OpenAccount (OpenAccountData owner amount)) =
     Nothing ->
       if amount < 0
       then Left InvalidInitialDepositError
-      else Right [AccountOpenedEvent $ AccountOpened owner amount]
+      else Right [AccountOpened' $ AccountOpened owner amount]
 applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
-  Right [AccountCreditedEvent $ AccountCredited amount reason]
+  Right [AccountCredited' $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountDebitedEvent $ AccountDebited amount reason]
+  else Right [AccountDebited' $ AccountDebited amount reason]
 applyAccountCommand account (TransferToAccount (TransferToAccountData uuid sourceId amount targetId)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountTransferStartedEvent $ AccountTransferStarted uuid sourceId amount targetId]
+  else Right [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
 applyAccountCommand account (AcceptTransfer (AcceptTransferData transferId sourceId amount)) =
   if isJust (accountOwner account)
-  then Right [AccountCreditedFromTransferEvent $ AccountCreditedFromTransfer transferId sourceId amount]
+  then Right [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
   else Left AccountNotOwnedError
 
 type AccountAggregate = Aggregate Account BankEvent AccountCommand AccountCommandError

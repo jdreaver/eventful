@@ -24,7 +24,7 @@ data Customer =
 deriveJSON (unPrefixLower "customer") ''Customer
 
 applyCustomerEvent :: Customer -> BankEvent -> Customer
-applyCustomerEvent customer (CustomerCreatedEvent (CustomerCreated name)) = customer { customerName = Just name }
+applyCustomerEvent customer (CustomerCreated' (CustomerCreated name)) = customer { customerName = Just name }
 applyCustomerEvent customer _ = customer
 
 type CustomerProjection = Projection Customer BankEvent
@@ -49,7 +49,7 @@ deriveJSON defaultOptions ''CustomerCommandError
 applyCustomerCommand :: Customer -> CustomerCommand -> Either CustomerCommandError [BankEvent]
 applyCustomerCommand customer (CreateCustomer (CreateCustomerData name)) =
   case customerName customer of
-    Nothing -> Right [CustomerCreatedEvent $ CustomerCreated name]
+    Nothing -> Right [CustomerCreated' $ CustomerCreated name]
     Just _ -> Left CustomerAlreadyExistsError
 
 type CustomerAggregate = Aggregate Customer BankEvent CustomerCommand CustomerCommandError
