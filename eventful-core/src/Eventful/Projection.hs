@@ -2,11 +2,17 @@ module Eventful.Projection
   ( Projection (..)
   , latestProjection
   , allProjections
+  , getLatestProjection
   )
   where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
+import Data.Maybe (mapMaybe)
+
+import Eventful.Store.Class
+import Eventful.Serializer
+import Eventful.UUID
 
 -- | A 'Projection' is a piece of state that is constructed only from applying
 -- events. For those coming from a Data Driven Design background, a Projection
@@ -28,3 +34,21 @@ latestProjection (Projection seed apply) = foldl' apply seed
 -- produced. Just a 'scanl' using 'apply'.
 allProjections :: Projection state event -> [event] -> [state]
 allProjections (Projection seed apply) = scanl' apply seed
+
+-- | Gets the latest projection from a store using 'getEvents'
+getLatestProjection
+  :: (Monad m)
+  => EventStore serialized m
+  -> Serializer event serialized
+  -> Projection proj event
+  -> UUID
+  -> m (proj, EventVersion)
+getLatestProjection store Serializer{..} proj uuid = do
+  events <- mapMaybe (traverse deserialize) <$> getEvents store uuid Nothing
+  let
+    latestVersion = maxEventVersion events
+    latestProj = latestProjection proj $ storedEventEvent <$> events
+  return (latestProj, latestVersion)
+  where
+    maxEventVersion [] = -1
+    maxEventVersion es = maximum $ storedEventVersion <$> es

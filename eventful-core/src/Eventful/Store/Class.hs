@@ -4,8 +4,6 @@ module Eventful.Store.Class
   , GloballyOrderedEventStore (..)
   , ExpectedVersion (..)
   , EventWriteError (..)
-  , getLatestProjection
-  , commandStoredAggregate
     -- * Utility types
   , StoredEvent (..)
   , GloballyOrderedEvent (..)
@@ -16,13 +14,9 @@ module Eventful.Store.Class
   ) where
 
 import Data.Aeson
-import Data.Maybe (mapMaybe)
 import Web.HttpApiData
 import Web.PathPieces
 
-import Eventful.Aggregate
-import Eventful.Projection
-import Eventful.Serializer
 import Eventful.UUID
 
 -- | The 'EventStore' is the core type of eventful. A store operates in some
@@ -95,45 +89,6 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid e
   if f latestVersion
   then storeEvents' uuid events >> return Nothing
   else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
-
--- | Gets the latest projection from a store using 'getEvents'
-getLatestProjection
-  :: (Monad m)
-  => EventStore serialized m
-  -> Serializer event serialized
-  -> Projection proj event
-  -> UUID
-  -> m (proj, EventVersion)
-getLatestProjection store Serializer{..} proj uuid = do
-  events <- mapMaybe (traverse deserialize) <$> getEvents store uuid Nothing
-  let
-    latestVersion = maxEventVersion events
-    latestProj = latestProjection proj $ storedEventEvent <$> events
-  return (latestProj, latestVersion)
-  where
-    maxEventVersion [] = -1
-    maxEventVersion es = maximum $ storedEventVersion <$> es
-
--- | Loads the latest version of a projection from the event store and tries to
--- apply the 'Aggregate' command to it. If the command succeeds, then this
--- saves the events back to the store as well.
-commandStoredAggregate
-  :: (Monad m)
-  => EventStore serialized m
-  -> Serializer event serialized
-  -> Aggregate state event cmd cmderror
-  -> UUID
-  -> cmd
-  -> m (Either cmderror [event])
-commandStoredAggregate store serializer@Serializer{..} (Aggregate applyCommand proj) uuid command = do
-  (latest, vers) <- getLatestProjection store serializer proj uuid
-  case applyCommand latest command of
-    (Left err) -> return $ Left err
-    (Right events) -> do
-      mError <- storeEvents store (ExactVersion vers) uuid (serialize <$> events)
-      case mError of
-        (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
-        Nothing -> return $ Right events
 
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event

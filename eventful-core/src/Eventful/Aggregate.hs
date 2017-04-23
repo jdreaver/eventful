@@ -3,12 +3,16 @@
 module Eventful.Aggregate
   ( Aggregate (..)
   , allAggregateStates
+  , commandStoredAggregate
   ) where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
 
 import Eventful.Projection
+import Eventful.Serializer
+import Eventful.Store.Class
+import Eventful.UUID
 
 -- | An 'Aggregate' is a combination of a 'Projection' and a function to
 -- validate commands against that 'Projection'. When using an aggregate in some
@@ -37,3 +41,24 @@ allAggregateStates (Aggregate applyCommand (Projection seed apply)) events =
         Right outputEvents ->
           let state' = foldl' apply state outputEvents
           in (state', Right state')
+
+-- | Loads the latest version of a projection from the event store and tries to
+-- apply the 'Aggregate' command to it. If the command succeeds, then this
+-- saves the events back to the store as well.
+commandStoredAggregate
+  :: (Monad m)
+  => EventStore serialized m
+  -> Serializer event serialized
+  -> Aggregate state event cmd cmderror
+  -> UUID
+  -> cmd
+  -> m (Either cmderror [event])
+commandStoredAggregate store serializer@Serializer{..} (Aggregate applyCommand proj) uuid command = do
+  (latest, vers) <- getLatestProjection store serializer proj uuid
+  case applyCommand latest command of
+    (Left err) -> return $ Left err
+    (Right events) -> do
+      mError <- storeEvents store (ExactVersion vers) uuid (serialize <$> events)
+      case mError of
+        (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
+        Nothing -> return $ Right events
