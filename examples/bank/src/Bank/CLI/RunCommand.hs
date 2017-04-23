@@ -44,7 +44,7 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   -- TODO: Put this in a proper process manager or saga.
 
   transferId <- uuidNextRandom
-  let startCommand = TransferToAccount $ TransferToAccountData transferId amount targetId
+  let startCommand = TransferToAccount $ TransferToAccountData transferId sourceId amount targetId
   startResult <- runDB pool $
     commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate sourceId startCommand
   printJSONPretty (fmap (serialize accountEventSerializer) <$> startResult)

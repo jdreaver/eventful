@@ -1,6 +1,7 @@
 module Bank.Aggregates.Account
   ( Account (..)
   , PendingAccountTransfer (..)
+  , findAccountTransferById
   , AccountEvent (..)
   , accountEventSerializer
   , AccountOpened (..)
@@ -45,6 +46,7 @@ accountDefault = Account 0 Nothing []
 data PendingAccountTransfer =
   PendingAccountTransfer
   { pendingAccountTransferId :: UUID
+  , pendingAccountTransferSourceAccount :: UUID
   , pendingAccountTransferAmount :: Double
   , pendingAccountTransferTargetAccount :: UUID
   } deriving (Show, Eq)
@@ -59,9 +61,8 @@ accountAvailableBalance account = accountBalance account - pendingBalance
     transfers = accountPendingTransfers account
     pendingBalance = if null transfers then 0 else sum (map pendingAccountTransferAmount transfers)
 
-findAccountTransfer :: Account -> UUID -> Maybe PendingAccountTransfer
-findAccountTransfer account transferId =
-  find ((== transferId) . pendingAccountTransferId) (accountPendingTransfers account)
+findAccountTransferById :: [PendingAccountTransfer] -> UUID -> Maybe PendingAccountTransfer
+findAccountTransferById transfers transferId = find ((== transferId) . pendingAccountTransferId) transfers
 
 applyAccountOpened :: Account -> AccountOpened -> Account
 applyAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
@@ -73,17 +74,18 @@ applyAccountDebited :: Account -> AccountDebited -> Account
 applyAccountDebited account (AccountDebited amount _) = account { accountBalance = accountBalance account - amount }
 
 applyAccountTransferStarted :: Account -> AccountTransferStarted -> Account
-applyAccountTransferStarted account (AccountTransferStarted uuid amount targetId) =
+applyAccountTransferStarted account (AccountTransferStarted uuid sourceId amount targetId) =
   account { accountPendingTransfers = transfer : accountPendingTransfers account }
   where
-    transfer = PendingAccountTransfer uuid amount targetId
+    transfer = PendingAccountTransfer uuid sourceId amount targetId
 
 applyAccountTransferCompleted :: Account -> AccountTransferCompleted -> Account
 applyAccountTransferCompleted account (AccountTransferCompleted uuid) =
   -- If the transfer isn't present, something is wrong, but we can't fail in an
   -- event handler.
-  maybe account go (findAccountTransfer account uuid)
+  maybe account go (findAccountTransferById transfers uuid)
   where
+    transfers = accountPendingTransfers account
     go trans =
       account
       { accountBalance = accountBalance account - pendingAccountTransferAmount trans
@@ -95,7 +97,7 @@ applyAccountTransferRejected account (AccountTransferRejected uuid _) =
   account { accountPendingTransfers = transfers' }
   where
     transfers = accountPendingTransfers account
-    transfers' = maybe transfers (flip delete transfers) (findAccountTransfer account uuid)
+    transfers' = maybe transfers (flip delete transfers) (findAccountTransferById transfers uuid)
 
 applyAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Account
 applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
@@ -144,6 +146,7 @@ data DebitAccountData =
 data TransferToAccountData =
   TransferToAccountData
   { transferToAccountDataTransferId :: UUID
+  , transferToAccountDataSourceId :: UUID
   , transferToAccountDataAmount :: Double
   , transferToAccountDataTargetAccount :: UUID
   } deriving (Show, Eq)
@@ -184,10 +187,10 @@ applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountAccountDebited $ AccountDebited amount reason]
-applyAccountCommand account (TransferToAccount (TransferToAccountData uuid amount targetId)) =
+applyAccountCommand account (TransferToAccount (TransferToAccountData uuid sourceId amount targetId)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountAccountTransferStarted $ AccountTransferStarted uuid amount targetId]
+  else Right [AccountAccountTransferStarted $ AccountTransferStarted uuid sourceId amount targetId]
 applyAccountCommand account (AcceptTransfer (AcceptTransferData transferId sourceId amount)) =
   if isJust (accountOwner account)
   then Right [AccountAccountCreditedFromTransfer $ AccountCreditedFromTransfer transferId sourceId amount]

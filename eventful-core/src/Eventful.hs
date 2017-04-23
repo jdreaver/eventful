@@ -4,6 +4,7 @@ module Eventful
 
 import Eventful.Aggregate as X
 import Eventful.Projection as X
+import Eventful.ProcessManager as X
 import Eventful.ReadModel.Class as X
 import Eventful.Serializer as X
 import Eventful.Store.Class as X
