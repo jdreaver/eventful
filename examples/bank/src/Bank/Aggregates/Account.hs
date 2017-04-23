@@ -2,11 +2,6 @@ module Bank.Aggregates.Account
   ( Account (..)
   , PendingAccountTransfer (..)
   , findAccountTransferById
-  , AccountEvent (..)
-  , accountEventSerializer
-  , AccountOpened (..)
-  , AccountCredited (..)
-  , AccountDebited (..)
   , AccountProjection
   , accountProjection
   , AccountCommand (..)
@@ -28,7 +23,6 @@ import Data.List (delete, find)
 import Data.Maybe (isJust)
 
 import Eventful
-import Eventful.TH
 
 import Bank.Events
 import Bank.Json
@@ -103,19 +97,20 @@ applyAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Ac
 applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
   account { accountBalance = accountBalance account + amount }
 
-mkProjection ''Account 'accountDefault
-  [ ''AccountOpened
-  , ''AccountCredited
-  , ''AccountDebited
-  , ''AccountTransferStarted
-  , ''AccountTransferCompleted
-  , ''AccountTransferRejected
-  , ''AccountCreditedFromTransfer
-  ]
-deriving instance Show AccountEvent
-deriving instance Eq AccountEvent
+applyAccountEvent :: Account -> BankEvent -> Account
+applyAccountEvent account (AccountOpenedEvent event) = applyAccountOpened account event
+applyAccountEvent account (AccountCreditedEvent event) = applyAccountCredited account event
+applyAccountEvent account (AccountDebitedEvent event) = applyAccountDebited account event
+applyAccountEvent account (AccountTransferStartedEvent event) = applyAccountTransferStarted account event
+applyAccountEvent account (AccountTransferCompletedEvent event) = applyAccountTransferCompleted account event
+applyAccountEvent account (AccountTransferRejectedEvent event) = applyAccountTransferRejected account event
+applyAccountEvent account (AccountCreditedFromTransferEvent event) = applyAccountCreditedFromTransfer account event
+applyAccountEvent account _ = account
 
-mkSumTypeSerializer "accountEventSerializer" ''AccountEvent ''BankEvent
+type AccountProjection = Projection Account BankEvent
+
+accountProjection :: AccountProjection
+accountProjection = Projection accountDefault applyAccountEvent
 
 data AccountCommand
   = OpenAccount OpenAccountData
@@ -173,30 +168,30 @@ data NotEnoughFundsData =
 deriveJSON (unPrefixLower "notEnoughFundsData") ''NotEnoughFundsData
 deriveJSON defaultOptions ''AccountCommandError
 
-applyAccountCommand :: Account -> AccountCommand -> Either AccountCommandError [AccountEvent]
+applyAccountCommand :: Account -> AccountCommand -> Either AccountCommandError [BankEvent]
 applyAccountCommand account (OpenAccount (OpenAccountData owner amount)) =
   case accountOwner account of
     Just _ -> Left AccountAlreadyOpenError
     Nothing ->
       if amount < 0
       then Left InvalidInitialDepositError
-      else Right [AccountAccountOpened $ AccountOpened owner amount]
+      else Right [AccountOpenedEvent $ AccountOpened owner amount]
 applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
-  Right [AccountAccountCredited $ AccountCredited amount reason]
+  Right [AccountCreditedEvent $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountAccountDebited $ AccountDebited amount reason]
+  else Right [AccountDebitedEvent $ AccountDebited amount reason]
 applyAccountCommand account (TransferToAccount (TransferToAccountData uuid sourceId amount targetId)) =
   if accountAvailableBalance account - amount < 0
   then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountAccountTransferStarted $ AccountTransferStarted uuid sourceId amount targetId]
+  else Right [AccountTransferStartedEvent $ AccountTransferStarted uuid sourceId amount targetId]
 applyAccountCommand account (AcceptTransfer (AcceptTransferData transferId sourceId amount)) =
   if isJust (accountOwner account)
-  then Right [AccountAccountCreditedFromTransfer $ AccountCreditedFromTransfer transferId sourceId amount]
+  then Right [AccountCreditedFromTransferEvent $ AccountCreditedFromTransfer transferId sourceId amount]
   else Left AccountNotOwnedError
 
-type AccountAggregate = Aggregate Account AccountEvent AccountCommand AccountCommandError
+type AccountAggregate = Aggregate Account BankEvent AccountCommand AccountCommandError
 
 accountAggregate :: AccountAggregate
 accountAggregate = Aggregate applyAccountCommand accountProjection

@@ -14,7 +14,7 @@ data TransferManager
   = TransferManager
   { transferManagerData :: Maybe TransferManagerTransferData
   , transferManagerPendingCommands :: [(UUID, AccountCommand)]
-  , transferManagerPendingEvents :: [(UUID, AccountEvent)]
+  , transferManagerPendingEvents :: [(UUID, BankEvent)]
   } deriving (Show, Eq)
 
 data TransferManagerTransferData
@@ -27,7 +27,7 @@ data TransferManagerTransferData
 transferManagerDefault :: TransferManager
 transferManagerDefault = TransferManager Nothing [] []
 
-type TransferManagerProjection = Projection TransferManager AccountEvent
+type TransferManagerProjection = Projection TransferManager BankEvent
 
 transferManagerProjection :: TransferManagerProjection
 transferManagerProjection =
@@ -35,9 +35,9 @@ transferManagerProjection =
   transferManagerDefault
   applyAccountEvent
 
-applyAccountEvent :: TransferManager -> AccountEvent -> TransferManager
-applyAccountEvent manager (AccountAccountTransferStarted event) = applyAccountTransferStarted manager event
-applyAccountEvent manager (AccountAccountCreditedFromTransfer event) = applyAccountCreditedFromTransfer manager event
+applyAccountEvent :: TransferManager -> BankEvent -> TransferManager
+applyAccountEvent manager (AccountTransferStartedEvent event) = applyAccountTransferStarted manager event
+applyAccountEvent manager (AccountCreditedFromTransferEvent event) = applyAccountCreditedFromTransfer manager event
 applyAccountEvent manager _ = manager
 
 applyAccountTransferStarted :: TransferManager -> AccountTransferStarted -> TransferManager
@@ -57,7 +57,7 @@ applyAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
   where
     events = maybe [] mkEvent (transferManagerData manager)
     mkEvent (TransferManagerTransferData transferId sourceId _) =
-      [(sourceId, AccountAccountTransferCompleted $ AccountTransferCompleted transferId)]
+      [(sourceId, AccountTransferCompletedEvent $ AccountTransferCompleted transferId)]
 
 cancelTransfer :: TransferManager -> TransferManager
 cancelTransfer manager =
@@ -70,9 +70,9 @@ cancelTransfer manager =
     mkEvent (TransferManagerTransferData transferId sourceId _) =
       -- TODO: Find a way to get the actual error so we can put it in this
       -- event.
-      [(sourceId, AccountAccountTransferRejected $ AccountTransferRejected transferId "Rejected in transfer saga")]
+      [(sourceId, AccountTransferRejectedEvent $ AccountTransferRejected transferId "Rejected in transfer saga")]
 
-type TransferProcessManager = ProcessManager TransferManager AccountEvent AccountCommand
+type TransferProcessManager = ProcessManager TransferManager BankEvent AccountCommand
 
 transferProcessManager :: TransferProcessManager
 transferProcessManager =

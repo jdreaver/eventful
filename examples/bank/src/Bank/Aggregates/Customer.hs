@@ -1,7 +1,5 @@
 module Bank.Aggregates.Customer
   ( Customer (..)
-  , CustomerEvent (..)
-  , customerEventSerializer
   , CustomerProjection
   , customerProjection
   , CustomerCommand (..)
@@ -14,7 +12,6 @@ module Bank.Aggregates.Customer
 import Data.Aeson.TH
 
 import Eventful
-import Eventful.TH
 
 import Bank.Events
 import Bank.Json
@@ -26,19 +23,11 @@ data Customer =
 
 deriveJSON (unPrefixLower "customer") ''Customer
 
-mkSumType' "CustomerEvent"
-  [ ''CustomerCreated
-  ]
-deriving instance Show CustomerEvent
-deriving instance Eq CustomerEvent
+applyCustomerEvent :: Customer -> BankEvent -> Customer
+applyCustomerEvent customer (CustomerCreatedEvent (CustomerCreated name)) = customer { customerName = Just name }
+applyCustomerEvent customer _ = customer
 
-mkSumTypeSerializer "customerEventSerializer" ''CustomerEvent ''BankEvent
-
-applyCustomerEvent :: Customer -> CustomerEvent -> Customer
-applyCustomerEvent customer (CustomerCreated' (CustomerCreated name)) =
-  customer { customerName = Just name }
-
-type CustomerProjection = Projection Customer CustomerEvent
+type CustomerProjection = Projection Customer BankEvent
 
 customerProjection :: CustomerProjection
 customerProjection = Projection (Customer Nothing) applyCustomerEvent
@@ -57,13 +46,13 @@ data CustomerCommandError
 
 deriveJSON defaultOptions ''CustomerCommandError
 
-applyCustomerCommand :: Customer -> CustomerCommand -> Either CustomerCommandError [CustomerEvent]
+applyCustomerCommand :: Customer -> CustomerCommand -> Either CustomerCommandError [BankEvent]
 applyCustomerCommand customer (CreateCustomer (CreateCustomerData name)) =
   case customerName customer of
-    Nothing -> Right [CustomerCreated' $ CustomerCreated name]
+    Nothing -> Right [CustomerCreatedEvent $ CustomerCreated name]
     Just _ -> Left CustomerAlreadyExistsError
 
-type CustomerAggregate = Aggregate Customer CustomerEvent CustomerCommand CustomerCommandError
+type CustomerAggregate = Aggregate Customer BankEvent CustomerCommand CustomerCommandError
 
 customerAggregate :: CustomerAggregate
 customerAggregate = Aggregate applyCustomerCommand customerProjection

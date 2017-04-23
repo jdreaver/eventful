@@ -24,11 +24,11 @@ runCLICommand pool (CreateCustomerCLI createData) = do
   print uuid
   let command = CreateCustomer createData
   result <- runDB pool $
-    commandStoredAggregate cliEventStore (cliSerializer customerEventSerializer) customerAggregate uuid command
-  printJSONPretty (fmap (serialize customerEventSerializer) <$> result)
+    commandStoredAggregate cliEventStore jsonStringSerializer customerAggregate uuid command
+  printJSONPretty result
 runCLICommand pool (ViewAccountCLI uuid) = do
   (state, _) <- runDB pool $
-    getLatestProjection cliEventStore (cliSerializer accountEventSerializer) accountProjection uuid
+    getLatestProjection cliEventStore jsonStringSerializer accountProjection uuid
   printJSONPretty state
 runCLICommand pool (OpenAccountCLI openData) = do
   uuid <- uuidNextRandom
@@ -36,8 +36,8 @@ runCLICommand pool (OpenAccountCLI openData) = do
   print uuid
   let command = OpenAccount openData
   result <- runDB pool $
-    commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate uuid command
-  printJSONPretty (fmap (serialize accountEventSerializer) <$> result)
+    commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate uuid command
+  printJSONPretty result
 runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
 
@@ -46,22 +46,22 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   transferId <- uuidNextRandom
   let startCommand = TransferToAccount $ TransferToAccountData transferId sourceId amount targetId
   startResult <- runDB pool $
-    commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate sourceId startCommand
-  printJSONPretty (fmap (serialize accountEventSerializer) <$> startResult)
+    commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate sourceId startCommand
+  printJSONPretty startResult
   case startResult of
     Left err -> print err
     Right _ -> do
       let acceptCommand = AcceptTransfer (AcceptTransferData transferId sourceId amount)
       acceptResult <- runDB pool $
-        commandStoredAggregate cliEventStore (cliSerializer accountEventSerializer) accountAggregate targetId acceptCommand
-      printJSONPretty (fmap (serialize accountEventSerializer) <$> acceptResult)
+        commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate targetId acceptCommand
+      printJSONPretty acceptResult
       let
         finalEvent =
           case acceptResult of
-            Left err -> AccountAccountTransferRejected $ AccountTransferRejected transferId (show err)
-            Right _ -> AccountAccountTransferCompleted $ AccountTransferCompleted transferId
-      printJSONPretty $ serialize accountEventSerializer finalEvent
-      void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [serialize (cliSerializer accountEventSerializer) finalEvent]
+            Left err -> AccountTransferRejectedEvent $ AccountTransferRejected transferId (show err)
+            Right _ -> AccountTransferCompletedEvent $ AccountTransferCompleted transferId
+      printJSONPretty finalEvent
+      void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [serialize jsonStringSerializer finalEvent]
       runCLICommand pool (ViewAccountCLI sourceId)
       runCLICommand pool (ViewAccountCLI targetId)
 
@@ -76,6 +76,3 @@ cliEventStore = sqliteEventStore defaultSqlEventStoreConfig
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })
-
-cliSerializer :: Serializer a BankEvent -> Serializer a JSONString
-cliSerializer serializer = composeSerializers serializer jsonStringSerializer

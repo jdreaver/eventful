@@ -12,9 +12,9 @@ spec = do
     it "should handle a series of account events" $ do
       let
         events =
-          [ AccountAccountOpened $ AccountOpened nil 10
-          , AccountAccountDebited $ AccountDebited 5 "ATM"
-          , AccountAccountCredited $ AccountCredited 10 "Paycheck"
+          [ AccountOpenedEvent $ AccountOpened nil 10
+          , AccountDebitedEvent $ AccountDebited 5 "ATM"
+          , AccountCreditedEvent $ AccountCredited 10 "Paycheck"
           ]
         states =
           [ Account 0 Nothing []
@@ -30,8 +30,8 @@ spec = do
         sourceAccount = read "afee3d24-df9b-4069-be0e-80bf0ba4f662" :: UUID
         targetAccount = read "44e9fd39-0179-4050-8706-d5a1d2c6d093" :: UUID
         events =
-          [ AccountAccountOpened $ AccountOpened nil 10
-          , AccountAccountTransferStarted $ AccountTransferStarted transferUuid sourceAccount 6 targetAccount
+          [ AccountOpenedEvent $ AccountOpened nil 10
+          , AccountTransferStartedEvent $ AccountTransferStarted transferUuid sourceAccount 6 targetAccount
           ]
         states =
           [ Account 0 Nothing []
@@ -48,7 +48,7 @@ spec = do
         `shouldBe` Left (NotEnoughFundsError (NotEnoughFundsData 4))
 
       let
-        events' = events ++ [AccountAccountTransferCompleted $ AccountTransferCompleted transferUuid]
+        events' = events ++ [AccountTransferCompletedEvent $ AccountTransferCompleted transferUuid]
         completedState = latestProjection accountProjection events'
 
       completedState `shouldBe` Account 4 (Just nil) []
