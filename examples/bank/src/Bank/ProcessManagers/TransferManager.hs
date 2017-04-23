@@ -7,13 +7,13 @@ module Bank.ProcessManagers.TransferManager
 
 import Eventful
 
-import Bank.Aggregates.Account
+import Bank.Commands
 import Bank.Events
 
 data TransferManager
   = TransferManager
   { transferManagerData :: Maybe TransferManagerTransferData
-  , transferManagerPendingCommands :: [(UUID, AccountCommand)]
+  , transferManagerPendingCommands :: [(UUID, BankCommand)]
   , transferManagerPendingEvents :: [(UUID, BankEvent)]
   } deriving (Show, Eq)
 
@@ -27,9 +27,7 @@ data TransferManagerTransferData
 transferManagerDefault :: TransferManager
 transferManagerDefault = TransferManager Nothing [] []
 
-type TransferManagerProjection = Projection TransferManager BankEvent
-
-transferManagerProjection :: TransferManagerProjection
+transferManagerProjection :: BankProjection TransferManager
 transferManagerProjection =
   Projection
   transferManagerDefault
@@ -44,7 +42,7 @@ applyAccountTransferStarted :: TransferManager -> AccountTransferStarted -> Tran
 applyAccountTransferStarted manager (AccountTransferStarted transferId sourceId amount targetId) =
   manager
   { transferManagerData = Just (TransferManagerTransferData transferId sourceId targetId)
-  , transferManagerPendingCommands = [(targetId, AcceptTransfer (AcceptTransferData transferId sourceId amount))]
+  , transferManagerPendingCommands = [(targetId, AcceptTransfer' (AcceptTransfer transferId sourceId amount))]
   , transferManagerPendingEvents = []
   }
 
@@ -72,7 +70,7 @@ cancelTransfer manager =
       -- event.
       [(sourceId, AccountTransferRejected' $ AccountTransferRejected transferId "Rejected in transfer saga")]
 
-type TransferProcessManager = ProcessManager TransferManager BankEvent AccountCommand
+type TransferProcessManager = ProcessManager TransferManager BankEvent BankCommand
 
 transferProcessManager :: TransferProcessManager
 transferProcessManager =

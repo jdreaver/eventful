@@ -11,8 +11,7 @@ import Options.Applicative
 
 import Eventful
 
-import Bank.Aggregates.Account
-import Bank.Aggregates.Customer
+import Bank.Commands
 
 runOptionsParser :: IO Options
 runOptionsParser = execParser $ info (helper <*> parseOptions) (fullDesc <> progDesc "eventful bank CLI")
@@ -24,9 +23,9 @@ data Options
   } deriving (Show)
 
 data CLICommand
-  = CreateCustomerCLI CreateCustomerData
+  = CreateCustomerCLI CreateCustomer
   | ViewAccountCLI UUID
-  | OpenAccountCLI OpenAccountData
+  | OpenAccountCLI OpenAccount
   | TransferToAccountCLI UUID Double UUID
   deriving (Show, Eq)
 
@@ -53,7 +52,7 @@ parseDatabaseFileOption =
 
 parseCreateCustomer :: Parser CLICommand
 parseCreateCustomer =
-  CreateCustomerCLI . CreateCustomerData <$>
+  CreateCustomerCLI . CreateCustomer <$>
   strOption (
     long "name" <>
     metavar "name" <>
@@ -71,7 +70,7 @@ parseViewAccount =
 
 parseOpenAccount :: Parser CLICommand
 parseOpenAccount =
-  fmap OpenAccountCLI . OpenAccountData <$>
+  fmap OpenAccountCLI . OpenAccount <$>
   option parseUUID (
     long "owner-id" <>
     metavar "uuid" <>

@@ -15,14 +15,15 @@ import Eventful.Store.Sqlite
 import Bank.Aggregates.Account
 import Bank.Aggregates.Customer
 import Bank.CLI.Options
+import Bank.Commands
 import Bank.Events
 
 runCLICommand :: ConnectionPool -> CLICommand -> IO ()
-runCLICommand pool (CreateCustomerCLI createData) = do
+runCLICommand pool (CreateCustomerCLI createCommand) = do
   uuid <- uuidNextRandom
   putStr "Attempting to create customer with UUID: "
   print uuid
-  let command = CreateCustomer createData
+  let command = CreateCustomer' createCommand
   result <- runDB pool $
     commandStoredAggregate cliEventStore jsonStringSerializer customerAggregate uuid command
   printJSONPretty result
@@ -30,11 +31,11 @@ runCLICommand pool (ViewAccountCLI uuid) = do
   (state, _) <- runDB pool $
     getLatestProjection cliEventStore jsonStringSerializer accountProjection uuid
   printJSONPretty state
-runCLICommand pool (OpenAccountCLI openData) = do
+runCLICommand pool (OpenAccountCLI openCommand) = do
   uuid <- uuidNextRandom
   putStr "Attempting to open account with UUID: "
   print uuid
-  let command = OpenAccount openData
+  let command = OpenAccount' openCommand
   result <- runDB pool $
     commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate uuid command
   printJSONPretty result
@@ -44,14 +45,14 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   -- TODO: Put this in a proper process manager or saga.
 
   transferId <- uuidNextRandom
-  let startCommand = TransferToAccount $ TransferToAccountData transferId sourceId amount targetId
+  let startCommand = TransferToAccount' $ TransferToAccount transferId sourceId amount targetId
   startResult <- runDB pool $
     commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate sourceId startCommand
   printJSONPretty startResult
   case startResult of
     Left err -> print err
     Right _ -> do
-      let acceptCommand = AcceptTransfer (AcceptTransferData transferId sourceId amount)
+      let acceptCommand = AcceptTransfer' $ AcceptTransfer transferId sourceId amount
       acceptResult <- runDB pool $
         commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate targetId acceptCommand
       printJSONPretty acceptResult

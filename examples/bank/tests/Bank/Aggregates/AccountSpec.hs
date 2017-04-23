@@ -4,6 +4,7 @@ import Test.Hspec
 import Eventful
 
 import Bank.Aggregates.Account
+import Bank.Commands
 import Bank.Events
 
 spec :: Spec
@@ -44,8 +45,8 @@ spec = do
         stateAfterStarted = latestProjection accountProjection events
 
       accountAvailableBalance stateAfterStarted `shouldBe` 4
-      aggregateCommand accountAggregate stateAfterStarted (DebitAccount (DebitAccountData 9 "blah"))
-        `shouldBe` Left (NotEnoughFundsError (NotEnoughFundsData 4))
+      aggregateCommand accountAggregate stateAfterStarted (DebitAccount' (DebitAccount 9 "blah"))
+        `shouldBe` Left (AccountCommandError' $ NotEnoughFundsError (NotEnoughFundsData 4))
 
       let
         events' = events ++ [AccountTransferCompleted' $ AccountTransferCompleted transferUuid]
@@ -57,16 +58,16 @@ spec = do
     it "should handle a series of commands" $ do
       let
         commands =
-          [ OpenAccount $ OpenAccountData nil 100
-          , DebitAccount $ DebitAccountData 150 "ATM"
-          , CreditAccount $ CreditAccountData 200 "Check"
-          , OpenAccount $ OpenAccountData nil 200
+          [ OpenAccount' $ OpenAccount nil 100
+          , DebitAccount' $ DebitAccount 150 "ATM"
+          , CreditAccount' $ CreditAccount 200 "Check"
+          , OpenAccount' $ OpenAccount nil 200
           ]
         results =
           [ Right $ Account 0 Nothing []
           , Right $ Account 100 (Just nil) []
-          , Left $ NotEnoughFundsError $ NotEnoughFundsData 100
+          , Left $ AccountCommandError' $ NotEnoughFundsError $ NotEnoughFundsData 100
           , Right $ Account 300 (Just nil) []
-          , Left AccountAlreadyOpenError
+          , Left $ AccountCommandError' AccountAlreadyOpenError
           ]
       allAggregateStates accountAggregate commands `shouldBe` results

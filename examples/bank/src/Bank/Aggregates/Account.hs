@@ -2,17 +2,9 @@ module Bank.Aggregates.Account
   ( Account (..)
   , PendingAccountTransfer (..)
   , findAccountTransferById
-  , AccountProjection
   , accountProjection
-  , AccountCommand (..)
-  , OpenAccountData (..)
-  , CreditAccountData (..)
-  , DebitAccountData (..)
-  , TransferToAccountData (..)
-  , AcceptTransferData (..)
   , AccountCommandError (..)
   , NotEnoughFundsData (..)
-  , AccountAggregate
   , accountAggregate
 
   , accountAvailableBalance
@@ -24,6 +16,7 @@ import Data.Maybe (isJust)
 
 import Eventful
 
+import Bank.Commands
 import Bank.Events
 import Bank.Json
 
@@ -107,91 +100,32 @@ applyAccountEvent account (AccountTransferRejected' event) = applyAccountTransfe
 applyAccountEvent account (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer account event
 applyAccountEvent account _ = account
 
-type AccountProjection = Projection Account BankEvent
-
-accountProjection :: AccountProjection
+accountProjection :: BankProjection Account
 accountProjection = Projection accountDefault applyAccountEvent
 
-data AccountCommand
-  = OpenAccount OpenAccountData
-  | CreditAccount CreditAccountData
-  | DebitAccount DebitAccountData
-  | TransferToAccount TransferToAccountData
-  | AcceptTransfer AcceptTransferData
-  deriving (Show, Eq)
-
-data OpenAccountData =
-  OpenAccountData
-  { openAccountDataOwner :: UUID
-  , openAccountDataInitialFunding :: Double
-  } deriving (Show, Eq)
-
-data CreditAccountData =
-  CreditAccountData
-  { creditAccountDataAmount :: Double
-  , creditAccountDataReason :: String
-  } deriving (Show, Eq)
-
-data DebitAccountData =
-  DebitAccountData
-  { debitAccountDataAmount :: Double
-  , debitAccountDataReason :: String
-  } deriving (Show, Eq)
-
-data TransferToAccountData =
-  TransferToAccountData
-  { transferToAccountDataTransferId :: UUID
-  , transferToAccountDataSourceId :: UUID
-  , transferToAccountDataAmount :: Double
-  , transferToAccountDataTargetAccount :: UUID
-  } deriving (Show, Eq)
-
-data AcceptTransferData =
-  AcceptTransferData
-  { acceptTransferTransferId :: UUID
-  , acceptTransferSourceId :: UUID
-  , acceptTransferDataAmount :: Double
-  } deriving (Show, Eq)
-
-data AccountCommandError
-  = AccountAlreadyOpenError
-  | InvalidInitialDepositError
-  | NotEnoughFundsError NotEnoughFundsData
-  | AccountNotOwnedError
-  deriving (Show, Eq)
-
-data NotEnoughFundsData =
-  NotEnoughFundsData
-  { notEnoughFundsDataRemainingFunds :: Double
-  } deriving  (Show, Eq)
-
-deriveJSON (unPrefixLower "notEnoughFundsData") ''NotEnoughFundsData
-deriveJSON defaultOptions ''AccountCommandError
-
-applyAccountCommand :: Account -> AccountCommand -> Either AccountCommandError [BankEvent]
-applyAccountCommand account (OpenAccount (OpenAccountData owner amount)) =
+applyAccountCommand :: Account -> BankCommand -> Either BankCommandError [BankEvent]
+applyAccountCommand account (OpenAccount' (OpenAccount owner amount)) =
   case accountOwner account of
-    Just _ -> Left AccountAlreadyOpenError
+    Just _ -> Left (AccountCommandError' AccountAlreadyOpenError)
     Nothing ->
       if amount < 0
-      then Left InvalidInitialDepositError
+      then Left (AccountCommandError' InvalidInitialDepositError)
       else Right [AccountOpened' $ AccountOpened owner amount]
-applyAccountCommand _ (CreditAccount (CreditAccountData amount reason)) =
+applyAccountCommand _ (CreditAccount' (CreditAccount amount reason)) =
   Right [AccountCredited' $ AccountCredited amount reason]
-applyAccountCommand account (DebitAccount (DebitAccountData amount reason)) =
+applyAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
   if accountAvailableBalance account - amount < 0
-  then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
+  then Left $ AccountCommandError' (NotEnoughFundsError $ NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountDebited' $ AccountDebited amount reason]
-applyAccountCommand account (TransferToAccount (TransferToAccountData uuid sourceId amount targetId)) =
+applyAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId)) =
   if accountAvailableBalance account - amount < 0
-  then Left $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
+  then Left $ AccountCommandError' $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
   else Right [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
-applyAccountCommand account (AcceptTransfer (AcceptTransferData transferId sourceId amount)) =
+applyAccountCommand account (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
   if isJust (accountOwner account)
   then Right [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
-  else Left AccountNotOwnedError
+  else Left $ AccountCommandError' AccountNotOwnedError
+applyAccountCommand _ _ = Left (UnknownCommand' UnknownCommand)
 
-type AccountAggregate = Aggregate Account BankEvent AccountCommand AccountCommandError
-
-accountAggregate :: AccountAggregate
+accountAggregate :: BankAggregate Account
 accountAggregate = Aggregate applyAccountCommand accountProjection

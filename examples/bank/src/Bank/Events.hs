@@ -1,10 +1,12 @@
 module Bank.Events
   ( BankEvent (..)
+  , BankProjection
   , module X
   ) where
 
 import Data.Aeson.TH
 
+import Eventful
 import Eventful.TH
 
 import Bank.Events.Account as X
@@ -33,3 +35,5 @@ deriving instance Show BankEvent
 deriving instance Eq BankEvent
 
 deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "'" }) ''BankEvent
+
+type BankProjection state = Projection state BankEvent
