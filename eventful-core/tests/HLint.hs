@@ -7,12 +7,13 @@ import Prelude (String, IO, null)
 
 arguments :: [String]
 arguments =
-    [ "src"
-    , "tests"
-    , "-i=Redundant do"
-    , "-i=Unused LANGUAGE pragma" -- This fails on DeriveGeneric
-    , "-i=Use newtype instead of data"
-    ]
+  [ "src"
+  , "tests"
+  , "-i=Redundant do"
+  , "-i=Unused LANGUAGE pragma" -- This fails on DeriveGeneric
+  , "-i=Use newtype instead of data"
+  , "-i=Eta reduce"
+  ]
 
 main :: IO ()
 main = do

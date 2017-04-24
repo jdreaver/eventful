@@ -19,9 +19,9 @@ import Eventful.UUID
 -- service, it is common to simply load the latest projection state from the
 -- event store and apply the command. If the command is valid then the new
 -- event is applied to the projection in the event store.
-data Aggregate state event cmd cmderror =
+data Aggregate state event cmd =
   Aggregate
-  { aggregateCommand :: state -> cmd -> Either cmderror [event]
+  { aggregateCommand :: state -> cmd -> [event]
   , aggregateProjection :: Projection state event
   }
 
@@ -29,18 +29,13 @@ data Aggregate state event cmd cmderror =
 -- projection sees, interspersed with command errors. This is useful for unit
 -- testing aggregates.
 allAggregateStates
-  :: Aggregate state event cmd cmderror
+  :: Aggregate state event cmd
   -> [cmd]
-  -> [Either cmderror state]
+  -> [state]
 allAggregateStates (Aggregate applyCommand (Projection seed apply)) events =
-  map snd $ scanl' go (seed, Right seed) events
+  scanl' go seed events
   where
-    go (state, _) command =
-      case applyCommand state command of
-        Left err -> (state, Left err)
-        Right outputEvents ->
-          let state' = foldl' apply state outputEvents
-          in (state', Right state')
+    go state command = foldl' apply state $ applyCommand state command
 
 -- | Loads the latest version of a projection from the event store and tries to
 -- apply the 'Aggregate' command to it. If the command succeeds, then this
@@ -49,16 +44,14 @@ commandStoredAggregate
   :: (Monad m)
   => EventStore serialized m
   -> Serializer event serialized
-  -> Aggregate state event cmd cmderror
+  -> Aggregate state event cmd
   -> UUID
   -> cmd
-  -> m (Either cmderror [event])
+  -> m [event]
 commandStoredAggregate store serializer@Serializer{..} (Aggregate applyCommand proj) uuid command = do
   (latest, vers) <- getLatestProjection store serializer proj uuid
-  case applyCommand latest command of
-    (Left err) -> return $ Left err
-    (Right events) -> do
-      mError <- storeEvents store (ExactVersion vers) uuid (serialize <$> events)
-      case mError of
-        (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
-        Nothing -> return $ Right events
+  let events = applyCommand latest command
+  mError <- storeEvents store (ExactVersion vers) uuid (serialize <$> events)
+  case mError of
+    (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
+    Nothing -> return events
