@@ -8,7 +8,6 @@ module Eventful.TestHelpers
   , counterAggregate
   , CounterEvent (..)
   , CounterCommand (..)
-  , CounterCommandError (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
   , module X
@@ -34,6 +33,7 @@ data CounterEvent
   = Added
     { _counterEventAmount :: Int
     }
+  | CounterFailedOutOfBounds
   deriving (Eq, Show)
 
 type CounterProjection = Projection Counter CounterEvent
@@ -53,28 +53,23 @@ data CounterCommand
     }
   deriving (Eq, Show)
 
-data CounterCommandError
-  = OutOfBounds
-  deriving (Eq, Show)
-
-type CounterAggregate = Aggregate Counter CounterEvent CounterCommand CounterCommandError
+type CounterAggregate = Aggregate Counter CounterEvent CounterCommand
 
 counterAggregate :: CounterAggregate
 counterAggregate = Aggregate counterCommand counterProjection
 
-counterCommand :: Counter -> CounterCommand -> Either CounterCommandError [CounterEvent]
+counterCommand :: Counter -> CounterCommand -> [CounterEvent]
 counterCommand (Counter k) (Increment n) =
   if k + n <= 100
-  then Right [Added n]
-  else Left OutOfBounds
+  then [Added n]
+  else [CounterFailedOutOfBounds]
 counterCommand (Counter k) (Decrement n) =
   if k - n >= 0
-  then Right [Added (-n)]
-  else Left OutOfBounds
+  then [Added (-n)]
+  else [CounterFailedOutOfBounds]
 
 deriveJSON (aesonPrefix camelCase) ''CounterEvent
 deriveJSON (aesonPrefix camelCase) ''CounterCommand
-deriveJSON (aesonPrefix camelCase) ''CounterCommandError
 
 -- Test harness for stores
 
