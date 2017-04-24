@@ -3,18 +3,14 @@ module Bank.CLI.RunCommand
   ) where
 
 import Control.Monad (void)
-import Control.Monad.IO.Class (MonadIO)
-import Data.Aeson
-import Data.Aeson.Encode.Pretty
-import qualified Data.ByteString.Lazy.Char8 as BSL
 import Database.Persist.Sqlite
 
 import Eventful
-import Eventful.Store.Sqlite
 
 import Bank.Aggregates.Account
 import Bank.Aggregates.Customer
 import Bank.CLI.Options
+import Bank.CLI.Store
 import Bank.Commands
 import Bank.Events
 
@@ -25,11 +21,11 @@ runCLICommand pool (CreateCustomerCLI createCommand) = do
   print uuid
   let command = CreateCustomer' createCommand
   result <- runDB pool $
-    commandStoredAggregate cliEventStore jsonStringSerializer customerAggregate uuid command
+    commandStoredAggregate cliEventStore customerAggregate uuid command
   printJSONPretty result
 runCLICommand pool (ViewAccountCLI uuid) = do
   (state, _) <- runDB pool $
-    getLatestProjection cliEventStore jsonStringSerializer accountProjection uuid
+    getLatestProjection cliEventStore accountProjection uuid
   printJSONPretty state
 runCLICommand pool (OpenAccountCLI openCommand) = do
   uuid <- uuidNextRandom
@@ -37,7 +33,7 @@ runCLICommand pool (OpenAccountCLI openCommand) = do
   print uuid
   let command = OpenAccount' openCommand
   result <- runDB pool $
-    commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate uuid command
+    commandStoredAggregate cliEventStore accountAggregate uuid command
   printJSONPretty result
 runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
@@ -47,31 +43,22 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   transferId <- uuidNextRandom
   let startCommand = TransferToAccount' $ TransferToAccount transferId sourceId amount targetId
   startResult <- runDB pool $
-    commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate sourceId startCommand
+    commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
   printJSONPretty startResult
   case startResult of
     [AccountTransferRejected' (AccountTransferRejected _ reason)] -> print reason
     _ -> do
       let acceptCommand = AcceptTransfer' $ AcceptTransfer transferId sourceId amount
       acceptResult <- runDB pool $
-        commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate targetId acceptCommand
+        commandStoredAggregate cliEventStore accountAggregate targetId acceptCommand
       printJSONPretty acceptResult
       let
         finalEvent =
           AccountTransferCompleted' $ AccountTransferCompleted transferId
       printJSONPretty finalEvent
-      void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [serialize jsonStringSerializer finalEvent]
+      void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [finalEvent]
       runCLICommand pool (ViewAccountCLI sourceId)
       runCLICommand pool (ViewAccountCLI targetId)
 
-runDB :: ConnectionPool -> SqlPersistT IO a -> IO a
-runDB = flip runSqlPool
-
-cliEventStore :: (MonadIO m) => EventStore JSONString (SqlPersistT m)
-cliEventStore = sqliteEventStore defaultSqlEventStoreConfig
-
 -- cliGloballyOrderedEventStore :: (MonadIO m) => GloballyOrderedEventStore JSONString (SqlPersistT m)
 -- cliGloballyOrderedEventStore = sqlGloballyOrderedEventStore defaultSqlEventStoreConfig
-
-printJSONPretty :: (ToJSON a) => a -> IO ()
-printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })
