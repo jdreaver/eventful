@@ -35,6 +35,7 @@ transferManagerProjection =
 
 applyAccountEvent :: TransferManager -> BankEvent -> TransferManager
 applyAccountEvent manager (AccountTransferStarted' event) = applyAccountTransferStarted manager event
+applyAccountEvent manager (AccountTransferRejected' _) = cancelTransfer manager
 applyAccountEvent manager (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer manager event
 applyAccountEvent manager _ = manager
 
@@ -76,6 +77,5 @@ transferProcessManager :: TransferProcessManager
 transferProcessManager =
   ProcessManager
   transferManagerProjection
-  cancelTransfer
   transferManagerPendingCommands
   transferManagerPendingEvents

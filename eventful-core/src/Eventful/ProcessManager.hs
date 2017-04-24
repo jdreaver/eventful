@@ -9,7 +9,6 @@ import Eventful.UUID
 data ProcessManager state event command
   = ProcessManager
   { processManagerProjection :: Projection state event
-  , processManagerCancelTransaction :: state -> state
   , processManagerPendingCommands :: state -> [(UUID, command)]
   , processManagerPendingEvents :: state -> [(UUID, event)]
   }
