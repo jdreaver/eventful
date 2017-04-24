@@ -8,10 +8,8 @@ module Eventful.Projection
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
-import Data.Maybe (mapMaybe)
 
 import Eventful.Store.Class
-import Eventful.Serializer
 import Eventful.UUID
 
 -- | A 'Projection' is a piece of state that is constructed only from applying
@@ -39,12 +37,11 @@ allProjections (Projection seed apply) = scanl' apply seed
 getLatestProjection
   :: (Monad m)
   => EventStore serialized m
-  -> Serializer event serialized
-  -> Projection proj event
+  -> Projection proj serialized
   -> UUID
   -> m (proj, EventVersion)
-getLatestProjection store Serializer{..} proj uuid = do
-  events <- mapMaybe (traverse deserialize) <$> getEvents store uuid Nothing
+getLatestProjection store proj uuid = do
+  events <- getEvents store uuid Nothing
   let
     latestVersion = maxEventVersion events
     latestProj = latestProjection proj $ storedEventEvent <$> events

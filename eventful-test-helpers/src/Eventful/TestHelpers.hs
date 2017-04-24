@@ -20,7 +20,6 @@ import Control.Monad.Logger as X
 import Data.Aeson
 import Data.Aeson.Casing
 import Data.Aeson.TH
-import Data.Maybe
 import Test.Hspec
 
 import Eventful
@@ -75,11 +74,10 @@ deriveJSON (aesonPrefix camelCase) ''CounterCommand
 
 eventStoreSpec
   :: (Monad m)
-  => IO (EventStore serialized m, runargs)
+  => IO (EventStore CounterEvent m, runargs)
   -> (forall a. runargs -> m a -> IO a)
-  -> Serializer CounterEvent serialized
   -> Spec
-eventStoreSpec makeStore runAsIO serializer@Serializer{..} = do
+eventStoreSpec makeStore runAsIO = do
   context "when the event store is empty" $ do
 
     it "should return versions of -1 for a UUID" $ do
@@ -93,39 +91,39 @@ eventStoreSpec makeStore runAsIO serializer@Serializer{..} = do
       events = [Added 1, Added 4, Added (-3)]
       buildStore = do
         (store, runargs) <- liftIO makeStore
-        _ <- liftIO . runAsIO runargs $ storeEvents store NoStream nil (serialize <$> events)
+        _ <- liftIO . runAsIO runargs $ storeEvents store NoStream nil events
         return (store, runargs)
 
     it "should return events" $ do
       (store, runargs) <- liftIO buildStore
-      events' <- mapMaybe (traverse deserialize) <$> runAsIO runargs (getEvents store nil Nothing)
+      events' <- runAsIO runargs (getEvents store nil Nothing)
       (storedEventEvent <$> events') `shouldBe` events
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
 
     it "should return correct event versions" $ do
       (store, runargs) <- liftIO buildStore
       runAsIO runargs (getLatestVersion store nil) `shouldReturn` 2
-      runAsIO runargs (fmap storedEventEvent . mapMaybe (traverse deserialize) <$> getEvents store nil (Just (-1)))
+      runAsIO runargs (fmap storedEventEvent <$> getEvents store nil (Just (-1)))
         >>= (`shouldBe` events)
-      runAsIO runargs (fmap storedEventEvent . mapMaybe (traverse deserialize) <$> getEvents store nil (Just 1))
+      runAsIO runargs (fmap storedEventEvent <$> getEvents store nil (Just 1))
         >>= (`shouldBe` drop 1 events)
 
     it "should return the latest projection" $ do
       (store, runargs) <- liftIO buildStore
-      runAsIO runargs (getLatestProjection store serializer counterProjection nil)
+      runAsIO runargs (getLatestProjection store counterProjection nil)
         `shouldReturn` (Counter 2, 2)
 
   context "when events from multiple UUIDs are inserted" $ do
     let
       buildStore = do
         (store, runargs) <- liftIO makeStore
-        _ <- liftIO . runAsIO runargs $ insertExampleEvents store serializer
+        _ <- liftIO . runAsIO runargs $ insertExampleEvents store
         return (store, runargs)
 
     it "should have the correct events for each aggregate" $ do
       (store, runargs) <- liftIO buildStore
-      events1 <- mapMaybe (traverse deserialize) <$> runAsIO runargs (getEvents store uuid1 Nothing)
-      events2 <- mapMaybe (traverse deserialize) <$> runAsIO runargs (getEvents store uuid2 Nothing)
+      events1 <- runAsIO runargs (getEvents store uuid1 Nothing)
+      events2 <- runAsIO runargs (getEvents store uuid2 Nothing)
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
       (storedEventProjectionId <$> events1) `shouldBe` [uuid1, uuid1]
@@ -139,51 +137,50 @@ eventStoreSpec makeStore runAsIO serializer@Serializer{..} = do
       runAsIO runargs (getLatestVersion store uuid2) `shouldReturn` 2
       events1 <- runAsIO runargs (getEvents store uuid1 (Just 0))
       events2 <- runAsIO runargs (getEvents store uuid2 (Just 1))
-      mapMaybe (deserialize . storedEventEvent) events1 `shouldBe` [Added 1, Added 4]
-      mapMaybe (deserialize . storedEventEvent) events2 `shouldBe` [Added 3, Added 5]
+      storedEventEvent <$> events1 `shouldBe` [Added 1, Added 4]
+      storedEventEvent <$> events2 `shouldBe` [Added 3, Added 5]
 
     it "should produce the correct projections" $ do
       (store, runargs) <- liftIO buildStore
-      runAsIO runargs (getLatestProjection store serializer counterProjection uuid1)
+      runAsIO runargs (getLatestProjection store counterProjection uuid1)
         `shouldReturn` (Counter 5, 1)
-      runAsIO runargs (getLatestProjection store serializer counterProjection uuid2)
+      runAsIO runargs (getLatestProjection store counterProjection uuid2)
         `shouldReturn` (Counter 10, 2)
 
   describe "can handle event storage errors" $ do
 
     it "rejects some writes when event store isn't created" $ do
       (store, runargs) <- liftIO makeStore
-      runAsIO runargs (storeEvents store StreamExists nil [serialize $ Added 1])
+      runAsIO runargs (storeEvents store StreamExists nil [Added 1])
         `shouldReturn` Just (EventStreamNotAtExpectedVersion (-1))
-      runAsIO runargs (storeEvents store (ExactVersion 0) nil [serialize $ Added 1])
+      runAsIO runargs (storeEvents store (ExactVersion 0) nil [Added 1])
         `shouldReturn` Just (EventStreamNotAtExpectedVersion (-1))
 
     it "should be able to store events starting with an empty stream" $ do
       (store, runargs) <- liftIO makeStore
-      runAsIO runargs (storeEvents store NoStream nil [serialize $ Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (storeEvents store NoStream nil [Added 1]) `shouldReturn` Nothing
 
     it "should reject storing events sometimes with a stream" $ do
       (store, runargs) <- liftIO makeStore
-      runAsIO runargs (storeEvents store NoStream nil [serialize $ Added 1]) `shouldReturn` Nothing
-      runAsIO runargs (storeEvents store NoStream nil [serialize $ Added 1])
+      runAsIO runargs (storeEvents store NoStream nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (storeEvents store NoStream nil [Added 1])
         `shouldReturn` Just (EventStreamNotAtExpectedVersion 0)
-      runAsIO runargs (storeEvents store (ExactVersion 1) nil [serialize $ Added 1])
+      runAsIO runargs (storeEvents store (ExactVersion 1) nil [Added 1])
         `shouldReturn` Just (EventStreamNotAtExpectedVersion 0)
 
     it "should accepts storing events sometimes with a stream" $ do
       (store, runargs) <- liftIO makeStore
-      runAsIO runargs (storeEvents store NoStream nil [serialize $ Added 1]) `shouldReturn` Nothing
-      runAsIO runargs (storeEvents store AnyVersion nil [serialize $ Added 1]) `shouldReturn` Nothing
-      runAsIO runargs (storeEvents store (ExactVersion 1) nil [serialize $ Added 1]) `shouldReturn` Nothing
-      runAsIO runargs (storeEvents store StreamExists nil [serialize $ Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (storeEvents store NoStream nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (storeEvents store AnyVersion nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (storeEvents store (ExactVersion 1) nil [Added 1]) `shouldReturn` Nothing
+      runAsIO runargs (storeEvents store StreamExists nil [Added 1]) `shouldReturn` Nothing
 
 sequencedEventStoreSpec
   :: (Monad m)
-  => IO (EventStore serialized m, GloballyOrderedEventStore serialized m, runargs)
+  => IO (EventStore CounterEvent m, GloballyOrderedEventStore CounterEvent m, runargs)
   -> (forall a. runargs -> m a -> IO a)
-  -> Serializer CounterEvent serialized
   -> Spec
-sequencedEventStoreSpec makeStore runAsIO serializer@Serializer{..} = do
+sequencedEventStoreSpec makeStore runAsIO = do
   context "when the event store is empty" $ do
 
     it "shouldn't have any events" $ do
@@ -194,28 +191,26 @@ sequencedEventStoreSpec makeStore runAsIO serializer@Serializer{..} = do
     let
       buildStore = do
         (store, globalStore, runargs) <- liftIO makeStore
-        _ <- liftIO . runAsIO runargs $ insertExampleEvents store serializer
+        _ <- liftIO . runAsIO runargs $ insertExampleEvents store
         return (globalStore, runargs)
 
     it "should have the correct events in global order" $ do
       (store, runargs) <- liftIO buildStore
       events' <- runAsIO runargs $ getSequencedEvents store 0
-      let deserializedEvents = mapMaybe (traverse (traverse deserialize)) events'
-      (storedEventEvent . globallyOrderedEventEvent <$> deserializedEvents) `shouldBe` Added <$> [1..5]
-      (storedEventProjectionId . globallyOrderedEventEvent <$> deserializedEvents) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (storedEventVersion . globallyOrderedEventEvent <$> deserializedEvents) `shouldBe` [0, 0, 1, 1, 2]
-      (globallyOrderedEventSequenceNumber <$> deserializedEvents) `shouldBe` [1..5]
+      (storedEventEvent . globallyOrderedEventEvent <$> events') `shouldBe` Added <$> [1..5]
+      (storedEventProjectionId . globallyOrderedEventEvent <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (storedEventVersion . globallyOrderedEventEvent <$> events') `shouldBe` [0, 0, 1, 1, 2]
+      (globallyOrderedEventSequenceNumber <$> events') `shouldBe` [1..5]
 
 insertExampleEvents
   :: (Monad m)
-  => EventStore serialized m
-  -> Serializer CounterEvent serialized
+  => EventStore CounterEvent m
   -> m ()
-insertExampleEvents store Serializer{..} = do
-  void $ storeEvents store NoStream uuid1 $ serialize <$> [Added 1]
-  void $ storeEvents store NoStream uuid2 $ serialize <$> [Added 2, Added 3]
-  void $ storeEvents store (ExactVersion 0) uuid1 $ serialize <$> [Added 4]
-  void $ storeEvents store (ExactVersion 1) uuid2 $ serialize <$> [Added 5]
+insertExampleEvents store = do
+  void $ storeEvents store NoStream uuid1 [Added 1]
+  void $ storeEvents store NoStream uuid2 [Added 2, Added 3]
+  void $ storeEvents store (ExactVersion 0) uuid1 [Added 4]
+  void $ storeEvents store (ExactVersion 1) uuid2 [Added 5]
 
 uuid1 :: UUID
 uuid1 = uuidFromInteger 1

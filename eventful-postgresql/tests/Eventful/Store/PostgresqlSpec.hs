@@ -6,20 +6,22 @@ import Data.Text (Text, intercalate)
 import Database.Persist.Postgresql
 import Test.Hspec
 
+import Eventful.Serializer
 import Eventful.Store.Postgresql
 import Eventful.TestHelpers
 
-makeStore :: (MonadIO m) => m (EventStore JSONString (SqlPersistT m), ConnectionPool)
+makeStore :: (MonadIO m) => m (EventStore CounterEvent (SqlPersistT m), ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.
   let
     connString = "host=localhost port=5432 user=postgres dbname=eventful_test password=password"
     store = postgresqlEventStore defaultSqlEventStoreConfig
+    store' = serializedEventStore jsonStringSerializer store
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
   liftIO $ runSqlPool truncateTables pool
-  return (store, pool)
+  return (store', pool)
 
 getTables :: MonadIO m => SqlPersistT m [Text]
 getTables = do
@@ -40,14 +42,17 @@ truncateTables = do
 
 makeGlobalStore
   :: (MonadIO m)
-  => m (EventStore JSONString (SqlPersistT m), GloballyOrderedEventStore JSONString (SqlPersistT m), ConnectionPool)
+  => m (EventStore CounterEvent (SqlPersistT m), GloballyOrderedEventStore CounterEvent (SqlPersistT m), ConnectionPool)
 makeGlobalStore = do
   (store, pool) <- makeStore
-  return (store, sqlGloballyOrderedEventStore defaultSqlEventStoreConfig, pool)
+  let
+    globalStore = sqlGloballyOrderedEventStore defaultSqlEventStoreConfig
+    globalStore' = serializedGloballyOrderedEventStore jsonStringSerializer globalStore
+  return (store, globalStore', pool)
 
 
 spec :: Spec
 spec = do
   describe "Postgresql event store" $ do
-    eventStoreSpec makeStore (flip runSqlPool) jsonStringSerializer
-    sequencedEventStoreSpec makeGlobalStore (flip runSqlPool) jsonStringSerializer
+    eventStoreSpec makeStore (flip runSqlPool)
+    sequencedEventStoreSpec makeGlobalStore (flip runSqlPool)

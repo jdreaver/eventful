@@ -10,7 +10,6 @@ import Data.Foldable (foldl')
 import Data.List (scanl')
 
 import Eventful.Projection
-import Eventful.Serializer
 import Eventful.Store.Class
 import Eventful.UUID
 
@@ -43,15 +42,14 @@ allAggregateStates (Aggregate applyCommand (Projection seed apply)) events =
 commandStoredAggregate
   :: (Monad m)
   => EventStore serialized m
-  -> Serializer event serialized
-  -> Aggregate state event cmd
+  -> Aggregate state serialized cmd
   -> UUID
   -> cmd
-  -> m [event]
-commandStoredAggregate store serializer@Serializer{..} (Aggregate applyCommand proj) uuid command = do
-  (latest, vers) <- getLatestProjection store serializer proj uuid
+  -> m [serialized]
+commandStoredAggregate store (Aggregate applyCommand proj) uuid command = do
+  (latest, vers) <- getLatestProjection store proj uuid
   let events = applyCommand latest command
-  mError <- storeEvents store (ExactVersion vers) uuid (serialize <$> events)
+  mError <- storeEvents store (ExactVersion vers) uuid events
   case mError of
     (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
     Nothing -> return events
