@@ -20,9 +20,7 @@ runCLICommand pool (CreateCustomerCLI createCommand) = do
   putStr "Attempting to create customer with UUID: "
   print uuid
   let command = CreateCustomer' createCommand
-  result <- runDB pool $
-    commandStoredAggregate cliEventStore customerAggregate uuid command
-  printJSONPretty result
+  void $ runDB pool $ commandStoredAggregate cliEventStore customerAggregate uuid command
 runCLICommand pool (ViewAccountCLI uuid) = do
   (state, _) <- runDB pool $
     getLatestProjection cliEventStore accountProjection uuid
@@ -32,9 +30,7 @@ runCLICommand pool (OpenAccountCLI openCommand) = do
   putStr "Attempting to open account with UUID: "
   print uuid
   let command = OpenAccount' openCommand
-  result <- runDB pool $
-    commandStoredAggregate cliEventStore accountAggregate uuid command
-  printJSONPretty result
+  void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate uuid command
 runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
 
@@ -42,20 +38,15 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
 
   transferId <- uuidNextRandom
   let startCommand = TransferToAccount' $ TransferToAccount transferId sourceId amount targetId
-  startResult <- runDB pool $
-    commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
-  printJSONPretty startResult
+  startResult <- runDB pool $ commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
   case startResult of
     [AccountTransferRejected' (AccountTransferRejected _ reason)] -> print reason
     _ -> do
       let acceptCommand = AcceptTransfer' $ AcceptTransfer transferId sourceId amount
-      acceptResult <- runDB pool $
-        commandStoredAggregate cliEventStore accountAggregate targetId acceptCommand
-      printJSONPretty acceptResult
+      void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate targetId acceptCommand
       let
         finalEvent =
           AccountTransferCompleted' $ AccountTransferCompleted transferId
-      printJSONPretty finalEvent
       void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [finalEvent]
       runCLICommand pool (ViewAccountCLI sourceId)
       runCLICommand pool (ViewAccountCLI targetId)

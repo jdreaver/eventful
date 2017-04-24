@@ -19,10 +19,16 @@ runDB :: ConnectionPool -> SqlPersistT IO a -> IO a
 runDB = flip runSqlPool
 
 cliEventStore :: (MonadIO m) => EventStore BankEvent (SqlPersistT m)
-cliEventStore = store
+cliEventStore = synchronousEventBusWrapper store handlers
   where
     sqlStore = sqliteEventStore defaultSqlEventStoreConfig
     store = serializedEventStore jsonStringSerializer sqlStore
+    handlers =
+      [ eventPrinter
+      ]
+
+eventPrinter :: (MonadIO m) => UUID -> BankEvent -> m ()
+eventPrinter uuid event = liftIO $ printJSONPretty (uuid, event)
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })
