@@ -1,7 +1,9 @@
 module Bank.Events.Account
   ( AccountOpened (..)
+  , AccountOpenRejected (..)
   , AccountCredited (..)
   , AccountDebited (..)
+  , AccountDebitRejected (..)
   , AccountTransferStarted (..)
   , AccountTransferCompleted (..)
   , AccountTransferRejected (..)
@@ -20,6 +22,11 @@ data AccountOpened =
   , accountOpenedInitialFunding :: Double
   } deriving (Show, Eq)
 
+data AccountOpenRejected
+  = AccountOpenRejected
+  { accountOpenRejectedReason :: String
+  } deriving (Show, Eq)
+
 data AccountCredited =
   AccountCredited
   { accountCreditedAmount :: Double
@@ -30,6 +37,11 @@ data AccountDebited =
   AccountDebited
   { accountDebitedAmount :: Double
   , accountDebitedReason :: String
+  } deriving (Show, Eq)
+
+data AccountDebitRejected
+  = AccountDebitRejected
+  { accountDebitRejectedRemainingBalance :: Double
   } deriving (Show, Eq)
 
 data AccountTransferStarted =
@@ -59,8 +71,10 @@ data AccountCreditedFromTransfer =
   } deriving (Show, Eq)
 
 deriveJSON (unPrefixLower "accountOpened") ''AccountOpened
+deriveJSON (unPrefixLower "accountOpenRejected") ''AccountOpenRejected
 deriveJSON (unPrefixLower "accountCredited") ''AccountCredited
 deriveJSON (unPrefixLower "accountDebited") ''AccountDebited
+deriveJSON (unPrefixLower "accountDebitRejected") ''AccountDebitRejected
 deriveJSON (unPrefixLower "accountTransferStarted") ''AccountTransferStarted
 deriveJSON (unPrefixLower "accountTransferCompleted") ''AccountTransferCompleted
 deriveJSON (unPrefixLower "accountTransferRejected") ''AccountTransferRejected

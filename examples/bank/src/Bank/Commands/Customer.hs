@@ -1,6 +1,5 @@
 module Bank.Commands.Customer
   ( CreateCustomer (..)
-  , CustomerCommandError (..)
   ) where
 
 import Data.Aeson.TH
@@ -13,9 +12,3 @@ data CreateCustomer =
   } deriving (Show, Eq)
 
 deriveJSON (unPrefixLower "createCustomer") ''CreateCustomer
-
-data CustomerCommandError
-  = CustomerAlreadyExistsError
-  deriving (Show, Eq)
-
-deriveJSON defaultOptions ''CustomerCommandError

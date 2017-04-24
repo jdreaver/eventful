@@ -20,15 +20,18 @@ import Bank.Json
 mkSumType "BankEvent" (++ "'")
   [ -- Account events
     ''AccountOpened
+  , ''AccountOpenRejected
   , ''AccountCredited
   , ''AccountDebited
+  , ''AccountDebitRejected
   , ''AccountTransferStarted
   , ''AccountTransferCompleted
   , ''AccountTransferRejected
   , ''AccountCreditedFromTransfer
 
   -- Customer events
-  ,  ''CustomerCreated
+  , ''CustomerCreated
+  , ''CustomerCreationRejected
   ]
 
 deriving instance Show BankEvent

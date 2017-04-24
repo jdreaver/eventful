@@ -3,8 +3,6 @@ module Bank.Aggregates.Account
   , PendingAccountTransfer (..)
   , findAccountTransferById
   , accountProjection
-  , AccountCommandError (..)
-  , NotEnoughFundsData (..)
   , accountAggregate
 
   , accountAvailableBalance
@@ -12,7 +10,6 @@ module Bank.Aggregates.Account
 
 import Data.Aeson.TH
 import Data.List (delete, find)
-import Data.Maybe (isJust)
 
 import Eventful
 
@@ -103,29 +100,27 @@ applyAccountEvent account _ = account
 accountProjection :: BankProjection Account
 accountProjection = Projection accountDefault applyAccountEvent
 
-applyAccountCommand :: Account -> BankCommand -> Either BankCommandError [BankEvent]
+applyAccountCommand :: Account -> BankCommand -> [BankEvent]
 applyAccountCommand account (OpenAccount' (OpenAccount owner amount)) =
   case accountOwner account of
-    Just _ -> Left (AccountCommandError' AccountAlreadyOpenError)
+    Just _ -> [AccountOpenRejected' $ AccountOpenRejected "Account already open"]
     Nothing ->
       if amount < 0
-      then Left (AccountCommandError' InvalidInitialDepositError)
-      else Right [AccountOpened' $ AccountOpened owner amount]
+      then [AccountOpenRejected' $ AccountOpenRejected "Invalid initial deposit"]
+      else [AccountOpened' $ AccountOpened owner amount]
 applyAccountCommand _ (CreditAccount' (CreditAccount amount reason)) =
-  Right [AccountCredited' $ AccountCredited amount reason]
+  [AccountCredited' $ AccountCredited amount reason]
 applyAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
   if accountAvailableBalance account - amount < 0
-  then Left $ AccountCommandError' (NotEnoughFundsError $ NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountDebited' $ AccountDebited amount reason]
+  then [AccountDebitRejected' $ AccountDebitRejected $ accountAvailableBalance account]
+  else [AccountDebited' $ AccountDebited amount reason]
 applyAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId)) =
   if accountAvailableBalance account - amount < 0
-  then Left $ AccountCommandError' $ NotEnoughFundsError (NotEnoughFundsData $ accountAvailableBalance account)
-  else Right [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
-applyAccountCommand account (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
-  if isJust (accountOwner account)
-  then Right [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
-  else Left $ AccountCommandError' AccountNotOwnedError
-applyAccountCommand _ _ = Left (UnknownCommand' UnknownCommand)
+  then [AccountTransferRejected' $ AccountTransferRejected uuid "Not enough funds"]
+  else [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
+applyAccountCommand _ (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
+  [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
+applyAccountCommand _ _ = []
 
 accountAggregate :: BankAggregate Account
 accountAggregate = Aggregate applyAccountCommand accountProjection

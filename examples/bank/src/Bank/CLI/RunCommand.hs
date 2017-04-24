@@ -50,17 +50,15 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
     commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate sourceId startCommand
   printJSONPretty startResult
   case startResult of
-    Left err -> print err
-    Right _ -> do
+    [AccountTransferRejected' (AccountTransferRejected _ reason)] -> print reason
+    _ -> do
       let acceptCommand = AcceptTransfer' $ AcceptTransfer transferId sourceId amount
       acceptResult <- runDB pool $
         commandStoredAggregate cliEventStore jsonStringSerializer accountAggregate targetId acceptCommand
       printJSONPretty acceptResult
       let
         finalEvent =
-          case acceptResult of
-            Left err -> AccountTransferRejected' $ AccountTransferRejected transferId (show err)
-            Right _ -> AccountTransferCompleted' $ AccountTransferCompleted transferId
+          AccountTransferCompleted' $ AccountTransferCompleted transferId
       printJSONPretty finalEvent
       void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [serialize jsonStringSerializer finalEvent]
       runCLICommand pool (ViewAccountCLI sourceId)

@@ -4,9 +4,6 @@ module Bank.Commands.Account
   , DebitAccount (..)
   , TransferToAccount (..)
   , AcceptTransfer (..)
-
-  , AccountCommandError (..)
-  , NotEnoughFundsData (..)
   ) where
 
 import Data.Aeson.TH
@@ -53,19 +50,3 @@ deriveJSON (unPrefixLower "creditAccount") ''CreditAccount
 deriveJSON (unPrefixLower "debitAccount") ''DebitAccount
 deriveJSON (unPrefixLower "transferToAccount") ''TransferToAccount
 deriveJSON (unPrefixLower "acceptTransfer") ''AcceptTransfer
-
-data AccountCommandError
-  = AccountAlreadyOpenError
-  | InvalidInitialDepositError
-  | NotEnoughFundsError NotEnoughFundsData
-  | AccountNotOwnedError
-  deriving (Show, Eq)
-
-data NotEnoughFundsData =
-  NotEnoughFundsData
-  { notEnoughFundsDataRemainingFunds :: Double
-  } deriving  (Show, Eq)
-
-deriveJSON (unPrefixLower "notEnoughFundsData") ''NotEnoughFundsData
-
-deriveJSON defaultOptions ''AccountCommandError

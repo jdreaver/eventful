@@ -46,7 +46,7 @@ spec = do
 
       accountAvailableBalance stateAfterStarted `shouldBe` 4
       aggregateCommand accountAggregate stateAfterStarted (DebitAccount' (DebitAccount 9 "blah"))
-        `shouldBe` Left (AccountCommandError' $ NotEnoughFundsError (NotEnoughFundsData 4))
+        `shouldBe` [AccountDebitRejected' $ AccountDebitRejected 4]
 
       let
         events' = events ++ [AccountTransferCompleted' $ AccountTransferCompleted transferUuid]
@@ -64,10 +64,10 @@ spec = do
           , OpenAccount' $ OpenAccount nil 200
           ]
         results =
-          [ Right $ Account 0 Nothing []
-          , Right $ Account 100 (Just nil) []
-          , Left $ AccountCommandError' $ NotEnoughFundsError $ NotEnoughFundsData 100
-          , Right $ Account 300 (Just nil) []
-          , Left $ AccountCommandError' AccountAlreadyOpenError
+          [ Account 0 Nothing []
+          , Account 100 (Just nil) []
+          , Account 100 (Just nil) []
+          , Account 300 (Just nil) []
+          , Account 300 (Just nil) []
           ]
       allAggregateStates accountAggregate commands `shouldBe` results
