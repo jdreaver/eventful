@@ -3,19 +3,24 @@ module Bank.ProcessManagers.TransferManager
   , TransferManagerTransferData (..)
   , TransferProcessManager
   , transferProcessManager
+  , transferManagerRouter
   ) where
+
+import Data.Maybe (isNothing)
 
 import Eventful
 
+import Bank.Aggregates.Account
 import Bank.Commands
 import Bank.Events
 
 data TransferManager
   = TransferManager
   { transferManagerData :: Maybe TransferManagerTransferData
-  , transferManagerPendingCommands :: [(UUID, BankCommand)]
-  , transferManagerPendingEvents :: [(UUID, BankEvent)]
-  } deriving (Show, Eq)
+  , transferManagerCanceled :: Bool
+  , transferManagerPendingCommands :: [ProcessManagerCommand BankEvent BankCommand]
+  , transferManagerPendingEvents :: [ProcessManagerEvent BankEvent]
+  } deriving (Show)
 
 data TransferManagerTransferData
   = TransferManagerTransferData
@@ -25,7 +30,7 @@ data TransferManagerTransferData
   } deriving (Show, Eq)
 
 transferManagerDefault :: TransferManager
-transferManagerDefault = TransferManager Nothing [] []
+transferManagerDefault = TransferManager Nothing False [] []
 
 transferManagerProjection :: BankProjection TransferManager
 transferManagerProjection =
@@ -43,9 +48,14 @@ applyAccountTransferStarted :: TransferManager -> AccountTransferStarted -> Tran
 applyAccountTransferStarted manager (AccountTransferStarted transferId sourceId amount targetId) =
   manager
   { transferManagerData = Just (TransferManagerTransferData transferId sourceId targetId)
-  , transferManagerPendingCommands = [(targetId, AcceptTransfer' (AcceptTransfer transferId sourceId amount))]
+  , transferManagerPendingCommands =
+      if isNothing (transferManagerData manager)
+      then [ProcessManagerCommand targetId accountAggregate command]
+      else []
   , transferManagerPendingEvents = []
   }
+  where
+    command = AcceptTransfer' (AcceptTransfer transferId sourceId amount)
 
 applyAccountCreditedFromTransfer :: TransferManager -> AccountCreditedFromTransfer -> TransferManager
 applyAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
@@ -56,20 +66,22 @@ applyAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
   where
     events = maybe [] mkEvent (transferManagerData manager)
     mkEvent (TransferManagerTransferData transferId sourceId _) =
-      [(sourceId, AccountTransferCompleted' $ AccountTransferCompleted transferId)]
+      [ProcessManagerEvent sourceId $ AccountTransferCompleted' $ AccountTransferCompleted transferId]
 
 cancelTransfer :: TransferManager -> TransferManager
 cancelTransfer manager =
   manager
-  { transferManagerPendingCommands = []
-  , transferManagerPendingEvents = events
+  { transferManagerCanceled = True
+  , transferManagerPendingCommands = []
+  , transferManagerPendingEvents = if transferManagerCanceled manager then [] else events
   }
   where
     events = maybe [] mkEvent (transferManagerData manager)
     mkEvent (TransferManagerTransferData transferId sourceId _) =
       -- TODO: Find a way to get the actual error so we can put it in this
       -- event.
-      [(sourceId, AccountTransferRejected' $ AccountTransferRejected transferId "Rejected in transfer saga")]
+      [ProcessManagerEvent sourceId $
+       AccountTransferRejected' $ AccountTransferRejected transferId "Rejected in transfer saga"]
 
 type TransferProcessManager = ProcessManager TransferManager BankEvent BankCommand
 
@@ -79,3 +91,21 @@ transferProcessManager =
   transferManagerProjection
   transferManagerPendingCommands
   transferManagerPendingEvents
+
+transferManagerRouter :: ProcessManagerRouter TransferManager BankEvent BankCommand
+transferManagerRouter = ProcessManagerRouter routeTransferManager transferProcessManager
+
+routeTransferManager :: UUID -> BankEvent -> Maybe UUID
+routeTransferManager eventId (AccountTransferStarted' AccountTransferStarted{..}) =
+  listenIfUuidsDifferent eventId accountTransferStartedTransferId
+routeTransferManager eventId (AccountTransferRejected' AccountTransferRejected{..}) =
+  listenIfUuidsDifferent eventId accountTransferRejectedTransferId
+routeTransferManager eventId (AccountCreditedFromTransfer' AccountCreditedFromTransfer{..}) =
+  listenIfUuidsDifferent eventId accountCreditedFromTransferTransferId
+routeTransferManager _ _ = Nothing
+
+listenIfUuidsDifferent :: UUID -> UUID -> Maybe UUID
+listenIfUuidsDifferent eventId transferId =
+  if eventId == transferId
+  then Nothing
+  else Just transferId

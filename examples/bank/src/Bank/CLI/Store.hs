@@ -14,6 +14,7 @@ import Eventful
 import Eventful.Store.Sqlite
 
 import Bank.Events
+import Bank.ProcessManagers.TransferManager
 
 runDB :: ConnectionPool -> SqlPersistT IO a -> IO a
 runDB = flip runSqlPool
@@ -25,10 +26,16 @@ cliEventStore = synchronousEventBusWrapper store handlers
     store = serializedEventStore jsonStringSerializer sqlStore
     handlers =
       [ eventPrinter
+      , transferManagerHandler
       ]
 
-eventPrinter :: (MonadIO m) => EventStore BankEvent m -> UUID -> [BankEvent] -> m ()
-eventPrinter _ uuid events = liftIO $ printJSONPretty (uuid, events)
+type BankEventHandler m = EventStore BankEvent m -> UUID -> BankEvent -> m ()
+
+eventPrinter :: (MonadIO m) => BankEventHandler m
+eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)
+
+transferManagerHandler :: (Monad m) => BankEventHandler m
+transferManagerHandler = processManagerHandler transferManagerRouter
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })

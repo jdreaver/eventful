@@ -12,7 +12,6 @@ import Bank.Aggregates.Customer
 import Bank.CLI.Options
 import Bank.CLI.Store
 import Bank.Commands
-import Bank.Events
 
 runCLICommand :: ConnectionPool -> CLICommand -> IO ()
 runCLICommand pool (CreateCustomerCLI createCommand) = do
@@ -34,22 +33,11 @@ runCLICommand pool (OpenAccountCLI openCommand) = do
 runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
 
-  -- TODO: Put this in a proper process manager or saga.
-
   transferId <- uuidNextRandom
   let startCommand = TransferToAccount' $ TransferToAccount transferId sourceId amount targetId
-  startResult <- runDB pool $ commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
-  case startResult of
-    [AccountTransferRejected' (AccountTransferRejected _ reason)] -> print reason
-    _ -> do
-      let acceptCommand = AcceptTransfer' $ AcceptTransfer transferId sourceId amount
-      void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate targetId acceptCommand
-      let
-        finalEvent =
-          AccountTransferCompleted' $ AccountTransferCompleted transferId
-      void $ runDB pool $ storeEvents cliEventStore AnyVersion sourceId [finalEvent]
-      runCLICommand pool (ViewAccountCLI sourceId)
-      runCLICommand pool (ViewAccountCLI targetId)
+  void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
+  runCLICommand pool (ViewAccountCLI sourceId)
+  runCLICommand pool (ViewAccountCLI targetId)
 
 -- cliGloballyOrderedEventStore :: (MonadIO m) => GloballyOrderedEventStore JSONString (SqlPersistT m)
 -- cliGloballyOrderedEventStore = sqlGloballyOrderedEventStore defaultSqlEventStoreConfig
