@@ -27,8 +27,8 @@ cliEventStore = synchronousEventBusWrapper store handlers
       [ eventPrinter
       ]
 
-eventPrinter :: (MonadIO m) => UUID -> BankEvent -> m ()
-eventPrinter uuid event = liftIO $ printJSONPretty (uuid, event)
+eventPrinter :: (MonadIO m) => EventStore BankEvent m -> UUID -> [BankEvent] -> m ()
+eventPrinter _ uuid events = liftIO $ printJSONPretty (uuid, events)
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })
