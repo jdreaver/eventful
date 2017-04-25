@@ -10,6 +10,7 @@ module Bank.Aggregates.Account
 
 import Data.Aeson.TH
 import Data.List (delete, find)
+import Data.Maybe (isJust)
 
 import Eventful
 
@@ -114,10 +115,10 @@ applyAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
   if accountAvailableBalance account - amount < 0
   then [AccountDebitRejected' $ AccountDebitRejected $ accountAvailableBalance account]
   else [AccountDebited' $ AccountDebited amount reason]
-applyAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId)) =
-  if accountAvailableBalance account - amount < 0
-  then [AccountTransferRejected' $ AccountTransferRejected uuid "Not enough funds"]
-  else [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
+applyAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId))
+  | isJust (accountOwner account) = [AccountTransferRejected' $ AccountTransferRejected uuid "Account doesn't exist"]
+  | accountAvailableBalance account - amount < 0 = [AccountTransferRejected' $ AccountTransferRejected uuid "Not enough funds"]
+  | otherwise = [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
 applyAccountCommand _ (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
   [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
 applyAccountCommand _ _ = []
