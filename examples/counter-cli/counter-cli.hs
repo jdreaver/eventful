@@ -24,7 +24,7 @@ readAndApplyCommand store = do
   let uuid = nil
 
   -- Get current state and print it out
-  (currentState, _) <- atomically $ getLatestProjection store idSerializer counterProjection uuid
+  (currentState, _) <- atomically $ getLatestProjection store counterProjection uuid
   putStrLn $ "Current state: " ++ show currentState
 
   -- Ask user for command
@@ -34,14 +34,10 @@ readAndApplyCommand store = do
   -- Parse command and apply
   case readMay input of
     Nothing -> putStrLn "Unknown command"
-    (Just command) ->
-      case aggregateCommand counterAggregate currentState command of
-        -- The command is valid. Apply the event to the store.
-        Right events -> do
-          putStrLn $ "Command valid. Event: " ++ show events
-          void . atomically $ storeEvents store AnyVersion uuid events
-        -- The command is invalid. Show the user the error.
-        Left err -> putStrLn $ "Command invalid: Error: " ++ show err
+    (Just command) -> do
+      let events = aggregateCommand counterAggregate currentState command
+      putStrLn $ "Events generated: " ++ show events
+      void . atomically $ storeEvents store AnyVersion uuid events
 
   -- Run loop again
   putStrLn ""
@@ -56,6 +52,7 @@ newtype CounterState = CounterState { unCounterState :: Int }
 -- of past-tense. Events record things that happened in the past.
 data CounterEvent
   = CounterAmountAdded Int
+  | CounterOutOfBounds Int
   deriving (Eq, Show)
 
 -- | This ties together the state and event types into a 'Projection'.
@@ -65,7 +62,11 @@ counterProjection :: CounterProjection
 counterProjection =
   Projection
   (CounterState 0)
-  (\(CounterState k) (CounterAmountAdded x) -> CounterState (k + x))
+  applyCounterEvent
+
+applyCounterEvent :: CounterState -> CounterEvent -> CounterState
+applyCounterEvent (CounterState k) (CounterAmountAdded x) = CounterState (k + x)
+applyCounterEvent state (CounterOutOfBounds _) = state
 
 -- | The commands we can use against our counter. We can increment or decrement
 -- the counter, and also reset it.
@@ -75,26 +76,21 @@ data CounterCommand
   | ResetCounter
   deriving (Eq, Show, Read)
 
--- | This specifies the possible errors that can be produced if a command
--- fails. In our case, we fail if the counter goes below zero or above 100.
-data CounterCommandError
-  = CounterOutOfBounds
-  deriving (Eq, Show)
 
 -- | This function validates commands and produces either an error or an event.
-counterApplyCommand :: CounterState -> CounterCommand -> Either CounterCommandError [CounterEvent]
+counterApplyCommand :: CounterState -> CounterCommand -> [CounterEvent]
 counterApplyCommand (CounterState k) (IncrementCounter n) =
   if k + n <= 100
-  then Right [CounterAmountAdded n]
-  else Left CounterOutOfBounds
+  then [CounterAmountAdded n]
+  else [CounterOutOfBounds (k + n)]
 counterApplyCommand (CounterState k) (DecrementCounter n) =
   if k - n >= 0
-  then Right [CounterAmountAdded (-n)]
-  else Left CounterOutOfBounds
-counterApplyCommand (CounterState k) ResetCounter = Right [CounterAmountAdded (-k)]
+  then [CounterAmountAdded (-n)]
+  else [CounterOutOfBounds (k - n)]
+counterApplyCommand (CounterState k) ResetCounter = [CounterAmountAdded (-k)]
 
 -- | This ties all of the counter types into an aggregate.
-type CounterAggregate = Aggregate CounterState CounterEvent CounterCommand CounterCommandError
+type CounterAggregate = Aggregate CounterState CounterEvent CounterCommand
 
 counterAggregate :: CounterAggregate
 counterAggregate = Aggregate counterApplyCommand counterProjection
