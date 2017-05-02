@@ -16,10 +16,10 @@ main :: IO ()
 main = do
   -- Create the event store and run loop forever
   (store, _) <- memoryEventStore
-  forever (readAndApplyCommand store)
+  forever (readAndHandleCommand store)
 
-readAndApplyCommand :: MemoryEventStore CounterEvent -> IO ()
-readAndApplyCommand store = do
+readAndHandleCommand :: MemoryEventStore CounterEvent -> IO ()
+readAndHandleCommand store = do
   -- Just use the nil uuid for everything
   let uuid = nil
 
@@ -31,17 +31,17 @@ readAndApplyCommand store = do
   putStrLn "Enter a command. (IncrementCounter n, DecrementCounter n, ResetCounter):"
   input <- getLine
 
-  -- Parse command and apply
+  -- Parse command and handle
   case readMay input of
     Nothing -> putStrLn "Unknown command"
     (Just command) -> do
-      let events = aggregateCommand counterAggregate currentState command
+      let events = aggregateCommandHandler counterAggregate currentState command
       putStrLn $ "Events generated: " ++ show events
       void . atomically $ storeEvents store AnyVersion uuid events
 
   -- Run loop again
   putStrLn ""
-  readAndApplyCommand store
+  readAndHandleCommand store
 
 -- | This is the state for our Counter projection.
 newtype CounterState = CounterState { unCounterState :: Int }
@@ -62,11 +62,11 @@ counterProjection :: CounterProjection
 counterProjection =
   Projection
   (CounterState 0)
-  applyCounterEvent
+  handleCounterEvent
 
-applyCounterEvent :: CounterState -> CounterEvent -> CounterState
-applyCounterEvent (CounterState k) (CounterAmountAdded x) = CounterState (k + x)
-applyCounterEvent state (CounterOutOfBounds _) = state
+handleCounterEvent :: CounterState -> CounterEvent -> CounterState
+handleCounterEvent (CounterState k) (CounterAmountAdded x) = CounterState (k + x)
+handleCounterEvent state (CounterOutOfBounds _) = state
 
 -- | The commands we can use against our counter. We can increment or decrement
 -- the counter, and also reset it.
@@ -78,19 +78,19 @@ data CounterCommand
 
 
 -- | This function validates commands and produces either an error or an event.
-counterApplyCommand :: CounterState -> CounterCommand -> [CounterEvent]
-counterApplyCommand (CounterState k) (IncrementCounter n) =
+handlerCounterCommand :: CounterState -> CounterCommand -> [CounterEvent]
+handlerCounterCommand (CounterState k) (IncrementCounter n) =
   if k + n <= 100
   then [CounterAmountAdded n]
   else [CounterOutOfBounds (k + n)]
-counterApplyCommand (CounterState k) (DecrementCounter n) =
+handlerCounterCommand (CounterState k) (DecrementCounter n) =
   if k - n >= 0
   then [CounterAmountAdded (-n)]
   else [CounterOutOfBounds (k - n)]
-counterApplyCommand (CounterState k) ResetCounter = [CounterAmountAdded (-k)]
+handlerCounterCommand (CounterState k) ResetCounter = [CounterAmountAdded (-k)]
 
 -- | This ties all of the counter types into an aggregate.
 type CounterAggregate = Aggregate CounterState CounterEvent CounterCommand
 
 counterAggregate :: CounterAggregate
-counterAggregate = Aggregate counterApplyCommand counterProjection
+counterAggregate = Aggregate handlerCounterCommand counterProjection

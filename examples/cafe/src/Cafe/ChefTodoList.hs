@@ -29,32 +29,32 @@ chefTodoListMain :: IO ()
 chefTodoListMain = do
   dbFilePath <- execParser $ info (helper <*> parseDatabaseFileOption) (fullDesc <> progDesc "Chef Todo List Terminal")
   pool <- runNoLoggingT $ createSqlitePool (pack dbFilePath) 1
-  readModel <- memoryReadModel Map.empty applyChefReadModelEvents
+  readModel <- memoryReadModel Map.empty handleChefReadModelEvents
   runPollingReadModel readModel cliGloballyOrderedEventStore (`runSqlPool` pool) 1
 
-applyChefReadModelEvents
+handleChefReadModelEvents
   :: Map UUID [Maybe Food]
   -> [GloballyOrderedEvent (StoredEvent JSONString)]
   -> IO (Map UUID [Maybe Food])
-applyChefReadModelEvents foodMap events = do
+handleChefReadModelEvents foodMap events = do
   let
     tabEvents = mapMaybe (traverse (traverse (deserialize jsonStringSerializer))) events :: [GloballyOrderedEvent (StoredEvent TabEvent)]
-    foodMap' = foldl' applyEventToMap foodMap $ map globallyOrderedEventEvent tabEvents
+    foodMap' = foldl' handleEventToMap foodMap $ map globallyOrderedEventEvent tabEvents
   unless (null events) $ printFood foodMap'
   return foodMap'
 
-applyEventToMap :: Map UUID [Maybe Food] -> StoredEvent TabEvent -> Map UUID [Maybe Food]
-applyEventToMap foodMap (StoredEvent uuid _ (TabClosed _)) = Map.delete uuid foodMap
-applyEventToMap foodMap storedEvent =
+handleEventToMap :: Map UUID [Maybe Food] -> StoredEvent TabEvent -> Map UUID [Maybe Food]
+handleEventToMap foodMap (StoredEvent uuid _ (TabClosed _)) = Map.delete uuid foodMap
+handleEventToMap foodMap storedEvent =
   let
     uuid = storedEventProjectionId storedEvent
     oldList = Map.findWithDefault [] uuid foodMap
-  in Map.insert uuid (applyEventToFood oldList $ storedEventEvent storedEvent) foodMap
+  in Map.insert uuid (handleEventToFood oldList $ storedEventEvent storedEvent) foodMap
 
-applyEventToFood :: [Maybe Food] -> TabEvent -> [Maybe Food]
-applyEventToFood oldFood (FoodOrdered newFood) = oldFood ++ map Just newFood
-applyEventToFood oldFood (FoodPrepared indexes) = setIndexesToNothing indexes oldFood
-applyEventToFood food _ = food
+handleEventToFood :: [Maybe Food] -> TabEvent -> [Maybe Food]
+handleEventToFood oldFood (FoodOrdered newFood) = oldFood ++ map Just newFood
+handleEventToFood oldFood (FoodPrepared indexes) = setIndexesToNothing indexes oldFood
+handleEventToFood food _ = food
 
 printFood :: Map UUID [Maybe Food] -> IO ()
 printFood foodMap = do

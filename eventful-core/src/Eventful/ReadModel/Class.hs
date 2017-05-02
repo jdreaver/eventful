@@ -13,7 +13,7 @@ data ReadModel model serialized m =
   ReadModel
   { readModelModel :: model
   , readModelLatestAppliedSequence :: model -> m SequenceNumber
-  , readModelApplyEvents :: model -> [GloballyOrderedEvent (StoredEvent serialized)] -> m ()
+  , readModelHandleEvents :: model -> [GloballyOrderedEvent (StoredEvent serialized)] -> m ()
   }
 
 type PollingPeriodSeconds = Double
@@ -30,8 +30,8 @@ runPollingReadModel ReadModel{..} getGloballyOrderedEvents runStore waitSeconds 
   latestSeq <- readModelLatestAppliedSequence readModelModel
   newEvents <- runStore $ getSequencedEvents getGloballyOrderedEvents (latestSeq + 1)
 
-  -- Apply the new events
-  readModelApplyEvents readModelModel newEvents
+  -- Handle the new events
+  readModelHandleEvents readModelModel newEvents
 
   -- Wait before running again
   liftIO $ threadDelay $ ceiling (waitSeconds * 1000000) -- threadDelay accepts microseconds

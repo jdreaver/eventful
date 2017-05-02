@@ -49,23 +49,23 @@ accountAvailableBalance account = accountBalance account - pendingBalance
 findAccountTransferById :: [PendingAccountTransfer] -> UUID -> Maybe PendingAccountTransfer
 findAccountTransferById transfers transferId = find ((== transferId) . pendingAccountTransferId) transfers
 
-applyAccountOpened :: Account -> AccountOpened -> Account
-applyAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
+handleAccountOpened :: Account -> AccountOpened -> Account
+handleAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
 
-applyAccountCredited :: Account -> AccountCredited -> Account
-applyAccountCredited account (AccountCredited amount _) = account { accountBalance = accountBalance account + amount }
+handleAccountCredited :: Account -> AccountCredited -> Account
+handleAccountCredited account (AccountCredited amount _) = account { accountBalance = accountBalance account + amount }
 
-applyAccountDebited :: Account -> AccountDebited -> Account
-applyAccountDebited account (AccountDebited amount _) = account { accountBalance = accountBalance account - amount }
+handleAccountDebited :: Account -> AccountDebited -> Account
+handleAccountDebited account (AccountDebited amount _) = account { accountBalance = accountBalance account - amount }
 
-applyAccountTransferStarted :: Account -> AccountTransferStarted -> Account
-applyAccountTransferStarted account (AccountTransferStarted uuid sourceId amount targetId) =
+handleAccountTransferStarted :: Account -> AccountTransferStarted -> Account
+handleAccountTransferStarted account (AccountTransferStarted uuid sourceId amount targetId) =
   account { accountPendingTransfers = transfer : accountPendingTransfers account }
   where
     transfer = PendingAccountTransfer uuid sourceId amount targetId
 
-applyAccountTransferCompleted :: Account -> AccountTransferCompleted -> Account
-applyAccountTransferCompleted account (AccountTransferCompleted uuid) =
+handleAccountTransferCompleted :: Account -> AccountTransferCompleted -> Account
+handleAccountTransferCompleted account (AccountTransferCompleted uuid) =
   -- If the transfer isn't present, something is wrong, but we can't fail in an
   -- event handler.
   maybe account go (findAccountTransferById transfers uuid)
@@ -77,51 +77,51 @@ applyAccountTransferCompleted account (AccountTransferCompleted uuid) =
       , accountPendingTransfers = delete trans (accountPendingTransfers account)
       }
 
-applyAccountTransferRejected :: Account -> AccountTransferRejected -> Account
-applyAccountTransferRejected account (AccountTransferRejected uuid _) =
+handleAccountTransferRejected :: Account -> AccountTransferRejected -> Account
+handleAccountTransferRejected account (AccountTransferRejected uuid _) =
   account { accountPendingTransfers = transfers' }
   where
     transfers = accountPendingTransfers account
     transfers' = maybe transfers (flip delete transfers) (findAccountTransferById transfers uuid)
 
-applyAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Account
-applyAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
+handleAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Account
+handleAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
   account { accountBalance = accountBalance account + amount }
 
-applyAccountEvent :: Account -> BankEvent -> Account
-applyAccountEvent account (AccountOpened' event) = applyAccountOpened account event
-applyAccountEvent account (AccountCredited' event) = applyAccountCredited account event
-applyAccountEvent account (AccountDebited' event) = applyAccountDebited account event
-applyAccountEvent account (AccountTransferStarted' event) = applyAccountTransferStarted account event
-applyAccountEvent account (AccountTransferCompleted' event) = applyAccountTransferCompleted account event
-applyAccountEvent account (AccountTransferRejected' event) = applyAccountTransferRejected account event
-applyAccountEvent account (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer account event
-applyAccountEvent account _ = account
+handleAccountEvent :: Account -> BankEvent -> Account
+handleAccountEvent account (AccountOpened' event) = handleAccountOpened account event
+handleAccountEvent account (AccountCredited' event) = handleAccountCredited account event
+handleAccountEvent account (AccountDebited' event) = handleAccountDebited account event
+handleAccountEvent account (AccountTransferStarted' event) = handleAccountTransferStarted account event
+handleAccountEvent account (AccountTransferCompleted' event) = handleAccountTransferCompleted account event
+handleAccountEvent account (AccountTransferRejected' event) = handleAccountTransferRejected account event
+handleAccountEvent account (AccountCreditedFromTransfer' event) = handleAccountCreditedFromTransfer account event
+handleAccountEvent account _ = account
 
 accountProjection :: BankProjection Account
-accountProjection = Projection accountDefault applyAccountEvent
+accountProjection = Projection accountDefault handleAccountEvent
 
-applyAccountCommand :: Account -> BankCommand -> [BankEvent]
-applyAccountCommand account (OpenAccount' (OpenAccount owner amount)) =
+handleAccountCommand :: Account -> BankCommand -> [BankEvent]
+handleAccountCommand account (OpenAccount' (OpenAccount owner amount)) =
   case accountOwner account of
     Just _ -> [AccountOpenRejected' $ AccountOpenRejected "Account already open"]
     Nothing ->
       if amount < 0
       then [AccountOpenRejected' $ AccountOpenRejected "Invalid initial deposit"]
       else [AccountOpened' $ AccountOpened owner amount]
-applyAccountCommand _ (CreditAccount' (CreditAccount amount reason)) =
+handleAccountCommand _ (CreditAccount' (CreditAccount amount reason)) =
   [AccountCredited' $ AccountCredited amount reason]
-applyAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
+handleAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
   if accountAvailableBalance account - amount < 0
   then [AccountDebitRejected' $ AccountDebitRejected $ accountAvailableBalance account]
   else [AccountDebited' $ AccountDebited amount reason]
-applyAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId))
+handleAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId))
   | isNothing (accountOwner account) = [AccountTransferRejected' $ AccountTransferRejected uuid "Account doesn't exist"]
   | accountAvailableBalance account - amount < 0 = [AccountTransferRejected' $ AccountTransferRejected uuid "Not enough funds"]
   | otherwise = [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
-applyAccountCommand _ (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
+handleAccountCommand _ (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
   [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
-applyAccountCommand _ _ = []
+handleAccountCommand _ _ = []
 
 accountAggregate :: BankAggregate Account
-accountAggregate = Aggregate applyAccountCommand accountProjection
+accountAggregate = Aggregate handleAccountCommand accountProjection

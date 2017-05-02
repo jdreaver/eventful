@@ -11,7 +11,7 @@ import Eventful.Projection
 import Eventful.TH.SumType
 
 -- | Creates a 'Projection' for a given type and a list of events. The user of
--- this function also needs to provide apply functions for each event. For
+-- this function also needs to provide event handlers for each event. For
 -- example:
 --
 -- @
@@ -25,11 +25,11 @@ import Eventful.TH.SumType
 --
 --    mkProjection ''MyState 'myStateDefault [''EventA, ''EventB]
 --
---    applyEventA :: MyState -> EventA -> MyState
---    applyEventA (MyState x) EventA = MyState (x + 1)
+--    handleEventA :: MyState -> EventA -> MyState
+--    handleEventA (MyState x) EventA = MyState (x + 1)
 --
---    applyEventB :: MyState -> EventB -> MyState
---    applyEventB (MyState x) EventB = MyState (x - 1)
+--    handleEventB :: MyState -> EventB -> MyState
+--    handleEventB (MyState x) EventB = MyState (x - 1)
 -- @
 --
 -- This will produce the following:
@@ -37,14 +37,14 @@ import Eventful.TH.SumType
 -- @
 --    data MyStateEvent = MyStateEventA !EventA | MyStateEventB !EventB
 --
---    applyMyStateEvent :: MyState -> MyStateEvent -> MyState
---    applyMyStateEvent state (MyStateEventA event) = applyEventA state event
---    applyMyStateEvent state (MyStateEventB event) = applyEventB state event
+--    handleMyStateEvent :: MyState -> MyStateEvent -> MyState
+--    handleMyStateEvent state (MyStateEventA event) = handleEventA state event
+--    handleMyStateEvent state (MyStateEventB event) = handleEventB state event
 --
 --    type MyStateProjection = Projection MyState MyStateEvent
 --
 --    myStateProjection :: MyStateProjection
---    myStateProjection = Projection myStateDefault applyMyStateEvent
+--    myStateProjection = Projection myStateDefault handleMyStateEvent
 -- @
 mkProjection :: Name -> Name -> [Name] -> Q [Dec]
 mkProjection stateName stateDefault events = do
@@ -52,14 +52,14 @@ mkProjection stateName stateDefault events = do
   let eventTypeName = nameBase stateName ++ "Event"
   sumTypeDecls <- mkSumType eventTypeName (nameBase stateName ++) events
 
-  -- Make function to apply events from sum type to handlers.
-  let applyFuncName = mkName $ "apply" ++ eventTypeName
-  applyFuncType <- [t| $(conT stateName) -> $(conT $ mkName eventTypeName) -> $(conT stateName) |]
-  applyFuncBodies <- mapM (applyFuncBody stateName) events
+  -- Make function to handle events from sum type to handlers.
+  let handleFuncName = mkName $ "handle" ++ eventTypeName
+  handleFuncType <- [t| $(conT stateName) -> $(conT $ mkName eventTypeName) -> $(conT stateName) |]
+  handleFuncBodies <- mapM (handleFuncBody stateName) events
   let
-    applyTypeDecls =
-      [ SigD applyFuncName applyFuncType
-      , FunD applyFuncName applyFuncBodies
+    handleTypeDecls =
+      [ SigD handleFuncName handleFuncType
+      , FunD handleFuncName handleFuncBodies
       ]
 
   -- Make the projection type
@@ -69,7 +69,7 @@ mkProjection stateName stateDefault events = do
     projectionTypeDecl = TySynD projectionTypeName [] projectionType
 
   -- Make the projection
-  projectionFuncExpr <- [e| Projection $(varE stateDefault) $(varE applyFuncName) |]
+  projectionFuncExpr <- [e| Projection $(varE stateDefault) $(varE handleFuncName) |]
   let
     projectionFuncName = mkName $ firstCharToLower (nameBase stateName) ++ "Projection"
     projectionFuncClause = Clause [] (NormalB projectionFuncExpr) []
@@ -78,15 +78,15 @@ mkProjection stateName stateDefault events = do
       , FunD projectionFuncName [projectionFuncClause]
       ]
 
-  return $ sumTypeDecls ++ applyTypeDecls ++ [projectionTypeDecl] ++ projectionDecls
+  return $ sumTypeDecls ++ handleTypeDecls ++ [projectionTypeDecl] ++ projectionDecls
 
-applyFuncBody :: Name -> Name -> Q Clause
-applyFuncBody stateName event = do
+handleFuncBody :: Name -> Name -> Q Clause
+handleFuncBody stateName event = do
   let
     statePattern = VarP (mkName "state")
     eventPattern = ConP (mkName $ nameBase stateName ++ nameBase event) [VarP (mkName "event")]
-    applyFuncName = mkName $ "apply" ++ nameBase event
-  constructor <- [e| $(varE applyFuncName) $(varE $ mkName "state") $(varE $ mkName "event") |]
+    handleFuncName = mkName $ "handle" ++ nameBase event
+  constructor <- [e| $(varE handleFuncName) $(varE $ mkName "state") $(varE $ mkName "event") |]
   return $ Clause [statePattern, eventPattern] (NormalB constructor) []
 
 firstCharToLower :: String -> String

@@ -45,7 +45,7 @@ spec = do
         stateAfterStarted = latestProjection accountProjection events
 
       accountAvailableBalance stateAfterStarted `shouldBe` 4
-      aggregateCommand accountAggregate stateAfterStarted (DebitAccount' (DebitAccount 9 "blah"))
+      aggregateCommandHandler accountAggregate stateAfterStarted (DebitAccount' (DebitAccount 9 "blah"))
         `shouldBe` [AccountDebitRejected' $ AccountDebitRejected 4]
 
       let

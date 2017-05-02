@@ -19,19 +19,19 @@ data Customer =
 
 deriveJSON (unPrefixLower "customer") ''Customer
 
-applyCustomerEvent :: Customer -> BankEvent -> Customer
-applyCustomerEvent customer (CustomerCreated' (CustomerCreated name)) = customer { customerName = Just name }
-applyCustomerEvent customer _ = customer
+handleCustomerEvent :: Customer -> BankEvent -> Customer
+handleCustomerEvent customer (CustomerCreated' (CustomerCreated name)) = customer { customerName = Just name }
+handleCustomerEvent customer _ = customer
 
 customerProjection :: BankProjection Customer
-customerProjection = Projection (Customer Nothing) applyCustomerEvent
+customerProjection = Projection (Customer Nothing) handleCustomerEvent
 
-applyCustomerCommand :: Customer -> BankCommand -> [BankEvent]
-applyCustomerCommand customer (CreateCustomer' (CreateCustomer name)) =
+handleCustomerCommand :: Customer -> BankCommand -> [BankEvent]
+handleCustomerCommand customer (CreateCustomer' (CreateCustomer name)) =
   case customerName customer of
     Nothing -> [CustomerCreated' $ CustomerCreated name]
     Just _ -> [CustomerCreationRejected' $ CustomerCreationRejected "Customer already exists"]
-applyCustomerCommand _ _ = []
+handleCustomerCommand _ _ = []
 
 customerAggregate :: BankAggregate Customer
-customerAggregate = Aggregate applyCustomerCommand customerProjection
+customerAggregate = Aggregate handleCustomerCommand customerProjection

@@ -86,27 +86,27 @@ data TabEvent
 
 deriveJSON (aesonPrefix camelCase) ''TabEvent
 
-tabApplyEvent :: TabState -> TabEvent -> TabState
-tabApplyEvent state (DrinksOrdered drinks) = state & tabStateOutstandingDrinks %~ (++ map Just drinks)
-tabApplyEvent state (FoodOrdered food) = state & tabStateOutstandingFood %~ (++ map Just food)
-tabApplyEvent state (DrinksCancelled indexes) = state & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
-tabApplyEvent state (FoodCancelled indexes) = state & tabStateOutstandingFood %~ setIndexesToNothing indexes
-tabApplyEvent state (DrinksServed indexes) =
+applyTabEvent :: TabState -> TabEvent -> TabState
+applyTabEvent state (DrinksOrdered drinks) = state & tabStateOutstandingDrinks %~ (++ map Just drinks)
+applyTabEvent state (FoodOrdered food) = state & tabStateOutstandingFood %~ (++ map Just food)
+applyTabEvent state (DrinksCancelled indexes) = state & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
+applyTabEvent state (FoodCancelled indexes) = state & tabStateOutstandingFood %~ setIndexesToNothing indexes
+applyTabEvent state (DrinksServed indexes) =
   state
   & tabStateServedItems %~
     (\items -> items ++ fmap unDrink (catMaybes $ getListItemsByIndexes indexes (state ^. tabStateOutstandingDrinks)))
   & tabStateOutstandingDrinks %~ setIndexesToNothing indexes
-tabApplyEvent state (FoodPrepared indexes) =
+applyTabEvent state (FoodPrepared indexes) =
   state
   & tabStatePreparedFood %~
     (\items -> items ++ getListItemsByIndexes indexes (state ^. tabStateOutstandingFood))
   & tabStateOutstandingFood %~ setIndexesToNothing indexes
-tabApplyEvent state (FoodServed indexes) =
+applyTabEvent state (FoodServed indexes) =
   state
   & tabStateServedItems %~
     (\items -> items ++ fmap unFood (catMaybes $ getListItemsByIndexes indexes (state ^. tabStatePreparedFood)))
   & tabStatePreparedFood %~ setIndexesToNothing indexes
-tabApplyEvent state (TabClosed _) = state & tabStateIsOpen .~ False
+applyTabEvent state (TabClosed _) = state & tabStateIsOpen .~ False
 
 setIndexesToNothing :: [Int] -> [Maybe a] -> [Maybe a]
 setIndexesToNothing indexes = map (\(i, x) -> if i `elem` indexes then Nothing else x) . zip [0..]
@@ -117,7 +117,7 @@ getListItemsByIndexes indexes = map snd . filter ((`elem` indexes) . fst) . zip 
 type TabProjection = Projection TabState TabEvent
 
 tabProjection :: TabProjection
-tabProjection = Projection tabSeed tabApplyEvent
+tabProjection = Projection tabSeed applyTabEvent
 
 data TabCommand
   = PlaceOrder [Food] [Drink]
@@ -136,9 +136,9 @@ data TabCommandError
   | MustPayEnough
   deriving (Show, Eq)
 
-tabApplyCommand :: TabState -> TabCommand -> Either TabCommandError [TabEvent]
-tabApplyCommand TabState { _tabStateIsOpen = False } _ = Left TabAlreadyClosed
-tabApplyCommand state (CloseTab cash)
+applyTabCommand :: TabState -> TabCommand -> Either TabCommandError [TabEvent]
+applyTabCommand TabState { _tabStateIsOpen = False } _ = Left TabAlreadyClosed
+applyTabCommand state (CloseTab cash)
   | amountOfNonServedItems > 0 = Left TabHasUnservedItems
   | cash < totalServedWorth = Left MustPayEnough
   | otherwise = Right [TabClosed cash]
@@ -148,17 +148,17 @@ tabApplyCommand state (CloseTab cash)
       length (filter isJust $ state ^. tabStateOutstandingFood) +
       length (filter isJust $ state ^. tabStatePreparedFood)
     totalServedWorth = foldl' (+) 0 (fmap menuItemPrice $ state ^. tabStateServedItems)
-tabApplyCommand _ (PlaceOrder food drinks) = Right [FoodOrdered food, DrinksOrdered drinks]
+applyTabCommand _ (PlaceOrder food drinks) = Right [FoodOrdered food, DrinksOrdered drinks]
 -- TODO: Check if index exceeds list length or if item is already marked null
 -- for the next 3 commands.
-tabApplyCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
-tabApplyCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
-tabApplyCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
+applyTabCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
+applyTabCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
+applyTabCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
 
-type TabAggregate = Aggregate TabState TabEvent TabCommand TabCommandError
+type TabAggregate = Aggregate TabState TabEvent TabCommand
 
 tabAggregate :: TabAggregate
-tabAggregate = Aggregate tabApplyCommand tabProjection
+tabAggregate = Aggregate applyTabCommand tabProjection
 
 -- | List of all drinks. The menu could be its own aggregate in the future.
 allDrinks :: [Drink]

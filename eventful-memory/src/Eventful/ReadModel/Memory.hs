@@ -22,13 +22,13 @@ memoryReadModel
   => modeldata
   -> (modeldata -> [GloballyOrderedEvent (StoredEvent serialized)] -> m modeldata)
   -> IO (ReadModel (TVar (MemoryReadModelData modeldata)) serialized m)
-memoryReadModel initialValue applyEvents = do
+memoryReadModel initialValue handleEvents = do
   tvar <- newTVarIO $ MemoryReadModelData (-1) initialValue
-  return $ ReadModel tvar getLatestSequence applyTVarEvents
+  return $ ReadModel tvar getLatestSequence handleTVarEvents
   where
     getLatestSequence tvar' = liftIO $ memoryReadModelDataLatestSequenceNumber <$> readTVarIO tvar'
-    applyTVarEvents tvar' events = do
+    handleTVarEvents tvar' events = do
       (MemoryReadModelData latestSeq modelData) <- liftIO $ readTVarIO tvar'
       let latestSeq' = maximumDef latestSeq (globallyOrderedEventSequenceNumber <$> events)
-      modelData' <- applyEvents modelData events
+      modelData' <- handleEvents modelData events
       liftIO . atomically . writeTVar tvar' $ MemoryReadModelData latestSeq' modelData'

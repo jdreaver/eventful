@@ -12,28 +12,27 @@ import Data.List (scanl')
 import Eventful.Store.Class
 import Eventful.UUID
 
--- | A 'Projection' is a piece of state that is constructed only from applying
--- events. For those coming from a Data Driven Design background, a Projection
--- is the current state of an 'Aggregate'.
+-- | A 'Projection' is a piece of @state@ that is constructed only from @event@s.
 data Projection state event
   = Projection
   { projectionSeed :: state
     -- ^ Initial state of a projection
-  , projectionApply :: state -> event -> state
+  , projectionEventHandler :: state -> event -> state
     -- ^ The function that applies and event to the current state, producing a
     -- new state.
   }
 
--- | Computes the latest state of a Projection from some Events.
+-- | Computes the latest state of a 'Projection' from some events.
 latestProjection :: (Foldable t) => Projection state event -> t event -> state
-latestProjection (Projection seed apply) = foldl' apply seed
+latestProjection (Projection seed handler) = foldl' handler seed
 
 -- | Given a list of events, produce all the Projections that were ever
--- produced. Just a 'scanl' using 'apply'.
+-- produced. Just a 'scanl' using 'projectionEventHandler'.
 allProjections :: Projection state event -> [event] -> [state]
-allProjections (Projection seed apply) = scanl' apply seed
+allProjections (Projection seed handler) = scanl' handler seed
 
--- | Gets the latest projection from a store using 'getEvents'
+-- | Gets the latest projection from a store by using 'getEvents' and then
+-- applying the events to the event handler.
 getLatestProjection
   :: (Monad m)
   => EventStore serialized m

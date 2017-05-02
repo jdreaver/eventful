@@ -36,16 +36,16 @@ transferManagerProjection :: BankProjection TransferManager
 transferManagerProjection =
   Projection
   transferManagerDefault
-  applyAccountEvent
+  handleAccountEvent
 
-applyAccountEvent :: TransferManager -> BankEvent -> TransferManager
-applyAccountEvent manager (AccountTransferStarted' event) = applyAccountTransferStarted manager event
-applyAccountEvent manager (AccountTransferRejected' _) = cancelTransfer manager
-applyAccountEvent manager (AccountCreditedFromTransfer' event) = applyAccountCreditedFromTransfer manager event
-applyAccountEvent manager _ = manager
+handleAccountEvent :: TransferManager -> BankEvent -> TransferManager
+handleAccountEvent manager (AccountTransferStarted' event) = handleAccountTransferStarted manager event
+handleAccountEvent manager (AccountTransferRejected' _) = cancelTransfer manager
+handleAccountEvent manager (AccountCreditedFromTransfer' event) = handleAccountCreditedFromTransfer manager event
+handleAccountEvent manager _ = manager
 
-applyAccountTransferStarted :: TransferManager -> AccountTransferStarted -> TransferManager
-applyAccountTransferStarted manager (AccountTransferStarted transferId sourceId amount targetId) =
+handleAccountTransferStarted :: TransferManager -> AccountTransferStarted -> TransferManager
+handleAccountTransferStarted manager (AccountTransferStarted transferId sourceId amount targetId) =
   manager
   { transferManagerData = Just (TransferManagerTransferData transferId sourceId targetId)
   , transferManagerPendingCommands =
@@ -57,8 +57,8 @@ applyAccountTransferStarted manager (AccountTransferStarted transferId sourceId 
   where
     command = AcceptTransfer' (AcceptTransfer transferId sourceId amount)
 
-applyAccountCreditedFromTransfer :: TransferManager -> AccountCreditedFromTransfer -> TransferManager
-applyAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
+handleAccountCreditedFromTransfer :: TransferManager -> AccountCreditedFromTransfer -> TransferManager
+handleAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
   manager
   { transferManagerPendingCommands = []
   , transferManagerPendingEvents = events
