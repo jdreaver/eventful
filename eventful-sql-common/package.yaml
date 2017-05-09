@@ -6,9 +6,10 @@ description: Common library for SQL event stores
 maintainer: David Reaver
 stability: experimental
 license: MIT
+license-file: LICENSE.md
 
 dependencies:
-  - base
+  - base >= 4.9 && < 5
   - eventful-core
 
   - aeson

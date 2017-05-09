@@ -9,7 +9,7 @@ license: MIT
 license-file: LICENSE.md
 
 dependencies:
-  - base
+  - base >= 4.9 && < 5
   - eventful-core
 
   - aeson

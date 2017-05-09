@@ -13,7 +13,7 @@ extra-source-files:
   - README.md
 
 dependencies:
-  - base
+  - base >= 4.9 && < 5
 
   - aeson
   - containers
@@ -62,7 +62,7 @@ tests:
       - HUnit
   style:
     main: HLint.hs
-    ghc-options: -Wall -Werror
+    ghc-options: -Wall
     source-dirs:
       - tests
     dependencies:

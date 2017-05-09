@@ -8,7 +8,7 @@ stability: experimental
 license: MIT
 
 dependencies:
-  - base
+  - base >= 4.9 && < 5
   - eventful-core
   - eventful-sqlite
 
@@ -65,7 +65,7 @@ tests:
       - HUnit
   style:
     main: HLint.hs
-    ghc-options: -Wall -Werror
+    ghc-options: -Wall
     source-dirs:
       - tests
     dependencies:

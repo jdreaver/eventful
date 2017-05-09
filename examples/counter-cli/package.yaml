@@ -8,7 +8,7 @@ stability: experimental
 license: MIT
 
 dependencies:
-  - base
+  - base >= 4.9 && < 5
   - eventful-core
   - eventful-memory
 
