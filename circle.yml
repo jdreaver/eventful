@@ -1,0 +1,35 @@
+machine:
+  environment:
+    PATH: "$HOME/.local/bin:$PATH"
+    STACK_VERSION: 1.4.0
+    _JAVA_OPTIONS: "-Xms512m -Xmx1024m"
+    AWS_ACCESS_KEY_ID: dummy
+    AWS_SECRET_ACCESS_KEY: dummy
+    AWS_DEFAULT_REGION: us-west-2
+  java:
+    version: openjdk7
+  post:
+    - curl -k -L -o dynamodb-local.tgz http://dynamodb-local.s3-website-us-west-2.amazonaws.com/dynamodb_local_latest.tar.gz
+    - tar -xzf dynamodb-local.tgz
+    - java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb:
+        background: true
+
+dependencies:
+  pre:
+   - mkdir -p ~/.local/bin
+   - curl -L https://github.com/commercialhaskell/stack/releases/download/v$STACK_VERSION/stack-$STACK_VERSION-linux-x86_64.tar.gz | tar -xzv -C ~/.local/bin && ln -vsf ~/.local/bin/stack-*/stack ~/.local/bin/stack
+  cache_directories:
+    - "~/.stack"
+    - "~/eventful/.stack-work"
+  override:
+    - stack setup
+    - stack build --test --only-dependencies --no-run-tests --jobs=1
+
+database:
+  override:
+    - psql -U postgres -c "CREATE DATABASE eventful_test"
+
+test:
+  override:
+    - "stack test --pedantic --jobs=1"
+    - "stack haddock --fast --no-haddock-deps --jobs=1"
