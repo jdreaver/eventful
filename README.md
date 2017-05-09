@@ -1,5 +1,7 @@
 # Eventful: Haskell Event Sourcing + CQRS Library
 
+[![CircleCI](https://circleci.com/gh/jdreaver/eventful.svg?style=svg)](https://circleci.com/gh/jdreaver/eventful)
+
 `eventful` is a Haskell library intended to be used as a basis for applications
 built using event sourcing. In particular, `eventful` has a number of
 independent features that users can choose from to help construct their
