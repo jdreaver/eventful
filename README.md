@@ -14,6 +14,10 @@ application:
   `Aggregate`, and `ProcessManager`. All of these integrate with `EventStore`
   so you get transparent integration with your underlying event storage.
 
+## Documentation
+
+The main documentation is [here](https://eventful.readthedocs.io).
+
 ## Why should you use eventful?
 
 One of the attractive features of event sourcing is how simple the fundamental
