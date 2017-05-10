@@ -1,0 +1,22 @@
+name: tutorial-counter
+version: "0.1.0"
+maintainer: David Reaver
+maintainer: David Reaver
+stability: experimental
+license: MIT
+
+dependencies:
+  - base >= 4.9 && < 5
+  - eventful-core
+  - eventful-memory
+
+  - safe
+  - stm
+
+  # Used to convert markdown files to literate haskell
+  - markdown-unlit >= 0.4
+
+library:
+  source-dirs:
+    - .
+  ghc-options: -Wall -pgmL markdown-unlit

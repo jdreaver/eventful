@@ -1,5 +1,6 @@
 resolver: nightly-2017-04-30
 packages:
+  - 'doc/tutorial'
   - 'eventful-core'
   - 'eventful-dynamodb'
   - 'eventful-memory'

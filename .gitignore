@@ -6,3 +6,5 @@
 *.cabal
 .stack-work/
 database.db
+venv/
+doc/_build/
