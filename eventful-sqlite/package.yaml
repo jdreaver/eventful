@@ -9,6 +9,8 @@ category: Database,Eventsourcing,SQLite
 license: MIT
 license-file: LICENSE.md
 
+github: jdreaver/eventful
+
 extra-source-files:
   - CHANGELOG.md
   - README.md
