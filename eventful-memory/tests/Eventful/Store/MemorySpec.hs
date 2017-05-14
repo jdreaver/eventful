@@ -17,22 +17,22 @@ spec = do
     eventStoreSpec makeStore (const atomically)
     sequencedEventStoreSpec makeGlobalStore (const atomically)
 
-makeStore :: IO (MemoryEventStore serialized, ())
+makeStore :: IO (EventStore serialized STM, ())
 makeStore = do
   (store, _, ()) <- makeGlobalStore
   return (store, ())
 
-makeGlobalStore :: IO (MemoryEventStore serialized, GloballyOrderedMemoryEventStore serialized, ())
+makeGlobalStore :: IO (EventStore serialized STM, GloballyOrderedEventStore serialized STM, ())
 makeGlobalStore = do
   (store, globalStore) <- memoryEventStore
   return (store, globalStore, ())
 
-makeDynamicStore :: IO (MemoryEventStore CounterEvent, ())
+makeDynamicStore :: IO (EventStore CounterEvent STM, ())
 makeDynamicStore = do
   (store, _, ()) <- makeDynamicGlobalStore
   return (store, ())
 
-makeDynamicGlobalStore :: IO (MemoryEventStore CounterEvent, GloballyOrderedMemoryEventStore CounterEvent, ())
+makeDynamicGlobalStore :: IO (EventStore CounterEvent STM, GloballyOrderedEventStore CounterEvent STM, ())
 makeDynamicGlobalStore = do
   (store, globalStore) <- memoryEventStore
   let
