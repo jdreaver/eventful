@@ -18,7 +18,7 @@ main = do
   (store, _) <- memoryEventStore
   forever (readAndHandleCommand store)
 
-readAndHandleCommand :: MemoryEventStore CounterEvent -> IO ()
+readAndHandleCommand :: EventStore CounterEvent STM -> IO ()
 readAndHandleCommand store = do
   -- Just use the nil uuid for everything
   let uuid = nil
