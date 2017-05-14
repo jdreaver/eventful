@@ -17,7 +17,7 @@ import Eventful.UUID
 -- validate commands against that 'Projection'. When using an aggregate in some
 -- service, it is common to simply load the latest projection state from the
 -- event store and handle the command. If the command is valid then the new
--- event is applied to the projection in the event store.
+-- events are applied to the projection in the event store.
 data Aggregate state event cmd =
   Aggregate
   { aggregateCommandHandler :: state -> cmd -> [event]
@@ -25,8 +25,7 @@ data Aggregate state event cmd =
   }
 
 -- | Given a list commands, produce all of the states the aggregate's
--- projection sees, interspersed with command errors. This is useful for unit
--- testing aggregates.
+-- projection sees. This is useful for unit testing aggregates.
 allAggregateStates
   :: Aggregate state event cmd
   -> [cmd]
@@ -36,7 +35,7 @@ allAggregateStates (Aggregate commandHandler (Projection seed eventHandler)) eve
   where
     go state command = foldl' eventHandler state $ commandHandler state command
 
--- | Loads the latest version of a projection from the event store and tries to
+-- | Loads the latest version of a 'Projection' from the event store and tries to
 -- apply the 'Aggregate' command to it. If the command succeeds, then this
 -- saves the events back to the store as well.
 commandStoredAggregate

@@ -16,6 +16,8 @@ import Database.Persist.Sql
 import Eventful.Store.Class
 import Eventful.Store.Sql
 
+-- | An 'EventStore' that uses a PostgreSQL database as a backend. Use
+-- 'SqlEventStoreConfig' to configure this event store.
 postgresqlEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
@@ -32,6 +34,8 @@ maxPostgresVersionSql :: DBName -> DBName -> DBName -> Text
 maxPostgresVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
   "SELECT COALESCE(MAX(" <> versionFieldName <> "), -1) FROM " <> tableName <> " WHERE " <> uuidFieldName <> " = ?"
 
+-- | This function runs migrations to create the events table if it isn't
+-- present.
 initializePostgresqlEventStore :: (MonadIO m) => ConnectionPool -> m ()
 initializePostgresqlEventStore pool = do
   -- Run migrations

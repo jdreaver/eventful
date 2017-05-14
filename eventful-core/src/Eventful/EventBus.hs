@@ -6,9 +6,10 @@ module Eventful.EventBus
 import Eventful.Store.Class
 import Eventful.UUID
 
--- | In-memory synchronous event bus. This takes a list of event handlers and
--- wraps an event store. When events are stored the handlers are called with
--- the new events.
+-- | This function wraps an event store by sending events to event handlers
+-- after running 'storeEvents'. This is useful to quickly wire up event
+-- handlers in your application (like read models or process managers), and it
+-- is also useful for integration testing along with an in-memory event store.
 synchronousEventBusWrapper
   :: (Monad m)
   => EventStore serialized m
@@ -28,6 +29,7 @@ synchronousEventBusWrapper store handlers =
   in wrappedStore
 
 -- | Stores events in the store and them publishes them to the event handlers.
+-- This is used in the 'synchronousEventBusWrapper'.
 storeAndPublishEvents
   :: (Monad m)
   => EventStore serialized m

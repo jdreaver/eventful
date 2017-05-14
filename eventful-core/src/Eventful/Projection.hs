@@ -12,7 +12,12 @@ import Data.List (scanl')
 import Eventful.Store.Class
 import Eventful.UUID
 
--- | A 'Projection' is a piece of @state@ that is constructed only from @event@s.
+-- | A 'Projection' is a piece of @state@ that is constructed only from
+-- @event@s. A Projection is how you reconstruct event sourced state from the
+-- ordered stream of events that constitute that state. The "seed" of a
+-- Projection is the initial state before any events are applied. The event
+-- handler for a projection is the function that actually modifies state based
+-- on the given event.
 data Projection state event
   = Projection
   { projectionSeed :: state
@@ -27,12 +32,14 @@ latestProjection :: (Foldable t) => Projection state event -> t event -> state
 latestProjection (Projection seed handler) = foldl' handler seed
 
 -- | Given a list of events, produce all the Projections that were ever
--- produced. Just a 'scanl' using 'projectionEventHandler'.
+-- produced. Just a 'scanl' using 'projectionEventHandler'. This function is
+-- useful for testing 'Projection's; you can easily assert that all the states
+-- of a Projection are valid given a list of events.
 allProjections :: Projection state event -> [event] -> [state]
 allProjections (Projection seed handler) = scanl' handler seed
 
 -- | Gets the latest projection from a store by using 'getEvents' and then
--- applying the events to the event handler.
+-- applying the events using the Projection's event handler.
 getLatestProjection
   :: (Monad m)
   => EventStore serialized m

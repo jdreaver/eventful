@@ -29,7 +29,10 @@ import GHC.Generics
 
 import Eventful.Store.Class
 
--- | Used to define how to serialize and deserialize events in event stores.
+-- | A 'Serializer' describes the injective conversion between types @a@ and
+-- @b@. In plain English, this means that you can go from @a@ to @b@, and you
+-- can 'Maybe' go from @b@ back to @a@. This is often used to serialize events
+-- to an event store, and then deserialize them back.
 data Serializer a b =
   Serializer
   { serialize :: a -> b
@@ -52,7 +55,8 @@ simpleSerializer serialize' deserialize' =
   }
 
 -- | Apply an intermediate 'Serializer' to a serializer to go from type @a@ to
--- @c@ with @b@ in the middle.
+-- @c@ with @b@ in the middle. Note that with deserializing, if the conversion
+-- from @c@ to @b@ or from @b@ to @a@ fails, the whole deserialization fails.
 composeSerializers :: Serializer a b -> Serializer b c -> Serializer a c
 composeSerializers serializer1 serializer2 = Serializer serialize' deserialize' deserializeEither'
   where
@@ -60,11 +64,12 @@ composeSerializers serializer1 serializer2 = Serializer serialize' deserialize' 
     deserialize' x = deserialize serializer2 x >>= deserialize serializer1
     deserializeEither' x = deserializeEither serializer2 x >>= deserializeEither serializer1
 
--- | Simple "serializer" for keeping the same type.
+-- | Simple "serializer" using 'id'. Useful for when an API requires a
+-- serializer but you don't need to actually change types.
 idSerializer :: Serializer a a
 idSerializer = simpleSerializer id Just
 
--- | A 'Serializer' for aeson 'Value's
+-- | A 'Serializer' for aeson 'Value's.
 jsonSerializer :: (ToJSON a, FromJSON a) => Serializer a Value
 jsonSerializer =
   Serializer
@@ -80,7 +85,7 @@ jsonSerializer =
   }
 
 -- | A 'Serializer' to convert JSON to/from lazy text. Useful for Sql event
--- stores.
+-- stores that store JSON values as text.
 jsonTextSerializer :: (ToJSON a, FromJSON a) => Serializer a TL.Text
 jsonTextSerializer =
   Serializer
@@ -89,7 +94,7 @@ jsonTextSerializer =
   , deserializeEither = eitherDecode . TLE.encodeUtf8
   }
 
--- | A 'Serializer' for 'Dynamic' values
+-- | A 'Serializer' for 'Dynamic' values using 'toDyn' and 'fromDynamic'.
 dynamicSerializer :: (Typeable a) => Serializer a Dynamic
 dynamicSerializer = simpleSerializer toDyn fromDynamic
 
@@ -105,9 +110,9 @@ eventSumTypeSerializer = simpleSerializer serialize' deserialize'
       (eventFromDyn $ eventToDyn event)
     deserialize' = eventFromDyn . eventToDyn
 
--- | Wraps an 'EventStore' and transparently serializes/deserializes for you.
--- Note that deserialization errors are simply ignored (the event is not
--- returned).
+-- | Wraps an 'EventStore' and transparently serializes/deserializes events for
+-- you. Note that in this implementation deserialization errors when using
+-- 'getEvents' are simply ignored (the event is not returned).
 serializedEventStore
   :: (Monad m)
   => Serializer event serialized
@@ -122,7 +127,7 @@ serializedEventStore Serializer{..} store =
     getEvents' uuid mVersion = mapMaybe (traverse deserialize) <$> getEvents store uuid mVersion
     storeEvents' expectedVersion uuid events = storeEvents store expectedVersion uuid (serialize <$> events)
 
--- | Like 'serializedEventStore' except for 'GloballyOrderedEventStore'
+-- | Like 'serializedEventStore' except for 'GloballyOrderedEventStore'.
 serializedGloballyOrderedEventStore
   :: (Monad m)
   => Serializer event serialized

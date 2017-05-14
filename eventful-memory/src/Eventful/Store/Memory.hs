@@ -1,8 +1,5 @@
 module Eventful.Store.Memory
-  ( MemoryEventStore
-  , GloballyOrderedMemoryEventStore
-  , memoryEventStore
-  , memoryEventStoreGetAllUuids
+  ( memoryEventStore
   , module Eventful.Store.Class
   ) where
 
@@ -26,11 +23,10 @@ data EventMap serialized
   }
   deriving (Show)
 
-type MemoryEventStore serialized = EventStore serialized STM
-type GloballyOrderedMemoryEventStore serialized = GloballyOrderedEventStore serialized STM
-
--- | Initializes memory event stores.
-memoryEventStore :: IO (MemoryEventStore serialized, GloballyOrderedMemoryEventStore serialized)
+-- | An 'EventStore' that stores events in a 'TVar' and runs in 'STM'. This
+-- functions initializes the store by creating the 'TVar' and hooking up the
+-- event store API to that 'TVar'.
+memoryEventStore :: IO (EventStore serialized STM, GloballyOrderedEventStore serialized STM)
 memoryEventStore = do
   tvar <- newTVarIO (EventMap Map.empty 0)
   let

@@ -50,7 +50,11 @@ instance PathPiece UUID where
   fromPathPiece = uuidFromText
   toPathPiece = uuidToText
 
--- | Useful for testing
+-- | Constructs a valid 'UUID' from an 'Integer' by padding with zeros. Useful
+-- for testing.
+--
+-- >>> uuidFromInteger 1
+-- 00000000-0000-0000-0000-000000000001
 uuidFromInteger :: Integer -> UUID
 uuidFromInteger i =
   let rawString = take 32 $ printf "%032x" i

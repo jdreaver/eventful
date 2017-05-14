@@ -1,7 +1,7 @@
 module Eventful.Store.DynamoDB
-  ( DynamoDBEventStoreConfig (..)
+  ( dynamoDBEventStore
+  , DynamoDBEventStoreConfig (..)
   , defaultDynamoDBEventStoreConfig
-  , dynamoDBEventStore
   , initializeDynamoDBEventStore
   , deleteDynamoDBEventStoreTable
   , runAWSIO
@@ -51,6 +51,8 @@ defaultDynamoDBEventStoreConfig =
   , dynamoDBEventStoreConfigValueToSerialized = attributeValueToValue
   }
 
+-- | An 'EventStore' that uses AWS DynamoDB as the storage backend. Use a
+-- 'DynamoDBEventStoreConfig' to configure this event store.
 dynamoDBEventStore
   :: DynamoDBEventStoreConfig serialized
   -> EventStore serialized AWS

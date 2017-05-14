@@ -13,7 +13,11 @@ import Eventful.Projection
 import Eventful.Store.Class
 import Eventful.UUID
 
--- | A 'ProcessManager' manages state between aggregates.
+-- | A 'ProcessManager' manages interaction between aggregates. It works by
+-- listening to events on an event bus (see 'processManagerHandler') and
+-- applying events to its internal 'Projection'. Then, pending commands and
+-- events are plucked off of that Projection and applied to the appropriate
+-- Aggregates or Projections in other streams.
 data ProcessManager state event command
   = ProcessManager
   { processManagerProjection :: Projection state event
@@ -21,6 +25,9 @@ data ProcessManager state event command
   , processManagerPendingEvents :: state -> [ProcessManagerEvent event]
   }
 
+-- | This is a @command@ along with the UUID of the target 'Aggregate', and
+-- well as the 'Aggregate' instance. Note that this uses an existential type to
+-- hide the @state@ type parameter on the Aggregate.
 data ProcessManagerCommand event command
   = forall state. ProcessManagerCommand
   { processManagerCommandAggregateId :: UUID
@@ -33,6 +40,8 @@ instance (Show command, Show event) => Show (ProcessManagerCommand event command
     "ProcessManagerCommand{ processManagerCommandAggregateId = " ++ show uuid ++
     ", processManagerCommandCommand = " ++ show command
 
+-- | This is an @event@ paired with the UUID of the stream to which the event
+-- will be applied.
 data ProcessManagerEvent event
   = ProcessManagerEvent
   { processManagerEventProjectionId :: UUID
@@ -53,6 +62,9 @@ data ProcessManagerRouter state event command
   , processManagerRouterManager :: ProcessManager state event command
   }
 
+-- | This is an event handler for a 'ProcessManager' that applies all events to
+-- the 'ProcessManagerRouter', and then applied any pending commands or events
+-- to the appropriate places.
 processManagerHandler
   :: (Monad m)
   => ProcessManagerRouter state event command

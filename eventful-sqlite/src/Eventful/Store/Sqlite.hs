@@ -16,6 +16,8 @@ import Database.Persist.Sql
 import Eventful.Store.Class
 import Eventful.Store.Sql
 
+-- | An 'EventStore' that uses an SQLite database as a backend. Use
+-- 'SqlEventStoreConfig' to configure this event store.
 sqliteEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
@@ -32,6 +34,8 @@ maxSqliteVersionSql :: DBName -> DBName -> DBName -> Text
 maxSqliteVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
   "SELECT IFNULL(MAX(" <> versionFieldName <> "), -1) FROM " <> tableName <> " WHERE " <> uuidFieldName <> " = ?"
 
+-- | This functions runs the migrations required to create the events table and
+-- also adds an index on the UUID column.
 initializeSqliteEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
