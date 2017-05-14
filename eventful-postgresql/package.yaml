@@ -1,5 +1,5 @@
 name: eventful-postgresql
-version: "0.1.1"
+version: "0.1.2"
 maintainer: David Reaver
 synopsis: Postgres implementations for eventful
 description: Postgres implementations for eventful
