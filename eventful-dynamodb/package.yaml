@@ -5,6 +5,7 @@ synopsis: Library for eventful DynamoDB event stores
 description: Library for eventful DynamoDB event stores
 maintainer: David Reaver
 stability: experimental
+category: Database,Eventsourcing,AWS
 license: MIT
 license-file: LICENSE.md
 

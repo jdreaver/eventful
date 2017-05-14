@@ -5,6 +5,7 @@ synopsis: Postgres implementations for eventful
 description: Postgres implementations for eventful
 maintainer: David Reaver
 stability: experimental
+category: Database,Eventsourcing,PostgreSQL
 license: MIT
 license-file: LICENSE.md
 

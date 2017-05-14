@@ -5,6 +5,7 @@ synopsis: In-memory implementations for eventful
 description: In-memory implementations for eventful
 maintainer: David Reaver
 stability: experimental
+category: Database,Eventsourcing
 license: MIT
 license-file: LICENSE.md
 

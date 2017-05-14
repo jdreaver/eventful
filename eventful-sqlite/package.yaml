@@ -5,6 +5,7 @@ synopsis: SQLite implementations for eventful
 description: SQLite implementations for eventful
 maintainer: David Reaver
 stability: experimental
+category: Database,Eventsourcing,SQLite
 license: MIT
 license-file: LICENSE.md
 

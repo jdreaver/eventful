@@ -5,6 +5,7 @@ synopsis: Common library for SQL event stores
 description: Common library for SQL event stores
 maintainer: David Reaver
 stability: experimental
+category: Database,Eventsourcing
 license: MIT
 license-file: LICENSE.md
 

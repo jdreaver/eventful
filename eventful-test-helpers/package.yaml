@@ -5,6 +5,7 @@ synopsis: Common module used for eventful tests
 description: Common module used for eventful tests
 maintainer: David Reaver
 stability: experimental
+category: Database,Eventsourcing
 license: MIT
 license-file: LICENSE.md
 
