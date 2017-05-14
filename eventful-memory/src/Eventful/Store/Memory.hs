@@ -37,9 +37,6 @@ memoryEventStore = do
     getSequencedEvents seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
   return (EventStore{..}, GloballyOrderedEventStore{..})
 
-memoryEventStoreGetAllUuids :: TVar (EventMap serialized) -> STM [UUID]
-memoryEventStoreGetAllUuids tvar = fmap fst . Map.toList . _eventMapUuidMap <$> readTVar tvar
-
 lookupEventMapRaw :: EventMap serialized -> UUID -> Seq (StoredEvent serialized)
 lookupEventMapRaw (EventMap uuidMap _) uuid =
    fmap globallyOrderedEventEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
