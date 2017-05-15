@@ -4,7 +4,7 @@ Introduction
 ``eventful`` is a Haskell library for building event sourced applications.
 
 What is Event Sourcing?
-=======================
+-----------------------
 
 At its core, event sourcing is the following: instead of simply storing the
 current state of your application, you store a sequence of state-changing
@@ -34,7 +34,7 @@ explanation, here are some great introduction materials:
   stream processing in general, but also specifically about event sourcing.
 
 Features
-========
+--------
 
 The goal of ``eventful`` is not to be a framework that imposes design decisions
 on application developers. It is meant to be a toolbox from which you can
