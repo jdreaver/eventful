@@ -1,4 +1,6 @@
-# Counter
+<!--- -*- mode: Markdown;-*- -->
+
+# Manipulating state with events
 
 The core concept behind event sourcing is your current state should be derived
 from past events. To illustrate this, we will use an extremely simple example

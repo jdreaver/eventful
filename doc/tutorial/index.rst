@@ -9,7 +9,7 @@ event sourced application using ``eventful``.
   :maxdepth: 1
 
   Counter.lhs
-
+  EventStore.lhs
 
 .. Module introducing EventStore
 .. Module introducing Projection
