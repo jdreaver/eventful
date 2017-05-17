@@ -18,17 +18,17 @@ import Eventful.UUID
 -- service, it is common to simply load the latest projection state from the
 -- event store and handle the command. If the command is valid then the new
 -- events are applied to the projection in the event store.
-data Aggregate state event cmd =
+data Aggregate state event command =
   Aggregate
-  { aggregateCommandHandler :: state -> cmd -> [event]
+  { aggregateCommandHandler :: state -> command -> [event]
   , aggregateProjection :: Projection state event
   }
 
 -- | Given a list commands, produce all of the states the aggregate's
 -- projection sees. This is useful for unit testing aggregates.
 allAggregateStates
-  :: Aggregate state event cmd
-  -> [cmd]
+  :: Aggregate state event command
+  -> [command]
   -> [state]
 allAggregateStates (Aggregate commandHandler (Projection seed eventHandler)) events =
   scanl' go seed events
@@ -41,9 +41,9 @@ allAggregateStates (Aggregate commandHandler (Projection seed eventHandler)) eve
 commandStoredAggregate
   :: (Monad m)
   => EventStore serialized m
-  -> Aggregate state serialized cmd
+  -> Aggregate state serialized command
   -> UUID
-  -> cmd
+  -> command
   -> m [serialized]
 commandStoredAggregate store (Aggregate handler proj) uuid command = do
   (latest, vers) <- getLatestProjection store proj uuid
