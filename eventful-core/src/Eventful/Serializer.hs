@@ -137,7 +137,7 @@ serializedGloballyOrderedEventStore Serializer{..} store =
   GloballyOrderedEventStore getSequencedEvents'
   where
     getSequencedEvents' sequenceNumber =
-      mapMaybe (traverse (traverse deserialize)) <$> getSequencedEvents store sequenceNumber
+      mapMaybe (traverse deserialize) <$> getSequencedEvents store sequenceNumber
 
 -- | This is a type class for serializing sum types of events to 'Dynamic'
 -- without the associated constructor. This is useful when transforming between

@@ -7,6 +7,8 @@ module Eventful.Store.Class
     -- * Utility types
   , StoredEvent (..)
   , GloballyOrderedEvent (..)
+  , globallyOrderedEventToStoredEvent
+  , storedEventToGloballyOrderedEvent
   , EventVersion (..)
   , SequenceNumber (..)
     -- * Utility functions
@@ -39,7 +41,7 @@ data EventStore serialized m
 -- store.
 newtype GloballyOrderedEventStore serialized m =
   GloballyOrderedEventStore
-  { getSequencedEvents :: SequenceNumber -> m [GloballyOrderedEvent (StoredEvent serialized)]
+  { getSequencedEvents :: SequenceNumber -> m [GloballyOrderedEvent serialized]
   }
 
 -- | ExpectedVersion is used to assert the event stream is at a certain version
@@ -93,24 +95,50 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid e
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event
   = StoredEvent
-  { storedEventProjectionId :: UUID
+  { storedEventProjectionId :: !UUID
     -- ^ The UUID of the 'Projection' that the event belongs to.
-  , storedEventVersion :: EventVersion
+  , storedEventVersion :: !EventVersion
     -- ^ The version of the Projection corresponding to this event.
-  , storedEventEvent :: event
+  , storedEventEvent :: !event
     -- ^ The actual event type. Note that this can be a serialized event or the
     -- actual Haskell event type.
   } deriving (Show, Eq, Functor, Foldable, Traversable)
 
--- | A 'GloballyOrderedEvent' is an event that has a global 'SequenceNumber'.
+-- | A 'GloballyOrderedEvent' is like a 'StoredEvent' but has a global
+-- 'SequenceNumber'.
 data GloballyOrderedEvent event
   = GloballyOrderedEvent
-  { globallyOrderedEventSequenceNumber :: SequenceNumber
+  { globallyOrderedEventProjectionId :: !UUID
+    -- ^ The UUID of the 'Projection' that the event belongs to.
+  , globallyOrderedEventVersion :: !EventVersion
+    -- ^ The version of the Projection corresponding to this event.
+  , globallyOrderedEventSequenceNumber :: !SequenceNumber
     -- ^ The global sequence number of this event.
-  , globallyOrderedEventEvent :: event
+  , globallyOrderedEventEvent :: !event
     -- ^ The actual event type. Note that this can be a serialized event or the
     -- actual Haskell event type.
   } deriving (Show, Eq, Functor, Foldable, Traversable)
+
+-- | Extract the 'StoredEvent' from a 'GloballyOrderedEvent'
+globallyOrderedEventToStoredEvent :: GloballyOrderedEvent event -> StoredEvent event
+globallyOrderedEventToStoredEvent GloballyOrderedEvent{..} =
+  StoredEvent
+  { storedEventProjectionId = globallyOrderedEventProjectionId
+  , storedEventVersion = globallyOrderedEventVersion
+  , storedEventEvent = globallyOrderedEventEvent
+  }
+
+-- | Convert a 'StoredEvent' to a 'GloballyOrderedEvent' by adding the
+-- 'SequenceNumber'. This is mainly used by event stores to create globally
+-- ordered events.
+storedEventToGloballyOrderedEvent :: SequenceNumber -> StoredEvent event -> GloballyOrderedEvent event
+storedEventToGloballyOrderedEvent sequenceNumber StoredEvent{..} =
+  GloballyOrderedEvent
+  { globallyOrderedEventProjectionId = storedEventProjectionId
+  , globallyOrderedEventVersion = storedEventVersion
+  , globallyOrderedEventSequenceNumber = sequenceNumber
+  , globallyOrderedEventEvent = storedEventEvent
+  }
 
 -- | Event versions are a strictly increasing series of integers for each
 -- projection. They allow us to order the events when they are replayed, and

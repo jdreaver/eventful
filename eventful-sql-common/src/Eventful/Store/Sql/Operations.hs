@@ -46,9 +46,9 @@ sqlGloballyOrderedEventStore config =
 sqlEventToGloballyOrdered
   :: SqlEventStoreConfig entity serialized
   -> Entity entity
-  -> GloballyOrderedEvent (StoredEvent serialized)
+  -> GloballyOrderedEvent serialized
 sqlEventToGloballyOrdered config@SqlEventStoreConfig{..} (Entity key event) =
-  GloballyOrderedEvent (sqlEventStoreConfigUnKey key) $ sqlEventToStored config event
+  storedEventToGloballyOrderedEvent (sqlEventStoreConfigUnKey key) (sqlEventToStored config event)
 
 sqlEventToStored
   :: SqlEventStoreConfig entity serialized
@@ -88,7 +88,7 @@ sqlGetAllEventsFromSequence
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
   -> SequenceNumber
-  -> SqlPersistT m [GloballyOrderedEvent (StoredEvent serialized)]
+  -> SqlPersistT m [GloballyOrderedEvent serialized]
 sqlGetAllEventsFromSequence config@SqlEventStoreConfig{..} seqNum = do
   entities <-
     selectList

@@ -17,7 +17,7 @@ import Eventful.UUID
 
 data EventMap serialized
   = EventMap
-  { _eventMapUuidMap :: Map UUID (Seq (GloballyOrderedEvent (StoredEvent serialized)))
+  { _eventMapUuidMap :: Map UUID (Seq (GloballyOrderedEvent serialized))
   , _eventMapSeqNum :: SequenceNumber
   -- TODO: Add projection cache here
   }
@@ -39,7 +39,7 @@ memoryEventStore = do
 
 lookupEventMapRaw :: EventMap serialized -> UUID -> Seq (StoredEvent serialized)
 lookupEventMapRaw (EventMap uuidMap _) uuid =
-   fmap globallyOrderedEventEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
+  fmap globallyOrderedEventToStoredEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
 
 lookupEventsFromVersion :: EventMap serialized -> UUID -> Maybe EventVersion -> Seq (StoredEvent serialized)
 lookupEventsFromVersion store uuid Nothing = lookupEventMapRaw store uuid
@@ -48,7 +48,7 @@ lookupEventsFromVersion store uuid (Just (EventVersion vers)) = Seq.drop vers $ 
 latestEventVersion :: EventMap serialized -> UUID -> EventVersion
 latestEventVersion store uuid = EventVersion $ Seq.length (lookupEventMapRaw store uuid) - 1
 
-lookupEventMapSeq :: EventMap serialized -> SequenceNumber -> [GloballyOrderedEvent (StoredEvent serialized)]
+lookupEventMapSeq :: EventMap serialized -> SequenceNumber -> [GloballyOrderedEvent serialized]
 lookupEventMapSeq (EventMap uuidMap _) seqNum =
   sortOn globallyOrderedEventSequenceNumber $
   filter ((> seqNum) . globallyOrderedEventSequenceNumber) $
@@ -60,7 +60,7 @@ storeEventMap
 storeEventMap store@(EventMap uuidMap seqNum) uuid events =
   let
     versStart = latestEventVersion store uuid + 1
-    storedEvents = zipWith GloballyOrderedEvent [seqNum + 1..] $ zipWith (StoredEvent uuid) [versStart..] events
+    storedEvents = zipWith storedEventToGloballyOrderedEvent [seqNum + 1..] $ zipWith (StoredEvent uuid) [versStart..] events
     newMap = Map.insertWith (flip (><)) uuid (Seq.fromList storedEvents) uuidMap
     newSeq = seqNum + (SequenceNumber $ length events)
   in EventMap newMap newSeq

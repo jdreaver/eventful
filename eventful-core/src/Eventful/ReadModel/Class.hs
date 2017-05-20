@@ -13,7 +13,7 @@ data ReadModel model serialized m =
   ReadModel
   { readModelModel :: model
   , readModelLatestAppliedSequence :: model -> m SequenceNumber
-  , readModelHandleEvents :: model -> [GloballyOrderedEvent (StoredEvent serialized)] -> m ()
+  , readModelHandleEvents :: model -> [GloballyOrderedEvent serialized] -> m ()
   }
 
 type PollingPeriodSeconds = Double

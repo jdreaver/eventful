@@ -39,7 +39,7 @@ handleChefReadModelEvents
 handleChefReadModelEvents foodMap events = do
   let
     tabEvents = mapMaybe (traverse (traverse (deserialize jsonStringSerializer))) events :: [GloballyOrderedEvent (StoredEvent TabEvent)]
-    foodMap' = foldl' handleEventToMap foodMap $ map globallyOrderedEventEvent tabEvents
+    foodMap' = foldl' handleEventToMap foodMap $ map globallyOrderedEventStoredEvent tabEvents
   unless (null events) $ printFood foodMap'
   return foodMap'
 

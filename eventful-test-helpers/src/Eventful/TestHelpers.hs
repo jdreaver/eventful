@@ -197,9 +197,9 @@ sequencedEventStoreSpec makeStore runAsIO = do
     it "should have the correct events in global order" $ do
       (store, runargs) <- liftIO buildStore
       events' <- runAsIO runargs $ getSequencedEvents store 0
-      (storedEventEvent . globallyOrderedEventEvent <$> events') `shouldBe` Added <$> [1..5]
-      (storedEventProjectionId . globallyOrderedEventEvent <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (storedEventVersion . globallyOrderedEventEvent <$> events') `shouldBe` [0, 0, 1, 1, 2]
+      (globallyOrderedEventEvent <$> events') `shouldBe` Added <$> [1..5]
+      (globallyOrderedEventProjectionId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (globallyOrderedEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
       (globallyOrderedEventSequenceNumber <$> events') `shouldBe` [1..5]
 
 insertExampleEvents

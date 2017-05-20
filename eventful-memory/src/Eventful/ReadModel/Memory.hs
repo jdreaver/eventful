@@ -20,7 +20,7 @@ data MemoryReadModelData modeldata
 memoryReadModel
   :: (MonadIO m)
   => modeldata
-  -> (modeldata -> [GloballyOrderedEvent (StoredEvent serialized)] -> m modeldata)
+  -> (modeldata -> [GloballyOrderedEvent serialized] -> m modeldata)
   -> IO (ReadModel (TVar (MemoryReadModelData modeldata)) serialized m)
 memoryReadModel initialValue handleEvents = do
   tvar <- newTVarIO $ MemoryReadModelData (-1) initialValue
