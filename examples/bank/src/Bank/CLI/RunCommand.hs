@@ -19,7 +19,7 @@ runCLICommand pool (CreateCustomerCLI createCommand) = do
   uuid <- uuidNextRandom
   putStr "Attempting to create customer with UUID: "
   print uuid
-  let command = CreateCustomer' createCommand
+  let command = CreateCustomerCommand createCommand
   void $ runDB pool $ commandStoredAggregate cliEventStore customerAggregate uuid command
 runCLICommand pool (ViewAccountCLI uuid) = do
   (state, _) <- runDB pool $
@@ -38,13 +38,13 @@ runCLICommand pool (OpenAccountCLI openCommand) = do
   uuid <- uuidNextRandom
   putStr "Attempting to open account with UUID: "
   print uuid
-  let command = OpenAccount' openCommand
+  let command = OpenAccountCommand openCommand
   void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate uuid command
 runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
 
   transferId <- uuidNextRandom
-  let startCommand = TransferToAccount' $ TransferToAccount transferId sourceId amount targetId
+  let startCommand = TransferToAccountCommand $ TransferToAccount transferId sourceId amount targetId
   void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
   runCLICommand pool (ViewAccountCLI sourceId)
   runCLICommand pool (ViewAccountCLI targetId)

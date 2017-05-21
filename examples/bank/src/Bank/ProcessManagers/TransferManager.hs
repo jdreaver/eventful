@@ -39,9 +39,9 @@ transferManagerProjection =
   handleAccountEvent
 
 handleAccountEvent :: TransferManager -> BankEvent -> TransferManager
-handleAccountEvent manager (AccountTransferStarted' event) = handleAccountTransferStarted manager event
-handleAccountEvent manager (AccountTransferRejected' _) = cancelTransfer manager
-handleAccountEvent manager (AccountCreditedFromTransfer' event) = handleAccountCreditedFromTransfer manager event
+handleAccountEvent manager (AccountTransferStartedEvent event) = handleAccountTransferStarted manager event
+handleAccountEvent manager (AccountTransferRejectedEvent _) = cancelTransfer manager
+handleAccountEvent manager (AccountCreditedFromTransferEvent event) = handleAccountCreditedFromTransfer manager event
 handleAccountEvent manager _ = manager
 
 handleAccountTransferStarted :: TransferManager -> AccountTransferStarted -> TransferManager
@@ -55,7 +55,7 @@ handleAccountTransferStarted manager (AccountTransferStarted transferId sourceId
   , transferManagerPendingEvents = []
   }
   where
-    command = AcceptTransfer' (AcceptTransfer transferId sourceId amount)
+    command = AcceptTransferCommand (AcceptTransfer transferId sourceId amount)
 
 handleAccountCreditedFromTransfer :: TransferManager -> AccountCreditedFromTransfer -> TransferManager
 handleAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
@@ -66,7 +66,7 @@ handleAccountCreditedFromTransfer manager AccountCreditedFromTransfer{} =
   where
     events = maybe [] mkEvent (transferManagerData manager)
     mkEvent (TransferManagerTransferData transferId sourceId _) =
-      [ProcessManagerEvent sourceId $ AccountTransferCompleted' $ AccountTransferCompleted transferId]
+      [ProcessManagerEvent sourceId $ AccountTransferCompletedEvent $ AccountTransferCompleted transferId]
 
 cancelTransfer :: TransferManager -> TransferManager
 cancelTransfer manager =
@@ -81,7 +81,7 @@ cancelTransfer manager =
       -- TODO: Find a way to get the actual error so we can put it in this
       -- event.
       [ProcessManagerEvent sourceId $
-       AccountTransferRejected' $ AccountTransferRejected transferId "Rejected in transfer saga"]
+       AccountTransferRejectedEvent $ AccountTransferRejected transferId "Rejected in transfer saga"]
 
 type TransferProcessManager = ProcessManager TransferManager BankEvent BankCommand
 
@@ -96,11 +96,11 @@ transferManagerRouter :: ProcessManagerRouter TransferManager BankEvent BankComm
 transferManagerRouter = ProcessManagerRouter routeTransferManager transferProcessManager
 
 routeTransferManager :: UUID -> BankEvent -> Maybe UUID
-routeTransferManager eventId (AccountTransferStarted' AccountTransferStarted{..}) =
+routeTransferManager eventId (AccountTransferStartedEvent AccountTransferStarted{..}) =
   listenIfUuidsDifferent eventId accountTransferStartedTransferId
-routeTransferManager eventId (AccountTransferRejected' AccountTransferRejected{..}) =
+routeTransferManager eventId (AccountTransferRejectedEvent AccountTransferRejected{..}) =
   listenIfUuidsDifferent eventId accountTransferRejectedTransferId
-routeTransferManager eventId (AccountCreditedFromTransfer' AccountCreditedFromTransfer{..}) =
+routeTransferManager eventId (AccountCreditedFromTransferEvent AccountCreditedFromTransfer{..}) =
   listenIfUuidsDifferent eventId accountCreditedFromTransferTransferId
 routeTransferManager _ _ = Nothing
 

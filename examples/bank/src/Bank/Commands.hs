@@ -14,7 +14,7 @@ import Bank.Commands.Customer as X
 import Bank.Events
 import Bank.Json
 
-mkSumType "BankCommand" (++ "'")
+mkSumType "BankCommand" (++ "Command")
   [ --Account
     ''OpenAccount
   , ''CreditAccount
@@ -29,6 +29,6 @@ mkSumType "BankCommand" (++ "'")
 deriving instance Show BankCommand
 deriving instance Eq BankCommand
 
-deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "'" }) ''BankCommand
+deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "Command" }) ''BankCommand
 
 type BankAggregate state = Aggregate state BankEvent BankCommand

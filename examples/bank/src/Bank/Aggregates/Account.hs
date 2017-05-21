@@ -98,38 +98,38 @@ handleAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amoun
   & accountBalance +~ amount
 
 handleAccountEvent :: Account -> BankEvent -> Account
-handleAccountEvent account (AccountOpened' event) = handleAccountOpened account event
-handleAccountEvent account (AccountCredited' event) = handleAccountCredited account event
-handleAccountEvent account (AccountDebited' event) = handleAccountDebited account event
-handleAccountEvent account (AccountTransferStarted' event) = handleAccountTransferStarted account event
-handleAccountEvent account (AccountTransferCompleted' event) = handleAccountTransferCompleted account event
-handleAccountEvent account (AccountTransferRejected' event) = handleAccountTransferRejected account event
-handleAccountEvent account (AccountCreditedFromTransfer' event) = handleAccountCreditedFromTransfer account event
+handleAccountEvent account (AccountOpenedEvent event) = handleAccountOpened account event
+handleAccountEvent account (AccountCreditedEvent event) = handleAccountCredited account event
+handleAccountEvent account (AccountDebitedEvent event) = handleAccountDebited account event
+handleAccountEvent account (AccountTransferStartedEvent event) = handleAccountTransferStarted account event
+handleAccountEvent account (AccountTransferCompletedEvent event) = handleAccountTransferCompleted account event
+handleAccountEvent account (AccountTransferRejectedEvent event) = handleAccountTransferRejected account event
+handleAccountEvent account (AccountCreditedFromTransferEvent event) = handleAccountCreditedFromTransfer account event
 handleAccountEvent account _ = account
 
 accountProjection :: BankProjection Account
 accountProjection = Projection accountDefault handleAccountEvent
 
 handleAccountCommand :: Account -> BankCommand -> [BankEvent]
-handleAccountCommand account (OpenAccount' (OpenAccount owner amount)) =
+handleAccountCommand account (OpenAccountCommand (OpenAccount owner amount)) =
   case account ^. accountOwner of
-    Just _ -> [AccountOpenRejected' $ AccountOpenRejected "Account already open"]
+    Just _ -> [AccountOpenRejectedEvent $ AccountOpenRejected "Account already open"]
     Nothing ->
       if amount < 0
-      then [AccountOpenRejected' $ AccountOpenRejected "Invalid initial deposit"]
-      else [AccountOpened' $ AccountOpened owner amount]
-handleAccountCommand _ (CreditAccount' (CreditAccount amount reason)) =
-  [AccountCredited' $ AccountCredited amount reason]
-handleAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
+      then [AccountOpenRejectedEvent $ AccountOpenRejected "Invalid initial deposit"]
+      else [AccountOpenedEvent $ AccountOpened owner amount]
+handleAccountCommand _ (CreditAccountCommand (CreditAccount amount reason)) =
+  [AccountCreditedEvent $ AccountCredited amount reason]
+handleAccountCommand account (DebitAccountCommand (DebitAccount amount reason)) =
   if accountAvailableBalance account - amount < 0
-  then [AccountDebitRejected' $ AccountDebitRejected $ accountAvailableBalance account]
-  else [AccountDebited' $ AccountDebited amount reason]
-handleAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId))
-  | isNothing (account ^. accountOwner) = [AccountTransferRejected' $ AccountTransferRejected uuid "Account doesn't exist"]
-  | accountAvailableBalance account - amount < 0 = [AccountTransferRejected' $ AccountTransferRejected uuid "Not enough funds"]
-  | otherwise = [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
-handleAccountCommand _ (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
-  [AccountCreditedFromTransfer' $ AccountCreditedFromTransfer transferId sourceId amount]
+  then [AccountDebitRejectedEvent $ AccountDebitRejected $ accountAvailableBalance account]
+  else [AccountDebitedEvent $ AccountDebited amount reason]
+handleAccountCommand account (TransferToAccountCommand (TransferToAccount uuid sourceId amount targetId))
+  | isNothing (account ^. accountOwner) = [AccountTransferRejectedEvent $ AccountTransferRejected uuid "Account doesnEventt exist"]
+  | accountAvailableBalance account - amount < 0 = [AccountTransferRejectedEvent $ AccountTransferRejected uuid "Not enough funds"]
+  | otherwise = [AccountTransferStartedEvent $ AccountTransferStarted uuid sourceId amount targetId]
+handleAccountCommand _ (AcceptTransferCommand (AcceptTransfer transferId sourceId amount)) =
+  [AccountCreditedFromTransferEvent $ AccountCreditedFromTransfer transferId sourceId amount]
 handleAccountCommand _ _ = []
 
 accountAggregate :: BankAggregate Account

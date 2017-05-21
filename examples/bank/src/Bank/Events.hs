@@ -17,7 +17,7 @@ import Bank.Json
 -- system. The reason we put them in a single ADT is so we have a consistent
 -- serialization format for each events that are shared across
 -- projections/aggregates.
-mkSumType "BankEvent" (++ "'")
+mkSumType "BankEvent" (++ "Event")
   [ -- Account events
     ''AccountOpened
   , ''AccountOpenRejected
@@ -37,6 +37,6 @@ mkSumType "BankEvent" (++ "'")
 deriving instance Show BankEvent
 deriving instance Eq BankEvent
 
-deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "'" }) ''BankEvent
+deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "Event" }) ''BankEvent
 
 type BankProjection state = Projection state BankEvent

@@ -32,11 +32,11 @@ getCustomerAccountsFromName CustomerAccounts{..} name = fromMaybe [] $ do
   return $ mapMaybe lookupAccount accountIds
 
 handleCustomerAccountsEvent :: CustomerAccounts -> ProjectionEvent BankEvent -> CustomerAccounts
-handleCustomerAccountsEvent accounts (ProjectionEvent uuid (CustomerCreated' (CustomerCreated name))) =
+handleCustomerAccountsEvent accounts (ProjectionEvent uuid (CustomerCreatedEvent (CustomerCreated name))) =
   accounts
   { customerAccountsCustomerIdsByName = Map.insert name uuid (customerAccountsCustomerIdsByName accounts)
   }
-handleCustomerAccountsEvent accounts (ProjectionEvent uuid event@(AccountOpened' (AccountOpened customerId _))) =
+handleCustomerAccountsEvent accounts (ProjectionEvent uuid event@(AccountOpenedEvent (AccountOpened customerId _))) =
   accounts
   { customerAccountsAccountsById = Map.insert uuid account (customerAccountsAccountsById accounts)
   , customerAccountsCustomerAccounts = Map.insertWith (++) customerId [uuid] (customerAccountsCustomerAccounts accounts)
