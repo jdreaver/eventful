@@ -12,6 +12,7 @@ import Bank.Aggregates.Customer
 import Bank.CLI.Options
 import Bank.CLI.Store
 import Bank.Commands
+import Bank.ReadModels.CustomerAccounts
 
 runCLICommand :: ConnectionPool -> CLICommand -> IO ()
 runCLICommand pool (CreateCustomerCLI createCommand) = do
@@ -24,6 +25,15 @@ runCLICommand pool (ViewAccountCLI uuid) = do
   (state, _) <- runDB pool $
     getLatestProjection cliEventStore accountProjection uuid
   printJSONPretty state
+runCLICommand pool (ViewCustomerAccountsCLI name) = do
+  allEvents <- runDB pool $ getSequencedEvents cliGloballyOrderedEventStore 0
+  let
+    projectionEvents = globallyOrderedEventToProjectionEvent <$> allEvents
+    allCustomerAccounts = latestProjection customerAccountsProjection projectionEvents
+    thisCustomerAccounts = getCustomerAccountsFromName allCustomerAccounts name
+  case thisCustomerAccounts of
+    [] -> putStrLn "No accounts found"
+    accounts -> mapM_ printJSONPretty accounts
 runCLICommand pool (OpenAccountCLI openCommand) = do
   uuid <- uuidNextRandom
   putStr "Attempting to open account with UUID: "
@@ -38,6 +48,3 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   void $ runDB pool $ commandStoredAggregate cliEventStore accountAggregate sourceId startCommand
   runCLICommand pool (ViewAccountCLI sourceId)
   runCLICommand pool (ViewAccountCLI targetId)
-
--- cliGloballyOrderedEventStore :: (MonadIO m) => GloballyOrderedEventStore JSONString (SqlPersistT m)
--- cliGloballyOrderedEventStore = sqlGloballyOrderedEventStore defaultSqlEventStoreConfig

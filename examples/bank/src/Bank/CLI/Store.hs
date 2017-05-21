@@ -1,6 +1,7 @@
 module Bank.CLI.Store
   ( runDB
   , cliEventStore
+  , cliGloballyOrderedEventStore
   , printJSONPretty
   ) where
 
@@ -28,6 +29,11 @@ cliEventStore = synchronousEventBusWrapper store handlers
       [ eventPrinter
       , transferManagerHandler
       ]
+
+cliGloballyOrderedEventStore :: (MonadIO m) => GloballyOrderedEventStore BankEvent (SqlPersistT m)
+cliGloballyOrderedEventStore =
+  serializedGloballyOrderedEventStore jsonStringSerializer
+    (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
 
 type BankEventHandler m = EventStore BankEvent m -> UUID -> BankEvent -> m ()
 

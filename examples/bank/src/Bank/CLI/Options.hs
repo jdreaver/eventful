@@ -25,6 +25,7 @@ data Options
 data CLICommand
   = CreateCustomerCLI CreateCustomer
   | ViewAccountCLI UUID
+  | ViewCustomerAccountsCLI String
   | OpenAccountCLI OpenAccount
   | TransferToAccountCLI UUID Double UUID
   deriving (Show, Eq)
@@ -36,6 +37,7 @@ parseOptions =
   subparser (
     command "create-customer" (info (helper <*> parseCreateCustomer) (progDesc "Create a customer")) <>
     command "view-account" (info (helper <*> parseViewAccount) (progDesc "View an account")) <>
+    command "view-customer-accounts" (info (helper <*> parseViewCustomerAccounts) (progDesc "View all customer accounts")) <>
     command "open-account" (info (helper <*> parseOpenAccount) (progDesc "Open a new account")) <>
     command "transfer" (info (helper <*> parseTransfer) (progDesc "Transfer funds to an account"))
   )
@@ -66,6 +68,15 @@ parseViewAccount =
     long "account-id" <>
     metavar "uuid" <>
     help "UUID for account aggregate"
+  )
+
+parseViewCustomerAccounts :: Parser CLICommand
+parseViewCustomerAccounts =
+  ViewCustomerAccountsCLI <$>
+  strOption (
+    long "name" <>
+    metavar "name" <>
+    help "Customer's name"
   )
 
 parseOpenAccount :: Parser CLICommand

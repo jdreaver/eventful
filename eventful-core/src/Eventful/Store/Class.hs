@@ -5,9 +5,12 @@ module Eventful.Store.Class
   , ExpectedVersion (..)
   , EventWriteError (..)
     -- * Utility types
+  , ProjectionEvent (..)
   , StoredEvent (..)
+  , storedEventToProjectionEvent
   , GloballyOrderedEvent (..)
   , globallyOrderedEventToStoredEvent
+  , globallyOrderedEventToProjectionEvent
   , storedEventToGloballyOrderedEvent
   , EventVersion (..)
   , SequenceNumber (..)
@@ -92,6 +95,17 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid e
   then storeEvents' uuid events >> return Nothing
   else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
 
+-- | A 'ProjectionEvent' is an event that is associated with a 'Projection' via
+-- the projection's 'UUID'.
+data ProjectionEvent event
+  = ProjectionEvent
+  { projectionEventProjectionId :: !UUID
+    -- ^ The UUID of the 'Projection' that the event belongs to.
+  , projectionEventEvent :: !event
+    -- ^ The actual event type. Note that this can be a serialized event or the
+    -- actual Haskell event type.
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
+
 -- | A 'StoredEvent' is an event with associated storage metadata.
 data StoredEvent event
   = StoredEvent
@@ -103,6 +117,13 @@ data StoredEvent event
     -- ^ The actual event type. Note that this can be a serialized event or the
     -- actual Haskell event type.
   } deriving (Show, Eq, Functor, Foldable, Traversable)
+
+storedEventToProjectionEvent :: StoredEvent event -> ProjectionEvent event
+storedEventToProjectionEvent StoredEvent{..} =
+  ProjectionEvent
+  { projectionEventProjectionId = storedEventProjectionId
+  , projectionEventEvent = storedEventEvent
+  }
 
 -- | A 'GloballyOrderedEvent' is like a 'StoredEvent' but has a global
 -- 'SequenceNumber'.
@@ -126,6 +147,14 @@ globallyOrderedEventToStoredEvent GloballyOrderedEvent{..} =
   { storedEventProjectionId = globallyOrderedEventProjectionId
   , storedEventVersion = globallyOrderedEventVersion
   , storedEventEvent = globallyOrderedEventEvent
+  }
+
+-- | Extract the 'ProjectionEvent' from a 'GloballyOrderedEvent'
+globallyOrderedEventToProjectionEvent :: GloballyOrderedEvent event -> ProjectionEvent event
+globallyOrderedEventToProjectionEvent GloballyOrderedEvent{..} =
+  ProjectionEvent
+  { projectionEventProjectionId = globallyOrderedEventProjectionId
+  , projectionEventEvent = globallyOrderedEventEvent
   }
 
 -- | Convert a 'StoredEvent' to a 'GloballyOrderedEvent' by adding the
