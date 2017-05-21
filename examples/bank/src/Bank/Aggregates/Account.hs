@@ -8,6 +8,7 @@ module Bank.Aggregates.Account
   , accountAvailableBalance
   ) where
 
+import Control.Lens
 import Data.Aeson.TH
 import Data.List (delete, find)
 import Data.Maybe (isNothing)
@@ -20,9 +21,9 @@ import Bank.Json
 
 data Account =
   Account
-  { accountBalance :: Double
-  , accountOwner :: Maybe UUID
-  , accountPendingTransfers :: [PendingAccountTransfer]
+  { _accountBalance :: Double
+  , _accountOwner :: Maybe UUID
+  , _accountPendingTransfers :: [PendingAccountTransfer]
   } deriving (Show, Eq)
 
 accountDefault :: Account
@@ -36,33 +37,40 @@ data PendingAccountTransfer =
   , pendingAccountTransferTargetAccount :: UUID
   } deriving (Show, Eq)
 
-deriveJSON (unPrefixLower "account") ''Account
+makeLenses ''Account
+deriveJSON (unPrefixLower "_account") ''Account
 deriveJSON (unPrefixLower "pendingAccountTransfer") ''PendingAccountTransfer
 
 -- | Account balance minus pending balance
 accountAvailableBalance :: Account -> Double
-accountAvailableBalance account = accountBalance account - pendingBalance
+accountAvailableBalance account = account ^. accountBalance - pendingBalance
   where
-    transfers = accountPendingTransfers account
+    transfers = account ^. accountPendingTransfers
     pendingBalance = if null transfers then 0 else sum (map pendingAccountTransferAmount transfers)
 
 findAccountTransferById :: [PendingAccountTransfer] -> UUID -> Maybe PendingAccountTransfer
 findAccountTransferById transfers transferId = find ((== transferId) . pendingAccountTransferId) transfers
 
 handleAccountOpened :: Account -> AccountOpened -> Account
-handleAccountOpened account (AccountOpened uuid amount) = account { accountOwner = Just uuid, accountBalance = amount }
+handleAccountOpened account (AccountOpened uuid amount) =
+  account
+  & accountOwner ?~ uuid
+  & accountBalance .~ amount
 
 handleAccountCredited :: Account -> AccountCredited -> Account
-handleAccountCredited account (AccountCredited amount _) = account { accountBalance = accountBalance account + amount }
+handleAccountCredited account (AccountCredited amount _) =
+  account
+  & accountBalance +~ amount
 
 handleAccountDebited :: Account -> AccountDebited -> Account
-handleAccountDebited account (AccountDebited amount _) = account { accountBalance = accountBalance account - amount }
+handleAccountDebited account (AccountDebited amount _) =
+  account
+  & accountBalance -~ amount
 
 handleAccountTransferStarted :: Account -> AccountTransferStarted -> Account
 handleAccountTransferStarted account (AccountTransferStarted uuid sourceId amount targetId) =
-  account { accountPendingTransfers = transfer : accountPendingTransfers account }
-  where
-    transfer = PendingAccountTransfer uuid sourceId amount targetId
+  account
+  & accountPendingTransfers %~ cons (PendingAccountTransfer uuid sourceId amount targetId)
 
 handleAccountTransferCompleted :: Account -> AccountTransferCompleted -> Account
 handleAccountTransferCompleted account (AccountTransferCompleted uuid) =
@@ -70,23 +78,24 @@ handleAccountTransferCompleted account (AccountTransferCompleted uuid) =
   -- event handler.
   maybe account go (findAccountTransferById transfers uuid)
   where
-    transfers = accountPendingTransfers account
+    transfers = account ^. accountPendingTransfers
     go trans =
       account
-      { accountBalance = accountBalance account - pendingAccountTransferAmount trans
-      , accountPendingTransfers = delete trans (accountPendingTransfers account)
-      }
+      & accountBalance -~ pendingAccountTransferAmount trans
+      & accountPendingTransfers %~ delete trans
 
 handleAccountTransferRejected :: Account -> AccountTransferRejected -> Account
 handleAccountTransferRejected account (AccountTransferRejected uuid _) =
-  account { accountPendingTransfers = transfers' }
+  account
+  & accountPendingTransfers .~ transfers'
   where
-    transfers = accountPendingTransfers account
+    transfers = account ^. accountPendingTransfers
     transfers' = maybe transfers (flip delete transfers) (findAccountTransferById transfers uuid)
 
 handleAccountCreditedFromTransfer :: Account -> AccountCreditedFromTransfer -> Account
 handleAccountCreditedFromTransfer account (AccountCreditedFromTransfer _ _ amount) =
-  account { accountBalance = accountBalance account + amount }
+  account
+  & accountBalance +~ amount
 
 handleAccountEvent :: Account -> BankEvent -> Account
 handleAccountEvent account (AccountOpened' event) = handleAccountOpened account event
@@ -103,7 +112,7 @@ accountProjection = Projection accountDefault handleAccountEvent
 
 handleAccountCommand :: Account -> BankCommand -> [BankEvent]
 handleAccountCommand account (OpenAccount' (OpenAccount owner amount)) =
-  case accountOwner account of
+  case account ^. accountOwner of
     Just _ -> [AccountOpenRejected' $ AccountOpenRejected "Account already open"]
     Nothing ->
       if amount < 0
@@ -116,7 +125,7 @@ handleAccountCommand account (DebitAccount' (DebitAccount amount reason)) =
   then [AccountDebitRejected' $ AccountDebitRejected $ accountAvailableBalance account]
   else [AccountDebited' $ AccountDebited amount reason]
 handleAccountCommand account (TransferToAccount' (TransferToAccount uuid sourceId amount targetId))
-  | isNothing (accountOwner account) = [AccountTransferRejected' $ AccountTransferRejected uuid "Account doesn't exist"]
+  | isNothing (account ^. accountOwner) = [AccountTransferRejected' $ AccountTransferRejected uuid "Account doesn't exist"]
   | accountAvailableBalance account - amount < 0 = [AccountTransferRejected' $ AccountTransferRejected uuid "Not enough funds"]
   | otherwise = [AccountTransferStarted' $ AccountTransferStarted uuid sourceId amount targetId]
 handleAccountCommand _ (AcceptTransfer' (AcceptTransfer transferId sourceId amount)) =
