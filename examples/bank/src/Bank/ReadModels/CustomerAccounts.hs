@@ -1,9 +1,13 @@
 module Bank.ReadModels.CustomerAccounts
   ( CustomerAccounts (..)
+  , customerAccountsAccountsById
+  , customerAccountsCustomerAccounts
+  , customerAccountsCustomerIdsByName
   , getCustomerAccountsFromName
   , customerAccountsProjection
   ) where
 
+import Control.Lens
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, mapMaybe)
@@ -17,30 +21,30 @@ import Bank.Events
 -- accounts
 data CustomerAccounts
   = CustomerAccounts
-  { customerAccountsAccountsById :: Map UUID Account
-  , customerAccountsCustomerAccounts :: Map UUID [UUID]
-  , customerAccountsCustomerIdsByName :: Map String UUID
+  { _customerAccountsAccountsById :: Map UUID Account
+  , _customerAccountsCustomerAccounts :: Map UUID [UUID]
+  , _customerAccountsCustomerIdsByName :: Map String UUID
     -- NOTE: This assumes all customer names are unique. Obviously not true in
     -- the real world.
   } deriving (Show, Eq)
 
+makeLenses ''CustomerAccounts
+
 getCustomerAccountsFromName :: CustomerAccounts -> String -> [(UUID, Account)]
 getCustomerAccountsFromName CustomerAccounts{..} name = fromMaybe [] $ do
-  customerId <- Map.lookup name customerAccountsCustomerIdsByName
-  accountIds <- Map.lookup customerId customerAccountsCustomerAccounts
-  let lookupAccount uuid = (uuid,) <$> Map.lookup uuid customerAccountsAccountsById
+  customerId <- Map.lookup name _customerAccountsCustomerIdsByName
+  accountIds <- Map.lookup customerId _customerAccountsCustomerAccounts
+  let lookupAccount uuid = (uuid,) <$> Map.lookup uuid _customerAccountsAccountsById
   return $ mapMaybe lookupAccount accountIds
 
 handleCustomerAccountsEvent :: CustomerAccounts -> ProjectionEvent BankEvent -> CustomerAccounts
 handleCustomerAccountsEvent accounts (ProjectionEvent uuid (CustomerCreatedEvent (CustomerCreated name))) =
   accounts
-  { customerAccountsCustomerIdsByName = Map.insert name uuid (customerAccountsCustomerIdsByName accounts)
-  }
+  & customerAccountsCustomerIdsByName %~ Map.insert name uuid
 handleCustomerAccountsEvent accounts (ProjectionEvent uuid event@(AccountOpenedEvent (AccountOpened customerId _))) =
   accounts
-  { customerAccountsAccountsById = Map.insert uuid account (customerAccountsAccountsById accounts)
-  , customerAccountsCustomerAccounts = Map.insertWith (++) customerId [uuid] (customerAccountsCustomerAccounts accounts)
-  }
+  & customerAccountsAccountsById %~ Map.insert uuid account
+  & customerAccountsCustomerAccounts %~ Map.insertWith (++) customerId [uuid]
   where
     account = projectionEventHandler accountProjection (projectionSeed accountProjection) event
 -- Assume it's an account event. If it isn't it won't get handled, no biggy.
@@ -48,8 +52,7 @@ handleCustomerAccountsEvent accounts (ProjectionEvent uuid event@(AccountOpenedE
 -- it isn't an account event.
 handleCustomerAccountsEvent accounts (ProjectionEvent uuid event) =
   accounts
-  { customerAccountsAccountsById = Map.adjust modifyAccount uuid (customerAccountsAccountsById accounts)
-  }
+  & customerAccountsAccountsById %~ Map.adjust modifyAccount uuid
   where
     modifyAccount account = projectionEventHandler accountProjection account event
 

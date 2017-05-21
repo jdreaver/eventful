@@ -33,7 +33,7 @@ data DebitAccount =
 data TransferToAccount =
   TransferToAccount
   { transferToAccountTransferId :: UUID
-  , transferToAccountSourceId :: UUID
+  , transferToAccountSourceAccount :: UUID
   , transferToAccountAmount :: Double
   , transferToAccountTargetAccount :: UUID
   } deriving (Show, Eq)
@@ -41,7 +41,7 @@ data TransferToAccount =
 data AcceptTransfer =
   AcceptTransfer
   { acceptTransferTransferId :: UUID
-  , acceptTransferSourceId :: UUID
+  , acceptTransferSourceAccount :: UUID
   , acceptTransferAmount :: Double
   } deriving (Show, Eq)
 
