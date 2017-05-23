@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Eventful.Store.Sql.JSONString
   ( JSONString
   , jsonStringSerializer

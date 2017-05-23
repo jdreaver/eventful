@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Eventful.Store.DynamoDBSpec (spec) where
 
 import Control.Lens ((<&>))

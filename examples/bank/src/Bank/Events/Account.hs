@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.Events.Account
   ( AccountOpened (..)
   , AccountOpenRejected (..)

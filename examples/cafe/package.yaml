@@ -30,16 +30,6 @@ dependencies:
   - stm
   - text
 
-default-extensions:
-  - ExistentialQuantification
-  - GeneralizedNewtypeDeriving
-  - MultiParamTypeClasses
-  - RecordWildCards
-  - ScopedTypeVariables
-  - TemplateHaskell
-  - TupleSections
-  - TypeFamilies
-
 library:
   source-dirs:
     - src

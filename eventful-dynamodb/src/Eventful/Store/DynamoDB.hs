@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Eventful.Store.DynamoDB
   ( dynamoDBEventStore
   , DynamoDBEventStoreConfig (..)

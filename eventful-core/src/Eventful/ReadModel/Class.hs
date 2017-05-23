@@ -1,3 +1,6 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Eventful.ReadModel.Class
   ( ReadModel (..)
   , runPollingReadModel

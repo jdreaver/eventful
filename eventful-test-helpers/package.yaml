@@ -21,26 +21,6 @@ dependencies:
   - hspec
   - monad-logger
 
-default-extensions:
-  - ConstraintKinds
-  - DeriveFunctor
-  - DeriveGeneric
-  - FlexibleContexts
-  - FlexibleInstances
-  - FunctionalDependencies
-  - GADTs
-  - GeneralizedNewtypeDeriving
-  - MultiParamTypeClasses
-  - OverloadedStrings
-  - QuasiQuotes
-  - RankNTypes
-  - RecordWildCards
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TemplateHaskell
-  - TupleSections
-  - TypeFamilies
-
 library:
   source-dirs:
     - src

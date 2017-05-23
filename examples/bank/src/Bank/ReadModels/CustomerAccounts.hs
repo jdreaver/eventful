@@ -1,3 +1,7 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
+
 module Bank.ReadModels.CustomerAccounts
   ( CustomerAccounts (..)
   , customerAccountsAccountsById

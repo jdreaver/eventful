@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Eventful.Store.Memory
   ( memoryEventStore
   , module Eventful.Store.Class

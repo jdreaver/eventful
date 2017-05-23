@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Eventful.Store.SqliteSpec (spec) where
 
 import Database.Persist.Sqlite

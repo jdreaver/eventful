@@ -94,6 +94,8 @@ The event store type `EventStore serialized m` has two type parameters:
   is the `STM` monad.
 
 ```haskell
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module EventStore where
 
 import Control.Concurrent.STM

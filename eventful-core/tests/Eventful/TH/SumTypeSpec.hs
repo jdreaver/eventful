@@ -1,3 +1,6 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Eventful.TH.SumTypeSpec (spec) where
 
 import Test.Hspec

@@ -1,3 +1,6 @@
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Eventful.ProcessManager
   ( ProcessManager (..)
   , ProcessManagerCommand (..)

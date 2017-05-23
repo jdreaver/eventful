@@ -1,3 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Eventful.Store.Sql.Operations
   ( SqlEventStoreConfig (..)
   , sqlGloballyOrderedEventStore

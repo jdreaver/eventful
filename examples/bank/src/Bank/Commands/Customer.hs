@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.Commands.Customer
   ( CreateCustomer (..)
   ) where

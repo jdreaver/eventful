@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Eventful.SerializerSpec (spec) where
 
 import Data.Dynamic

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Eventful.Store.PostgresqlSpec (spec) where
 
 import Control.Monad.Reader (ask)

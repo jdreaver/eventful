@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.Aggregates.Customer
   ( Customer (..)
   , customerProjection

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.Events.Customer
   ( CustomerCreated (..)
   , CustomerCreationRejected (..)

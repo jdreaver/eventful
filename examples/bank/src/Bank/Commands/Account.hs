@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.Commands.Account
   ( OpenAccount (..)
   , CreditAccount (..)

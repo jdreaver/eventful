@@ -1,3 +1,6 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.ProcessManagers.TransferManager
   ( TransferManager (..)
   , TransferManagerTransferData (..)

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Eventful.Store.DynamoDB.DynamoJSON
   ( valueToAttributeValue
   , attributeValueToValue

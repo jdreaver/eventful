@@ -1,3 +1,6 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Bank.Aggregates.Account
   ( Account (..)
   , accountBalance
