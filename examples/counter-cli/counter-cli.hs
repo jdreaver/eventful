@@ -39,9 +39,7 @@ readAndHandleCommand store = do
       putStrLn $ "Events generated: " ++ show events
       void . atomically $ storeEvents store AnyVersion uuid events
 
-  -- Run loop again
   putStrLn ""
-  readAndHandleCommand store
 
 -- | This is the state for our Counter projection.
 newtype CounterState = CounterState { unCounterState :: Int }
