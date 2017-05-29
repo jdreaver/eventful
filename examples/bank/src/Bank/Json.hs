@@ -4,11 +4,13 @@ module Bank.Json
   ( unPrefixLower
   , dropPrefix
   , dropSuffix
+  , deriveJSONUnPrefixLower
   ) where
 
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Char (toLower)
+import Language.Haskell.TH
 
 -- | Aeson Options that match FrontRow usage
 unPrefixLower :: String -> Options
@@ -34,3 +36,10 @@ dropPrefix' fnName strTrans prefix input = go prefix input
       | p == c = go preRest cRest
       | otherwise = error $ contextual $ "not equal: " ++  strTrans (p:preRest)  ++ " " ++ strTrans (c:cRest)
     contextual msg = fnName ++ ": " ++ msg ++ ". " ++ strTrans prefix ++ " " ++ strTrans input
+
+deriveJSONUnPrefixLower :: Name -> Q [Dec]
+deriveJSONUnPrefixLower name = deriveJSON (unPrefixLower $ firstCharToLower $ nameBase name) name
+
+firstCharToLower :: String -> String
+firstCharToLower [] = []
+firstCharToLower (x:xs) = toLower x : xs

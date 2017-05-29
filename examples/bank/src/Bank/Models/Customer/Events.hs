@@ -6,7 +6,6 @@ module Bank.Models.Customer.Events
   , CustomerCreationRejected (..)
   ) where
 
-import Data.Aeson.TH
 import Language.Haskell.TH (Name)
 
 import Bank.Json
@@ -27,5 +26,5 @@ data CustomerCreationRejected
   { customerCreationRejectedReason :: String
   } deriving (Show, Eq)
 
-deriveJSON (unPrefixLower "customerCreated") ''CustomerCreated
-deriveJSON (unPrefixLower "customerCreationRejected") ''CustomerCreationRejected
+deriveJSONUnPrefixLower ''CustomerCreated
+deriveJSONUnPrefixLower ''CustomerCreationRejected

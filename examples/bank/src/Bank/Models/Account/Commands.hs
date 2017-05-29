@@ -9,7 +9,6 @@ module Bank.Models.Account.Commands
   , AcceptTransfer (..)
   ) where
 
-import Data.Aeson.TH
 import Language.Haskell.TH (Name)
 
 import Eventful.UUID
@@ -58,8 +57,8 @@ data AcceptTransfer =
   , acceptTransferAmount :: Double
   } deriving (Show, Eq)
 
-deriveJSON (unPrefixLower "openAccount") ''OpenAccount
-deriveJSON (unPrefixLower "creditAccount") ''CreditAccount
-deriveJSON (unPrefixLower "debitAccount") ''DebitAccount
-deriveJSON (unPrefixLower "transferToAccount") ''TransferToAccount
-deriveJSON (unPrefixLower "acceptTransfer") ''AcceptTransfer
+deriveJSONUnPrefixLower ''OpenAccount
+deriveJSONUnPrefixLower ''CreditAccount
+deriveJSONUnPrefixLower ''DebitAccount
+deriveJSONUnPrefixLower ''TransferToAccount
+deriveJSONUnPrefixLower ''AcceptTransfer

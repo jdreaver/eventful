@@ -13,7 +13,6 @@ module Bank.Models.Account.Events
   , AccountCreditedFromTransfer (..)
   ) where
 
-import Data.Aeson.TH
 import Language.Haskell.TH (Name)
 
 import Eventful (UUID)
@@ -87,12 +86,12 @@ data AccountCreditedFromTransfer =
   , accountCreditedFromTransferAmount :: Double
   } deriving (Show, Eq)
 
-deriveJSON (unPrefixLower "accountOpened") ''AccountOpened
-deriveJSON (unPrefixLower "accountOpenRejected") ''AccountOpenRejected
-deriveJSON (unPrefixLower "accountCredited") ''AccountCredited
-deriveJSON (unPrefixLower "accountDebited") ''AccountDebited
-deriveJSON (unPrefixLower "accountDebitRejected") ''AccountDebitRejected
-deriveJSON (unPrefixLower "accountTransferStarted") ''AccountTransferStarted
-deriveJSON (unPrefixLower "accountTransferCompleted") ''AccountTransferCompleted
-deriveJSON (unPrefixLower "accountTransferRejected") ''AccountTransferRejected
-deriveJSON (unPrefixLower "accountCreditedFromTransfer") ''AccountCreditedFromTransfer
+deriveJSONUnPrefixLower ''AccountOpened
+deriveJSONUnPrefixLower ''AccountOpenRejected
+deriveJSONUnPrefixLower ''AccountCredited
+deriveJSONUnPrefixLower ''AccountDebited
+deriveJSONUnPrefixLower ''AccountDebitRejected
+deriveJSONUnPrefixLower ''AccountTransferStarted
+deriveJSONUnPrefixLower ''AccountTransferCompleted
+deriveJSONUnPrefixLower ''AccountTransferRejected
+deriveJSONUnPrefixLower ''AccountCreditedFromTransfer
