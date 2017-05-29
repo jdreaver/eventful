@@ -1,7 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bank.Events.Account
-  ( AccountOpened (..)
+module Bank.Models.Account.Events
+  ( accountEvents
+  , AccountOpened (..)
   , AccountOpenRejected (..)
   , AccountCredited (..)
   , AccountDebited (..)
@@ -13,10 +14,24 @@ module Bank.Events.Account
   ) where
 
 import Data.Aeson.TH
+import Language.Haskell.TH (Name)
 
 import Eventful (UUID)
 
 import Bank.Json
+
+accountEvents :: [Name]
+accountEvents =
+  [ ''AccountOpened
+  , ''AccountOpenRejected
+  , ''AccountCredited
+  , ''AccountDebited
+  , ''AccountDebitRejected
+  , ''AccountTransferStarted
+  , ''AccountTransferCompleted
+  , ''AccountTransferRejected
+  , ''AccountCreditedFromTransfer
+  ]
 
 data AccountOpened =
   AccountOpened

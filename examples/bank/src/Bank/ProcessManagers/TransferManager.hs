@@ -14,9 +14,7 @@ import Data.Maybe (isNothing)
 
 import Eventful
 
-import Bank.Aggregates.Account
-import Bank.Commands
-import Bank.Events
+import Bank.Models
 
 data TransferManager
   = TransferManager
@@ -38,7 +36,7 @@ makeLenses ''TransferManager
 transferManagerDefault :: TransferManager
 transferManagerDefault = TransferManager Nothing False [] []
 
-transferManagerProjection :: BankProjection TransferManager
+transferManagerProjection :: Projection TransferManager BankEvent
 transferManagerProjection =
   Projection
   transferManagerDefault
@@ -54,8 +52,8 @@ handleAccountEvent manager (AccountTransferStartedEvent AccountTransferStarted{.
     , transferTargetAccount = accountTransferStartedTargetAccount
     }
   & transferManagerPendingCommands .~ (
-      if isNothing (manager ^. transferManagerData )
-      then [ProcessManagerCommand accountTransferStartedTargetAccount accountAggregate command]
+      if isNothing (manager ^. transferManagerData)
+      then [ProcessManagerCommand accountTransferStartedTargetAccount accountBankAggregate command]
       else []
     )
   & transferManagerPendingEvents .~ []

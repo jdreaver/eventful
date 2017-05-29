@@ -25,6 +25,7 @@ dependencies:
   - persistent-template
   - safe
   - stm
+  - template-haskell
   - text
 
 library:

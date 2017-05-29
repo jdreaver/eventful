@@ -1,11 +1,9 @@
-module Bank.Aggregates.AccountSpec (spec) where
+module Bank.Models.AccountSpec (spec) where
 
 import Test.Hspec
 import Eventful
 
-import Bank.Aggregates.Account
-import Bank.Commands
-import Bank.Events
+import Bank.Models.Account
 
 spec :: Spec
 spec = do
@@ -13,9 +11,9 @@ spec = do
     it "should handle a series of account events" $ do
       let
         events =
-          [ AccountOpenedEvent $ AccountOpened nil 10
-          , AccountDebitedEvent $ AccountDebited 5 "ATM"
-          , AccountCreditedEvent $ AccountCredited 10 "Paycheck"
+          [ AccountOpenedAccountEvent $ AccountOpened nil 10
+          , AccountDebitedAccountEvent $ AccountDebited 5 "ATM"
+          , AccountCreditedAccountEvent $ AccountCredited 10 "Paycheck"
           ]
         states =
           [ Account 0 Nothing []
@@ -31,8 +29,8 @@ spec = do
         sourceAccount = read "afee3d24-df9b-4069-be0e-80bf0ba4f662" :: UUID
         targetAccount = read "44e9fd39-0179-4050-8706-d5a1d2c6d093" :: UUID
         events =
-          [ AccountOpenedEvent $ AccountOpened nil 10
-          , AccountTransferStartedEvent $ AccountTransferStarted transferUuid sourceAccount 6 targetAccount
+          [ AccountOpenedAccountEvent $ AccountOpened nil 10
+          , AccountTransferStartedAccountEvent $ AccountTransferStarted transferUuid sourceAccount 6 targetAccount
           ]
         states =
           [ Account 0 Nothing []
@@ -45,11 +43,11 @@ spec = do
         stateAfterStarted = latestProjection accountProjection events
 
       accountAvailableBalance stateAfterStarted `shouldBe` 4
-      aggregateCommandHandler accountAggregate stateAfterStarted (DebitAccountCommand (DebitAccount 9 "blah"))
-        `shouldBe` [AccountDebitRejectedEvent $ AccountDebitRejected 4]
+      aggregateCommandHandler accountAggregate stateAfterStarted (DebitAccountAccountCommand (DebitAccount 9 "blah"))
+        `shouldBe` [AccountDebitRejectedAccountEvent $ AccountDebitRejected 4]
 
       let
-        events' = events ++ [AccountTransferCompletedEvent $ AccountTransferCompleted transferUuid]
+        events' = events ++ [AccountTransferCompletedAccountEvent $ AccountTransferCompleted transferUuid]
         completedState = latestProjection accountProjection events'
 
       completedState `shouldBe` Account 4 (Just nil) []
@@ -58,10 +56,10 @@ spec = do
     it "should handle a series of commands" $ do
       let
         commands =
-          [ OpenAccountCommand $ OpenAccount nil 100
-          , DebitAccountCommand $ DebitAccount 150 "ATM"
-          , CreditAccountCommand $ CreditAccount 200 "Check"
-          , OpenAccountCommand $ OpenAccount nil 200
+          [ OpenAccountAccountCommand $ OpenAccount nil 100
+          , DebitAccountAccountCommand $ DebitAccount 150 "ATM"
+          , CreditAccountAccountCommand $ CreditAccount 200 "Check"
+          , OpenAccountAccountCommand $ OpenAccount nil 200
           ]
         results =
           [ Account 0 Nothing []

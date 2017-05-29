@@ -1,7 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bank.Commands.Account
-  ( OpenAccount (..)
+module Bank.Models.Account.Commands
+  ( accountCommands
+  , OpenAccount (..)
   , CreditAccount (..)
   , DebitAccount (..)
   , TransferToAccount (..)
@@ -9,10 +10,20 @@ module Bank.Commands.Account
   ) where
 
 import Data.Aeson.TH
+import Language.Haskell.TH (Name)
 
 import Eventful.UUID
 
 import Bank.Json
+
+accountCommands :: [Name]
+accountCommands =
+  [ ''OpenAccount
+  , ''CreditAccount
+  , ''DebitAccount
+  , ''TransferToAccount
+  , ''AcceptTransfer
+  ]
 
 data OpenAccount =
   OpenAccount

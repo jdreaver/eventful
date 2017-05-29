@@ -14,7 +14,7 @@ import Database.Persist.Sqlite
 import Eventful
 import Eventful.Store.Sqlite
 
-import Bank.Events
+import Bank.Models
 import Bank.ProcessManagers.TransferManager
 
 runDB :: ConnectionPool -> SqlPersistT IO a -> IO a

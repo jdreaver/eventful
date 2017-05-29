@@ -1,13 +1,21 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bank.Events.Customer
-  ( CustomerCreated (..)
+module Bank.Models.Customer.Events
+  ( customerEvents
+  , CustomerCreated (..)
   , CustomerCreationRejected (..)
   ) where
 
 import Data.Aeson.TH
+import Language.Haskell.TH (Name)
 
 import Bank.Json
+
+customerEvents :: [Name]
+customerEvents =
+  [ ''CustomerCreated
+  , ''CustomerCreationRejected
+  ]
 
 data CustomerCreated =
   CustomerCreated

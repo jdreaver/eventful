@@ -4,12 +4,14 @@ module Eventful.Aggregate
   ( Aggregate (..)
   , allAggregateStates
   , commandStoredAggregate
+  , serializedAggregate
   ) where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
 
 import Eventful.Projection
+import Eventful.Serializer
 import Eventful.Store.Class
 import Eventful.UUID
 
@@ -52,3 +54,20 @@ commandStoredAggregate store (Aggregate handler proj) uuid command = do
   case mError of
     (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
     Nothing -> return events
+
+-- | Use a pair of 'Serializer's to wrap a 'Aggregate' with event type @event@
+-- and command type @command@ so it uses the @serializedEvent@ and
+-- @serializedCommand@ types.
+serializedAggregate
+  :: Aggregate state event command
+  -> Serializer event serializedEvent
+  -> Serializer command serializedCommand
+  -> Aggregate state serializedEvent serializedCommand
+serializedAggregate (Aggregate commandHandler projection) eventSerializer commandSerializer =
+  Aggregate serializedHandler serializedProjection'
+  where
+    serializedProjection' = serializedProjection projection eventSerializer
+    -- Try to deserialize the command and apply the handler. If we can't
+    -- deserialize, then just return no events. We also need to serialize the
+    -- events after of course.
+    serializedHandler state = map (serialize eventSerializer) . maybe [] (commandHandler state) . deserialize commandSerializer

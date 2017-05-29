@@ -18,8 +18,7 @@ import Data.Maybe (fromMaybe, mapMaybe)
 
 import Eventful
 
-import Bank.Aggregates.Account
-import Bank.Events
+import Bank.Models
 
 -- | Groups account info by customer so it's easy to see all of a customer's
 -- accounts
@@ -45,20 +44,19 @@ handleCustomerAccountsEvent :: CustomerAccounts -> ProjectionEvent BankEvent -> 
 handleCustomerAccountsEvent accounts (ProjectionEvent uuid (CustomerCreatedEvent (CustomerCreated name))) =
   accounts
   & customerAccountsCustomerIdsByName %~ Map.insert name uuid
-handleCustomerAccountsEvent accounts (ProjectionEvent uuid event@(AccountOpenedEvent (AccountOpened customerId _))) =
+handleCustomerAccountsEvent accounts (ProjectionEvent uuid (AccountOpenedEvent event@(AccountOpened customerId _))) =
   accounts
   & customerAccountsAccountsById %~ Map.insert uuid account
   & customerAccountsCustomerAccounts %~ Map.insertWith (++) customerId [uuid]
   where
-    account = projectionEventHandler accountProjection (projectionSeed accountProjection) event
+    account = projectionEventHandler accountProjection (projectionSeed accountProjection) (AccountOpenedAccountEvent event)
 -- Assume it's an account event. If it isn't it won't get handled, no biggy.
--- TODO: This feels nasty, we just blindly apply an event to an Account even if
--- it isn't an account event.
 handleCustomerAccountsEvent accounts (ProjectionEvent uuid event) =
   accounts
   & customerAccountsAccountsById %~ Map.adjust modifyAccount uuid
   where
-    modifyAccount account = projectionEventHandler accountProjection account event
+    modifyAccount account =
+      maybe account (projectionEventHandler accountProjection account) (deserialize accountEventSerializer event)
 
 customerAccountsProjection :: Projection CustomerAccounts (ProjectionEvent BankEvent)
 customerAccountsProjection =

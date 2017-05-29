@@ -14,6 +14,7 @@ arguments =
   , "-i=Use list comprehension"
   , "-i=Use newtype instead of data"
   , "-i=Use section"
+  , "-i=Use ++"
   ]
 
 main :: IO ()

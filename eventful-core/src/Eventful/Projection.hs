@@ -1,14 +1,18 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Eventful.Projection
   ( Projection (..)
   , latestProjection
   , allProjections
   , getLatestProjection
+  , serializedProjection
   )
   where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
 
+import Eventful.Serializer
 import Eventful.Store.Class
 import Eventful.UUID
 
@@ -55,3 +59,16 @@ getLatestProjection store proj uuid = do
   where
     maxEventVersion [] = -1
     maxEventVersion es = maximum $ storedEventVersion <$> es
+
+-- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it
+-- uses the @serialized@ type.
+serializedProjection
+  :: Projection state event
+  -> Serializer event serialized
+  -> Projection state serialized
+serializedProjection (Projection seed eventHandler) Serializer{..} =
+  Projection seed serializedHandler
+  where
+    -- Try to deserialize the event and apply the handler. If we can't
+    -- deserialize, then just return the state.
+    serializedHandler state = maybe state (eventHandler state) . deserialize

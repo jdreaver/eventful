@@ -11,7 +11,7 @@ import Options.Applicative
 
 import Eventful
 
-import Bank.Commands
+import Bank.Models
 
 runOptionsParser :: IO Options
 runOptionsParser = execParser $ info (helper <*> parseOptions) (fullDesc <> progDesc "eventful bank CLI")
