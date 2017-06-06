@@ -35,13 +35,16 @@ cliGloballyOrderedEventStore =
   serializedGloballyOrderedEventStore jsonStringSerializer
     (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
 
-type BankEventHandler m = EventStore BankEvent m -> UUID -> BankEvent -> m ()
+type BankEventHandler m = EventStore BankEvent (SqlPersistT m) -> UUID -> BankEvent -> SqlPersistT m ()
 
 eventPrinter :: (MonadIO m) => BankEventHandler m
 eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)
 
-transferManagerHandler :: (Monad m) => BankEventHandler m
-transferManagerHandler = processManagerHandler transferManagerRouter
+transferManagerHandler :: (MonadIO m) => BankEventHandler m
+transferManagerHandler store _ _ = do
+  let projection = processManagerProjection transferProcessManager
+  (transferState, _) <- getLatestGlobalProjection cliGloballyOrderedEventStore projection Nothing
+  applyProcessManagerCommandsAndEvents transferProcessManager store transferState
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })

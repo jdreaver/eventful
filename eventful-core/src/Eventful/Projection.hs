@@ -5,12 +5,14 @@ module Eventful.Projection
   , latestProjection
   , allProjections
   , getLatestProjection
+  , getLatestGlobalProjection
   , serializedProjection
   )
   where
 
 import Data.Foldable (foldl')
 import Data.List (scanl')
+import Data.Maybe (fromMaybe)
 
 import Eventful.Serializer
 import Eventful.Store.Class
@@ -59,6 +61,29 @@ getLatestProjection store proj uuid = do
   where
     maxEventVersion [] = -1
     maxEventVersion es = maximum $ storedEventVersion <$> es
+
+-- | Gets globally ordered events from the event store and builds a
+-- 'Projection' based on 'ProjectionEvent'. Optionally accepts the current
+-- projection state as an argument.
+getLatestGlobalProjection
+  :: (Monad m)
+  => GloballyOrderedEventStore serialized m
+  -> Projection proj (ProjectionEvent serialized)
+  -> Maybe (proj, SequenceNumber)
+  -> m (proj, SequenceNumber)
+getLatestGlobalProjection store proj mCurrentState = do
+  let
+    currentState = fromMaybe (projectionSeed proj) $ fst <$> mCurrentState
+    startingSequenceNumber = maybe 0 (+1) $ snd <$> mCurrentState
+  events <- getSequencedEvents store startingSequenceNumber
+  let
+    projectionEvents = globallyOrderedEventToProjectionEvent <$> events
+    latestState = foldl' (projectionEventHandler proj) currentState projectionEvents
+    latestSeq =
+      case events of
+        [] -> startingSequenceNumber
+        _ -> globallyOrderedEventSequenceNumber $ last events
+  return (latestState, latestSeq)
 
 -- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it
 -- uses the @serialized@ type.
