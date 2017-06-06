@@ -43,11 +43,11 @@ transferManagerProjection =
   handleAccountEvent
 
 handleAccountEvent :: TransferManager -> ProjectionEvent BankEvent -> TransferManager
-handleAccountEvent manager (ProjectionEvent _ (AccountTransferStartedEvent AccountTransferStarted{..})) =
+handleAccountEvent manager (ProjectionEvent sourceAccount (AccountTransferStartedEvent AccountTransferStarted{..})) =
   manager
   & transferManagerData . at accountTransferStartedTransferId ?~
     TransferManagerTransferData
-    { transferSourceAccount = accountTransferStartedSourceAccount
+    { transferSourceAccount = sourceAccount
     , transferTargetAccount = accountTransferStartedTargetAccount
     }
   & transferManagerPendingCommands .~ (
@@ -61,7 +61,7 @@ handleAccountEvent manager (ProjectionEvent _ (AccountTransferStartedEvent Accou
       AcceptTransferCommand
       AcceptTransfer
       { acceptTransferTransferId = accountTransferStartedTransferId
-      , acceptTransferSourceAccount = accountTransferStartedSourceAccount
+      , acceptTransferSourceAccount = sourceAccount
       , acceptTransferAmount = accountTransferStartedAmount
       }
 handleAccountEvent manager (ProjectionEvent _ (AccountTransferRejectedEvent AccountTransferRejected{..})) =

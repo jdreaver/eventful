@@ -36,7 +36,6 @@ accountDefault = Account 0 Nothing []
 data PendingAccountTransfer
   = PendingAccountTransfer
   { pendingAccountTransferId :: UUID
-  , pendingAccountTransferSourceAccount :: UUID
   , pendingAccountTransferAmount :: Double
   , pendingAccountTransferTargetAccount :: UUID
   } deriving (Show, Eq)
@@ -79,7 +78,6 @@ handleAccountEvent account (AccountTransferStartedAccountEvent AccountTransferSt
     cons
     PendingAccountTransfer
     { pendingAccountTransferId = accountTransferStartedTransferId
-    , pendingAccountTransferSourceAccount = accountTransferStartedSourceAccount
     , pendingAccountTransferAmount = accountTransferStartedAmount
     , pendingAccountTransferTargetAccount = accountTransferStartedTargetAccount
     }

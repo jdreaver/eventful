@@ -63,7 +63,6 @@ data AccountDebitRejected
 data AccountTransferStarted =
   AccountTransferStarted
   { accountTransferStartedTransferId :: UUID
-  , accountTransferStartedSourceAccount :: UUID
   , accountTransferStartedAmount :: Double
   , accountTransferStartedTargetAccount :: UUID
   } deriving (Show, Eq)

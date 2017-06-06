@@ -42,7 +42,7 @@ runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
 
   transferId <- uuidNextRandom
-  let startCommand = TransferToAccountCommand $ TransferToAccount transferId sourceId amount targetId
+  let startCommand = TransferToAccountCommand $ TransferToAccount transferId amount targetId
   void $ runDB pool $ commandStoredAggregate cliEventStore accountBankAggregate sourceId startCommand
   runCLICommand pool (ViewAccountCLI sourceId)
   runCLICommand pool (ViewAccountCLI targetId)

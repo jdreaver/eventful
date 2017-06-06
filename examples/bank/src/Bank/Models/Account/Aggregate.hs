@@ -59,7 +59,6 @@ handleAccountCommand account (TransferToAccountAccountCommand TransferToAccount{
       [ AccountTransferStartedAccountEvent
         AccountTransferStarted
         { accountTransferStartedTransferId = transferToAccountTransferId
-        , accountTransferStartedSourceAccount = transferToAccountSourceAccount
         , accountTransferStartedAmount = transferToAccountAmount
         , accountTransferStartedTargetAccount = transferToAccountTargetAccount
         }
