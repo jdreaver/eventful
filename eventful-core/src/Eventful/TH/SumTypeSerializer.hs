@@ -7,8 +7,8 @@ module Eventful.TH.SumTypeSerializer
   ) where
 
 import Data.Char (toLower)
-import Data.List (lookup)
 import Language.Haskell.TH
+import SumTypes.TH
 
 -- | This is a template haskell function that creates a 'Serializer' between
 -- two sum types. The first sum type must be a subset of the second sum type.
@@ -61,93 +61,23 @@ import Language.Haskell.TH
 -- @
 mkSumTypeSerializer :: String -> Name -> Name -> Q [Dec]
 mkSumTypeSerializer serializerName sourceType targetType = do
-  -- Get the constructors for both types and match them up based on event type.
-  sourceConstructors <- typeConstructors sourceType
-  targetConstructors <- typeConstructors targetType
-  bothConstructors <- mapM (matchConstructor targetConstructors) sourceConstructors
-
   -- Construct the serialization function
   let
-    serializeFuncName = mkName $ firstCharToLower (nameBase sourceType) ++ "To" ++ nameBase targetType
-    serializeFuncClauses = map mkSerializeFunc bothConstructors
-  serializeTypeDecl <- [t| $(conT sourceType) -> $(conT targetType) |]
-
-  -- Construct the deserialization function
-  let
-    deserializeFuncName = mkName $ firstCharToLower (nameBase targetType) ++ "To" ++ nameBase sourceType
-    wildcardDeserializeClause = Clause [WildP] (NormalB (ConE 'Nothing)) []
-    deserializeFuncClauses = map mkDeserializeFunc bothConstructors ++ [wildcardDeserializeClause]
-  deserializeTypeDecl <- [t| $(conT targetType) -> Maybe $(conT sourceType) |]
+    serializeFuncName = firstCharToLower (nameBase sourceType) ++ "To" ++ nameBase targetType
+    deserializeFuncName = firstCharToLower (nameBase targetType) ++ "To" ++ nameBase sourceType
+  serializeDecls <- sumTypeConverter serializeFuncName sourceType targetType
+  deserializeDecls <- partialSumTypeConverter deserializeFuncName targetType sourceType
 
   -- Construct the serializer
   serializerTypeDecl <- [t| $(conT $ mkName "Serializer") $(conT sourceType) $(conT targetType) |]
-  serializerExp <- [e| $(varE $ mkName "simpleSerializer") $(varE serializeFuncName) $(varE deserializeFuncName) |]
+  serializerExp <- [e| $(varE $ mkName "simpleSerializer") $(varE $ mkName serializeFuncName) $(varE $ mkName deserializeFuncName) |]
   let
     serializerClause = Clause [] (NormalB serializerExp) []
 
-  return
-    [ -- Serialization
-      SigD serializeFuncName serializeTypeDecl
-    , FunD serializeFuncName serializeFuncClauses
-
-      -- Deserialization
-    , SigD deserializeFuncName deserializeTypeDecl
-    , FunD deserializeFuncName deserializeFuncClauses
-
-      -- Serializer
-    , SigD (mkName serializerName) serializerTypeDecl
+  return $
+    [ SigD (mkName serializerName) serializerTypeDecl
     , FunD (mkName serializerName) [serializerClause]
-    ]
-
--- | Extract the constructors and event types for the given type.
-typeConstructors :: Name -> Q [(Type, Name)]
-typeConstructors typeName = do
-  info <- reify typeName
-  case info of
-    (TyConI (DataD _ _ _ _ constructors _)) -> mapM go constructors
-      where
-        go (NormalC name []) = fail $ "Constructor " ++ nameBase name ++ " doesn't have any arguments"
-        go (NormalC name [(_, type')]) = return (type', name)
-        go (NormalC name _) = fail $ "Constructor " ++ nameBase name ++ " has more than one argument"
-        go _ = fail $ "Invalid constructor in " ++ nameBase typeName
-    _ -> fail $ nameBase typeName ++ " must be a sum type"
-
--- | Find the corresponding target constructor for a given source constructor.
-matchConstructor :: [(Type, Name)] -> (Type, Name) -> Q BothConstructors
-matchConstructor targetConstructors (type', sourceConstructor) = do
-  targetConstructor <-
-    maybe
-    (fail $ "Can't find constructor in target type corresponding to " ++ nameBase sourceConstructor)
-    return
-    (lookup type' targetConstructors)
-  return $ BothConstructors type' sourceConstructor targetConstructor
-
--- | Utility type to hold the source and target constructors for a given event
--- type.
-data BothConstructors =
-  BothConstructors
-  { eventType :: Type
-  , sourceConstructor :: Name
-  , targetConstructor :: Name
-  }
-
--- | Construct the TH function 'Clause' for the serialization function for a
--- given type.
-mkSerializeFunc :: BothConstructors -> Clause
-mkSerializeFunc BothConstructors{..} =
-  let
-    patternMatch = ConP sourceConstructor [VarP (mkName "e")]
-    constructor = AppE (ConE targetConstructor) (VarE (mkName "e"))
-  in Clause [patternMatch] (NormalB constructor) []
-
--- | Construct the TH function 'Clause' for the deserialization function for a
--- given type.
-mkDeserializeFunc :: BothConstructors -> Clause
-mkDeserializeFunc BothConstructors{..} =
-  let
-    patternMatch = ConP targetConstructor [VarP (mkName "e")]
-    constructor = AppE (ConE 'Just) (AppE (ConE sourceConstructor) (VarE (mkName "e")))
-  in Clause [patternMatch] (NormalB constructor) []
+    ] ++ serializeDecls ++ deserializeDecls
 
 firstCharToLower :: String -> String
 firstCharToLower [] = []

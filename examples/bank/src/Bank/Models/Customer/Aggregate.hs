@@ -5,15 +5,15 @@ module Bank.Models.Customer.Aggregate
   , customerAggregate
   ) where
 
+import SumTypes.TH
 
 import Eventful
-import Eventful.TH
 
 import Bank.Models.Customer.Commands
 import Bank.Models.Customer.Events
 import Bank.Models.Customer.Projection
 
-mkSumType "CustomerCommand" (++ "CustomerCommand") customerCommands
+constructSumType "CustomerCommand" (defaultSumTypeOptions { sumTypeOptionsTagOptions = AppendTypeNameToTags }) customerCommands
 
 handleCustomerCommand :: Customer -> CustomerCommand -> [CustomerEvent]
 handleCustomerCommand customer (CreateCustomerCustomerCommand (CreateCustomer name)) =

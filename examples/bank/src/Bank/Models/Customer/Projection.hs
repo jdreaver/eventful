@@ -8,9 +8,9 @@ module Bank.Models.Customer.Projection
   ) where
 
 import Data.Aeson.TH
+import SumTypes.TH
 
 import Eventful
-import Eventful.TH
 
 import Bank.Models.Customer.Events
 import Bank.Json
@@ -22,7 +22,7 @@ data Customer =
 
 deriveJSON (unPrefixLower "customer") ''Customer
 
-mkSumType "CustomerEvent" (++ "CustomerEvent") customerEvents
+constructSumType "CustomerEvent" (defaultSumTypeOptions { sumTypeOptionsTagOptions = AppendTypeNameToTags }) customerEvents
 
 deriving instance Show CustomerEvent
 deriving instance Eq CustomerEvent

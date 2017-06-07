@@ -9,15 +9,15 @@ module Bank.Models.Account.Aggregate
 
 import Control.Lens
 import Data.Maybe (isNothing)
+import SumTypes.TH
 
 import Eventful
-import Eventful.TH
 
 import Bank.Models.Account.Commands
 import Bank.Models.Account.Events
 import Bank.Models.Account.Projection
 
-mkSumType "AccountCommand" (++ "AccountCommand") accountCommands
+constructSumType "AccountCommand" (defaultSumTypeOptions { sumTypeOptionsTagOptions = AppendTypeNameToTags }) accountCommands
 
 handleAccountCommand :: Account -> AccountCommand -> [AccountEvent]
 handleAccountCommand account (OpenAccountAccountCommand OpenAccount{..}) =

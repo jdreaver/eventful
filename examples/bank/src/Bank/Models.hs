@@ -16,6 +16,7 @@ module Bank.Models
   ) where
 
 import Data.Aeson.TH
+import SumTypes.TH
 
 import Eventful
 import Eventful.TH
@@ -24,7 +25,7 @@ import Bank.Json
 import Bank.Models.Account as X
 import Bank.Models.Customer as X
 
-mkSumType "BankEvent" (++ "Event") $
+constructSumType "BankEvent" (defaultSumTypeOptions { sumTypeOptionsTagOptions = ConstructTagName (++ "Event") }) $
   concat
   [ accountEvents
   , customerEvents
@@ -35,7 +36,7 @@ deriving instance Eq BankEvent
 
 deriveJSON (defaultOptions { constructorTagModifier = dropSuffix "Event" }) ''BankEvent
 
-mkSumType "BankCommand" (++ "Command") $
+constructSumType "BankCommand" (defaultSumTypeOptions { sumTypeOptionsTagOptions = ConstructTagName (++ "Command") }) $
   concat
   [ accountCommands
   , customerCommands

@@ -16,9 +16,9 @@ module Bank.Models.Account.Projection
 import Control.Lens
 import Data.Aeson.TH
 import Data.List (delete, find)
+import SumTypes.TH
 
 import Eventful
-import Eventful.TH
 
 import Bank.Models.Account.Events
 import Bank.Json
@@ -54,7 +54,7 @@ accountAvailableBalance account = account ^. accountBalance - pendingBalance
 findAccountTransferById :: [PendingAccountTransfer] -> UUID -> Maybe PendingAccountTransfer
 findAccountTransferById transfers transferId = find ((== transferId) . pendingAccountTransferId) transfers
 
-mkSumType "AccountEvent" (++ "AccountEvent") accountEvents
+constructSumType "AccountEvent" (defaultSumTypeOptions { sumTypeOptionsTagOptions = AppendTypeNameToTags }) accountEvents
 
 deriving instance Show AccountEvent
 deriving instance Eq AccountEvent

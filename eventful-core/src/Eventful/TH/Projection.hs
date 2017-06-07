@@ -7,9 +7,9 @@ module Eventful.TH.Projection
 
 import Data.Char (toLower)
 import Language.Haskell.TH
+import SumTypes.TH
 
 import Eventful.Projection
-import Eventful.TH.SumType
 
 -- | Creates a 'Projection' for a given type and a list of events. The user of
 -- this function also needs to provide event handlers for each event. For
@@ -51,7 +51,7 @@ mkProjection :: Name -> Name -> [Name] -> Q [Dec]
 mkProjection stateName stateDefault events = do
   -- Make event sum type
   let eventTypeName = nameBase stateName ++ "Event"
-  sumTypeDecls <- mkSumType eventTypeName (nameBase stateName ++) events
+  sumTypeDecls <- constructSumType eventTypeName defaultSumTypeOptions events
 
   -- Make function to handle events from sum type to handlers.
   let handleFuncName = mkName $ "handle" ++ eventTypeName

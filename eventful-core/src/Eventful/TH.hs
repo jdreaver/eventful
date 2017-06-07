@@ -3,5 +3,4 @@ module Eventful.TH
   ) where
 
 import Eventful.TH.Projection as X
-import Eventful.TH.SumType as X
 import Eventful.TH.SumTypeSerializer as X
