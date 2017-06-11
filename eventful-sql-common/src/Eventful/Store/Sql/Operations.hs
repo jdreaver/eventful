@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Eventful.Store.Sql.Operations
@@ -12,6 +13,7 @@ module Eventful.Store.Sql.Operations
   ) where
 
 import Control.Monad.Reader
+import Data.Foldable (for_)
 import Data.Maybe (listToMaybe, maybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -117,11 +119,17 @@ sqlMaxEventVersion SqlEventStoreConfig{..} maxVersionSql uuid =
 sqlStoreEvents
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
+  -> Maybe (Text -> Text)
   -> (DBName -> DBName -> DBName -> Text)
   -> UUID
   -> [serialized]
   -> SqlPersistT m ()
-sqlStoreEvents config@SqlEventStoreConfig{..} maxVersionSql uuid events = do
+sqlStoreEvents config@SqlEventStoreConfig{..} mLockCommand maxVersionSql uuid events = do
   versionNum <- sqlMaxEventVersion config maxVersionSql uuid
   let entities = zipWith (sqlEventStoreConfigSequenceMakeEntity uuid) [versionNum + 1..] events
+  -- NB: We need to take a lock on the events table or else the global sequence
+  -- numbers may not increase monotonically over time.
+  for_ mLockCommand $ \lockCommand -> rawExecute (lockCommand tableName) []
   insertMany_ entities
+  where
+    (DBName tableName) = tableDBName (sqlEventStoreConfigSequenceMakeEntity nil 0 undefined)

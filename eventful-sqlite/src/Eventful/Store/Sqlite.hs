@@ -30,7 +30,7 @@ sqliteEventStore config =
   let
     getLatestVersion = sqlMaxEventVersion config maxSqliteVersionSql
     getEvents = sqlGetAggregateEvents config
-    storeEvents' = sqlStoreEvents config maxSqliteVersionSql
+    storeEvents' = sqlStoreEvents config Nothing maxSqliteVersionSql
     storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
   in EventStore{..}
 
