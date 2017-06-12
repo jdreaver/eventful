@@ -24,7 +24,6 @@ dependencies:
   - bytestring
   - mtl
   - persistent
-  - persistent-postgresql
   - text
 
 library:
@@ -43,6 +42,7 @@ tests:
       - hspec
       - HUnit
       - eventful-test-helpers
+      - persistent-postgresql
   style:
     main: HLint.hs
     ghc-options: -Wall

@@ -19,9 +19,7 @@ dependencies:
   - base >= 4.9 && < 5
   - eventful-core
 
-  - async
   - containers
-  - mtl
   - safe
   - stm
 

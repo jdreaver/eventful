@@ -24,7 +24,6 @@ dependencies:
   - bytestring
   - mtl
   - persistent
-  - persistent-sqlite
   - text
   - uuid
 
@@ -44,6 +43,7 @@ tests:
       - hspec
       - HUnit
       - eventful-test-helpers
+      - persistent-sqlite
   style:
     main: HLint.hs
     ghc-options: -Wall
