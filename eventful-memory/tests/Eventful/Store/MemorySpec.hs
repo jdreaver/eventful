@@ -1,7 +1,7 @@
 module Eventful.Store.MemorySpec (spec) where
 
 import Control.Concurrent.STM
---import Control.Monad.State.Strict
+import Control.Monad.State.Strict
 import Test.Hspec
 
 import Eventful.Serializer
@@ -18,9 +18,9 @@ spec = do
     eventStoreSpec makeTVarStore (const atomically)
     sequencedEventStoreSpec makeTVarGlobalStore (const atomically)
 
-  -- describe "MonadState memory event store with actual event type" $ do
-  --   eventStoreSpec makeStateStore (const (pure . flip evalState emptyEventMap))
-  --   sequencedEventStoreSpec makeStateGlobalStore (const (pure . flip evalState emptyEventMap))
+  describe "MonadState memory event store with actual event type" $ do
+    eventStoreSpec makeStateStore (const (flip evalStateT emptyEventMap))
+    sequencedEventStoreSpec makeStateGlobalStore (const (flip evalStateT emptyEventMap))
 
 makeTVarStore :: IO (EventStore serialized STM, ())
 makeTVarStore = do
@@ -45,8 +45,9 @@ makeTVarDynamicGlobalStore = do
     globalStore' = serializedGloballyOrderedEventStore dynamicSerializer globalStore
   return (store', globalStore', ())
 
--- makeStateStore :: IO (EventStore serialized (State (EventMap serialized)), ())
--- makeStateStore = return (stateEventStore, ())
+makeStateStore :: IO (EventStore serialized (StateT (EventMap serialized) IO), ())
+makeStateStore = return (stateEventStore, ())
 
--- makeStateGlobalStore :: IO (EventStore serialized (State (EventMap serialized)), GloballyOrderedEventStore serialized (State (EventMap serialized)), ())
--- makeStateGlobalStore = return (stateEventStore, stateGloballyOrderedEventStore, ())
+makeStateGlobalStore
+  :: IO (EventStore serialized (StateT (EventMap serialized) IO), GloballyOrderedEventStore serialized (StateT (EventMap serialized) IO), ())
+makeStateGlobalStore = return (stateEventStore, stateGloballyOrderedEventStore, ())

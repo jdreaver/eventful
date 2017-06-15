@@ -9,6 +9,7 @@
   table. Fixed with an explicit lock on the events table.
 * Restructured record types for events paired with version numbers and global
   sequence numbers.
+* Created an in-memory event store for `MonadState` in `eventful-memory`.
 
 ## 0.1.1
 

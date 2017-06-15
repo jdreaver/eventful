@@ -11,6 +11,7 @@ arguments =
     , "tests"
     , "-i=Redundant do"
     , "-i=Unused LANGUAGE pragma" -- This fails on DeriveGeneric
+    , "-i=Use section"
     ]
 
 main :: IO ()
