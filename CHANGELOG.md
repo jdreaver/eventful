@@ -1,5 +1,7 @@
 # eventful Changelog
 
+## 0.1.3
+
 ## 0.1.2
 
 * Refactored `ProcessManager` so it acts more like a read model that emits

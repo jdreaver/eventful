@@ -1,5 +1,5 @@
 name: eventful-memory
-version: "0.1.2"
+version: "0.1.3"
 maintainer: David Reaver
 synopsis: In-memory implementations for eventful
 description: In-memory implementations for eventful

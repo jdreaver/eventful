@@ -1,5 +1,5 @@
 name: eventful-sqlite
-version: "0.1.2"
+version: "0.1.3"
 maintainer: David Reaver
 synopsis: SQLite implementations for eventful
 description: SQLite implementations for eventful
