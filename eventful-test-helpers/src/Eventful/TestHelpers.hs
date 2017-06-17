@@ -88,46 +88,47 @@ eventStoreSpec
   => EventStoreRunner m
   -> Spec
 eventStoreSpec (EventStoreRunner withStore) = do
+  let
+    withStoreExampleEvents action = withStore $ \store -> do
+      _ <- insertExampleEvents store
+      action store
+
   context "when the event store is empty" $ do
 
     it "should return versions of -1 for a UUID" $ do
-      -- TODO: Abstract out creating all of these stores and having to manually
-      -- thread around makeStore, runAsIO, etc.
       withStore (\store -> getLatestVersion store nil) `shouldReturn` (-1)
 
   context "when a few events are inserted" $ do
     let
-      events = [Added 1, Added 4, Added (-3)]
+      sampleEvents = [Added 1, Added 4, Added (-3)]
+      withStore' action = withStore $ \store -> do
+        _ <- storeEvents store NoStream nil sampleEvents
+        action store
 
     it "should return events" $ do
-      events' <- withStore $ \store -> do
-        _ <- storeEvents store NoStream nil events
+      events' <- withStore' $ \store ->
         getEvents store nil Nothing
-      (storedEventEvent <$> events') `shouldBe` events
-      --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
+      (storedEventEvent <$> events') `shouldBe` sampleEvents
 
     it "should return correct event versions" $ do
-      (latestVersion, allEvents, someEvents) <- withStore $ \store -> do
-        _ <- storeEvents store NoStream nil events
+      (latestVersion, allEvents, someEvents) <- withStore' $ \store ->
         (,,) <$>
           getLatestVersion store nil <*>
           getEvents store nil (Just (-1)) <*>
           getEvents store nil (Just 1)
       latestVersion `shouldBe` 2
-      (storedEventEvent <$> allEvents) `shouldBe` events
-      (storedEventEvent <$> someEvents) `shouldBe` drop 1 events
+      (storedEventEvent <$> allEvents) `shouldBe` sampleEvents
+      (storedEventEvent <$> someEvents) `shouldBe` drop 1 sampleEvents
 
     it "should return the latest projection" $ do
-      projection <- withStore $ \store -> do
-        _ <- storeEvents store NoStream nil events
+      projection <- withStore' $ \store ->
         getLatestProjection store counterProjection nil
       projection `shouldBe` (Counter 2, 2)
 
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events for each aggregate" $ do
-      (events1, events2) <- withStore $ \store -> do
-        _ <- insertExampleEvents store
+      (events1, events2) <- withStoreExampleEvents $ \store ->
         (,) <$> getEvents store uuid1 Nothing <*> getEvents store uuid2 Nothing
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
@@ -137,8 +138,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
     it "should return correct event versions" $ do
-      (latestVersion1, latestVersion2, events1, events2) <- withStore $ \store -> do
-        _ <- insertExampleEvents store
+      (latestVersion1, latestVersion2, events1, events2) <- withStoreExampleEvents $ \store ->
         (,,,) <$>
           getLatestVersion store uuid1 <*>
           getLatestVersion store uuid2 <*>
@@ -150,8 +150,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
       storedEventEvent <$> events2 `shouldBe` [Added 3, Added 5]
 
     it "should produce the correct projections" $ do
-      (proj1, proj2) <- withStore $ \store -> do
-        _ <- insertExampleEvents store
+      (proj1, proj2) <- withStoreExampleEvents $ \store ->
         (,) <$>
           getLatestProjection store counterProjection uuid1 <*>
           getLatestProjection store counterProjection uuid2
