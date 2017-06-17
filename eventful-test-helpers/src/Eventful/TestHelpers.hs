@@ -123,7 +123,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
           getEvents store nil (eventsUntil 1) <*>
           getEvents store nil (eventsStartingAtUntil 1 2) <*>
           getEvents store nil (eventsStartingAt 2) <*>
-          getEvents store nil (eventsStartingAtTakeMax 0 2)
+          getEvents store nil (eventsStartingAtTakeLimit 0 2)
       (storedEventEvent <$> firstEvents) `shouldBe` take 2 sampleEvents
       (storedEventEvent <$> middleEvents) `shouldBe` take 2 (drop 1 sampleEvents)
       (storedEventEvent <$> laterEvents) `shouldBe` drop 2 sampleEvents
@@ -164,7 +164,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
           getEvents store uuid1 (eventsUntil 1) <*>
           getEvents store uuid2 (eventsStartingAtUntil 1 2) <*>
           getEvents store uuid2 (eventsStartingAt 2) <*>
-          getEvents store uuid1 (eventsStartingAtTakeMax 1 1)
+          getEvents store uuid1 (eventsStartingAtTakeLimit 1 1)
       (storedEventEvent <$> firstEvents) `shouldBe` [Added 1, Added 4]
       (storedEventEvent <$> middleEvents) `shouldBe` [Added 3, Added 5]
       (storedEventEvent <$> laterEvents) `shouldBe` [Added 5]
@@ -240,7 +240,7 @@ sequencedEventStoreSpec (GloballyOrderedEventStoreRunner withStore) = do
           getSequencedEvents globalStore (eventsUntil 2) <*>
           getSequencedEvents globalStore (eventsStartingAtUntil 2 3) <*>
           getSequencedEvents globalStore (eventsStartingAt 3) <*>
-          getSequencedEvents globalStore (eventsStartingAtTakeMax 2 3)
+          getSequencedEvents globalStore (eventsStartingAtTakeLimit 2 3)
 
       (globallyOrderedEventEvent <$> firstEvents) `shouldBe` Added <$> [1..2]
       (globallyOrderedEventEvent <$> middleEvents) `shouldBe` Added <$> [2..3]

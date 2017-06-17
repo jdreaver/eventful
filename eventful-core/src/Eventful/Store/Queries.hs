@@ -8,7 +8,7 @@ module Eventful.Store.Queries
   , eventsUntil
   , eventsStartingAt
   , eventsStartingAtUntil
-  , eventsStartingAtTakeMax
+  , eventsStartingAtTakeLimit
   ) where
 
 -- | This type defines how to query an event stream. It defines both where to
@@ -44,5 +44,5 @@ eventsStartingAt start = EventStoreQueryRange (StartQueryAt start) NoQueryLimit
 eventsStartingAtUntil :: a -> a -> EventStoreQueryRange a
 eventsStartingAtUntil start end = EventStoreQueryRange (StartQueryAt start) (StopQueryAt end)
 
-eventsStartingAtTakeMax :: a -> Int -> EventStoreQueryRange a
-eventsStartingAtTakeMax start maxNum = EventStoreQueryRange (StartQueryAt start) (MaxNumberOfEvents maxNum)
+eventsStartingAtTakeLimit :: a -> Int -> EventStoreQueryRange a
+eventsStartingAtTakeLimit start maxNum = EventStoreQueryRange (StartQueryAt start) (MaxNumberOfEvents maxNum)
