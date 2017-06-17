@@ -31,7 +31,7 @@ runPollingReadModel
 runPollingReadModel ReadModel{..} getGloballyOrderedEvents runStore waitSeconds = forever $ do
   -- Get new events starting from latest applied sequence number
   latestSeq <- readModelLatestAppliedSequence readModelModel
-  newEvents <- runStore $ getSequencedEvents getGloballyOrderedEvents (latestSeq + 1)
+  newEvents <- runStore $ getSequencedEvents getGloballyOrderedEvents (eventsStartingAt $ latestSeq + 1)
 
   -- Handle the new events
   readModelHandleEvents readModelModel newEvents

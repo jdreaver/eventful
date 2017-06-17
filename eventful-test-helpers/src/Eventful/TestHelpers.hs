@@ -100,36 +100,45 @@ eventStoreSpec (EventStoreRunner withStore) = do
 
   context "when a few events are inserted" $ do
     let
-      sampleEvents = [Added 1, Added 4, Added (-3)]
+      sampleEvents = [Added 1, Added 4, Added (-3), Added 5]
       withStore' action = withStore $ \store -> do
         _ <- storeEvents store NoStream nil sampleEvents
         action store
 
     it "should return events" $ do
-      events' <- withStore' $ \store ->
-        getEvents store nil Nothing
+      events' <- withStore' $ \store -> getEvents store nil allEvents
       (storedEventEvent <$> events') `shouldBe` sampleEvents
 
     it "should return correct event versions" $ do
-      (latestVersion, allEvents, someEvents) <- withStore' $ \store ->
-        (,,) <$>
+      (latestVersion, events) <- withStore' $ \store ->
+        (,) <$>
           getLatestVersion store nil <*>
-          getEvents store nil (Just (-1)) <*>
-          getEvents store nil (Just 1)
-      latestVersion `shouldBe` 2
-      (storedEventEvent <$> allEvents) `shouldBe` sampleEvents
-      (storedEventEvent <$> someEvents) `shouldBe` drop 1 sampleEvents
+          getEvents store nil allEvents
+      latestVersion `shouldBe` 3
+      (storedEventVersion <$> events) `shouldBe` [0, 1, 2, 3]
+
+    it "should return correct events with queries" $ do
+      (firstEvents, middleEvents, laterEvents, maxEvents) <- withStore' $ \store ->
+        (,,,) <$>
+          getEvents store nil (eventsUntil 1) <*>
+          getEvents store nil (eventsStartingAtUntil 1 2) <*>
+          getEvents store nil (eventsStartingAt 2) <*>
+          getEvents store nil (eventsStartingAtTakeLimit 0 2)
+      (storedEventEvent <$> firstEvents) `shouldBe` take 2 sampleEvents
+      (storedEventEvent <$> middleEvents) `shouldBe` take 2 (drop 1 sampleEvents)
+      (storedEventEvent <$> laterEvents) `shouldBe` drop 2 sampleEvents
+      (storedEventEvent <$> maxEvents) `shouldBe` take 2 sampleEvents
 
     it "should return the latest projection" $ do
       projection <- withStore' $ \store ->
         getLatestProjection store counterProjection nil
-      projection `shouldBe` (Counter 2, 2)
+      projection `shouldBe` (Counter 7, 3)
 
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events for each aggregate" $ do
       (events1, events2) <- withStoreExampleEvents $ \store ->
-        (,) <$> getEvents store uuid1 Nothing <*> getEvents store uuid2 Nothing
+        (,) <$> getEvents store uuid1 allEvents <*> getEvents store uuid2 allEvents
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
       (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
       (storedEventProjectionId <$> events1) `shouldBe` [uuid1, uuid1]
@@ -142,12 +151,24 @@ eventStoreSpec (EventStoreRunner withStore) = do
         (,,,) <$>
           getLatestVersion store uuid1 <*>
           getLatestVersion store uuid2 <*>
-          getEvents store uuid1 (Just 0) <*>
-          getEvents store uuid2 (Just 1)
+          getEvents store uuid1 allEvents <*>
+          getEvents store uuid2 allEvents
       latestVersion1 `shouldBe` 1
       latestVersion2 `shouldBe` 2
       storedEventEvent <$> events1 `shouldBe` [Added 1, Added 4]
-      storedEventEvent <$> events2 `shouldBe` [Added 3, Added 5]
+      storedEventEvent <$> events2 `shouldBe` [Added 2, Added 3, Added 5]
+
+    it "should return correct events with queries" $ do
+      (firstEvents, middleEvents, laterEvents, maxEvents) <- withStoreExampleEvents $ \store ->
+        (,,,) <$>
+          getEvents store uuid1 (eventsUntil 1) <*>
+          getEvents store uuid2 (eventsStartingAtUntil 1 2) <*>
+          getEvents store uuid2 (eventsStartingAt 2) <*>
+          getEvents store uuid1 (eventsStartingAtTakeLimit 1 1)
+      (storedEventEvent <$> firstEvents) `shouldBe` [Added 1, Added 4]
+      (storedEventEvent <$> middleEvents) `shouldBe` [Added 3, Added 5]
+      (storedEventEvent <$> laterEvents) `shouldBe` [Added 5]
+      (storedEventEvent <$> maxEvents) `shouldBe` [Added 4]
 
     it "should produce the correct projections" $ do
       (proj1, proj2) <- withStoreExampleEvents $ \store ->
@@ -198,19 +219,33 @@ sequencedEventStoreSpec (GloballyOrderedEventStoreRunner withStore) = do
   context "when the event store is empty" $ do
 
     it "shouldn't have any events" $ do
-      events <- withStore (\_ globalStore -> getSequencedEvents globalStore 0)
+      events <- withStore (\_ globalStore -> getSequencedEvents globalStore allEvents)
       length events `shouldBe` 0
 
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events in global order" $ do
-      events' <- withStore $ \store globalStore -> do
+      events <- withStore $ \store globalStore -> do
         insertExampleEvents store
-        getSequencedEvents globalStore 0
-      (globallyOrderedEventEvent <$> events') `shouldBe` Added <$> [1..5]
-      (globallyOrderedEventProjectionId <$> events') `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (globallyOrderedEventVersion <$> events') `shouldBe` [0, 0, 1, 1, 2]
-      (globallyOrderedEventSequenceNumber <$> events') `shouldBe` [1..5]
+        getSequencedEvents globalStore allEvents
+      (globallyOrderedEventEvent <$> events) `shouldBe` Added <$> [1..5]
+      (globallyOrderedEventProjectionId <$> events) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (globallyOrderedEventVersion <$> events) `shouldBe` [0, 0, 1, 1, 2]
+      (globallyOrderedEventSequenceNumber <$> events) `shouldBe` [1..5]
+
+    it "should handle queries" $ do
+      (firstEvents, middleEvents, laterEvents, maxEvents) <- withStore $ \store globalStore -> do
+        insertExampleEvents store
+        (,,,) <$>
+          getSequencedEvents globalStore (eventsUntil 2) <*>
+          getSequencedEvents globalStore (eventsStartingAtUntil 2 3) <*>
+          getSequencedEvents globalStore (eventsStartingAt 3) <*>
+          getSequencedEvents globalStore (eventsStartingAtTakeLimit 2 3)
+
+      (globallyOrderedEventEvent <$> firstEvents) `shouldBe` Added <$> [1..2]
+      (globallyOrderedEventEvent <$> middleEvents) `shouldBe` Added <$> [2..3]
+      (globallyOrderedEventEvent <$> laterEvents) `shouldBe` Added <$> [3..5]
+      (globallyOrderedEventEvent <$> maxEvents) `shouldBe` Added <$> [2..4]
 
 insertExampleEvents
   :: (Monad m)

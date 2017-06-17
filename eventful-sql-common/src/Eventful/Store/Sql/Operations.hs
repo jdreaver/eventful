@@ -47,7 +47,7 @@ sqlGloballyOrderedEventStore
   => SqlEventStoreConfig entity serialized
   -> GloballyOrderedEventStore serialized (SqlPersistT m)
 sqlGloballyOrderedEventStore config =
-  GloballyOrderedEventStore $ sqlGetAllEventsFromSequence config
+  GloballyOrderedEventStore $ sqlGetAllEventsInRange config
 
 sqlEventToGloballyOrdered
   :: SqlEventStoreConfig entity serialized
@@ -80,27 +80,44 @@ sqlGetAggregateEvents
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
   -> UUID
-  -> Maybe EventVersion
+  -> EventStoreQueryRange EventVersion
   -> SqlPersistT m [StoredEvent serialized]
-sqlGetAggregateEvents config@SqlEventStoreConfig{..} uuid mVers = do
-  let
-    constraints =
-      (sqlEventStoreConfigUUIDField ==. uuid) :
-      maybe [] (\vers -> [sqlEventStoreConfigVersionField >=. vers]) mVers
-  entities <- selectList constraints [Asc sqlEventStoreConfigVersionField]
+sqlGetAggregateEvents config@SqlEventStoreConfig{..} uuid EventStoreQueryRange{..} = do
+  entities <- selectList filters selectOpts
   return $ sqlEventToStored config . entityVal <$> entities
+  where
+    startFilter =
+      case eventStoreQueryRangeStart of
+        StartFromBeginning -> []
+        StartQueryAt start -> [sqlEventStoreConfigVersionField >=. start]
+    (endFilter, endSelectOpt) =
+      case eventStoreQueryRangeLimit of
+        NoQueryLimit -> ([], [])
+        MaxNumberOfEvents maxNum -> ([], [LimitTo maxNum])
+        StopQueryAt stop -> ([sqlEventStoreConfigVersionField <=. stop], [])
+    filters = (sqlEventStoreConfigUUIDField ==. uuid) : startFilter ++ endFilter
+    selectOpts = Asc sqlEventStoreConfigSequenceNumberField : endSelectOpt
 
-sqlGetAllEventsFromSequence
+sqlGetAllEventsInRange
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> SequenceNumber
+  -> EventStoreQueryRange SequenceNumber
   -> SqlPersistT m [GloballyOrderedEvent serialized]
-sqlGetAllEventsFromSequence config@SqlEventStoreConfig{..} seqNum = do
-  entities <-
-    selectList
-    [sqlEventStoreConfigSequenceNumberField >=. sqlEventStoreConfigMakeKey seqNum]
-    [Asc sqlEventStoreConfigSequenceNumberField]
+sqlGetAllEventsInRange config@SqlEventStoreConfig{..} EventStoreQueryRange{..} = do
+  entities <- selectList filters selectOpts
   return $ sqlEventToGloballyOrdered config <$> entities
+  where
+    startFilter =
+      case eventStoreQueryRangeStart of
+        StartFromBeginning -> []
+        StartQueryAt start -> [sqlEventStoreConfigSequenceNumberField >=. sqlEventStoreConfigMakeKey start]
+    (endFilter, endSelectOpt) =
+      case eventStoreQueryRangeLimit of
+        NoQueryLimit -> ([], [])
+        MaxNumberOfEvents maxNum -> ([], [LimitTo maxNum])
+        StopQueryAt stop -> ([sqlEventStoreConfigSequenceNumberField <=. sqlEventStoreConfigMakeKey stop], [])
+    filters = startFilter ++ endFilter
+    selectOpts = Asc sqlEventStoreConfigSequenceNumberField : endSelectOpt
 
 sqlMaxEventVersion
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
