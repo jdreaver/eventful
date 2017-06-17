@@ -61,7 +61,7 @@ getLatestProjection
   -> UUID
   -> m (proj, EventVersion)
 getLatestProjection store proj uuid = do
-  events <- getEvents store uuid Nothing
+  events <- getEvents store uuid allEvents
   let
     latestVersion = maxEventVersion events
     latestProj = latestProjection proj $ storedEventEvent <$> events
@@ -114,7 +114,7 @@ getLatestGlobalProjection
   -> GloballyOrderedProjection proj serialized
   -> m (GloballyOrderedProjection proj serialized)
 getLatestGlobalProjection store globalProjection@GloballyOrderedProjection{..} = do
-  events <- getSequencedEvents store (globallyOrderedProjectionSequenceNumber + 1)
+  events <- getSequencedEvents store (eventsStartingAt $ globallyOrderedProjectionSequenceNumber + 1)
   return $ foldl' globallyOrderedProjectionEventHandler globalProjection events
 
 -- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it

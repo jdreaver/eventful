@@ -10,6 +10,7 @@ module Eventful.Store.Class
   , GloballyOrderedEventStore (..)
   , ExpectedVersion (..)
   , EventWriteError (..)
+  , module Eventful.Store.Queries
     -- * Utility types
   , ProjectionEvent (..)
   , StoredEvent (..)
@@ -28,6 +29,7 @@ import Data.Aeson
 import Web.HttpApiData
 import Web.PathPieces
 
+import Eventful.Store.Queries
 import Eventful.UUID
 
 -- | The 'EventStore' is the core type of eventful. A store operates in some
@@ -36,7 +38,7 @@ data EventStore serialized m
   = EventStore
   { getLatestVersion :: UUID -> m EventVersion
     -- ^ Gets the latest 'EventVersion' for a given 'Projection'.
-  , getEvents :: UUID -> Maybe EventVersion -> m [StoredEvent serialized]
+  , getEvents :: UUID -> EventStoreQueryRange EventVersion -> m [StoredEvent serialized]
     -- ^ Retrieves all the events for a given 'Projection' using that
     -- projection's UUID. If an event version is provided then all events with
     -- a version greater than or equal to that version are returned.
@@ -50,7 +52,7 @@ data EventStore serialized m
 -- store.
 newtype GloballyOrderedEventStore serialized m =
   GloballyOrderedEventStore
-  { getSequencedEvents :: SequenceNumber -> m [GloballyOrderedEvent serialized]
+  { getSequencedEvents :: EventStoreQueryRange SequenceNumber -> m [GloballyOrderedEvent serialized]
   }
 
 -- | ExpectedVersion is used to assert the event stream is at a certain version

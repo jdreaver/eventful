@@ -121,7 +121,7 @@ counterStoreExample = do
   _ <- atomically $ storeEvents store AnyVersion uuid events
 
   -- Now read the events back and print
-  events' <- atomically $ getEvents store uuid Nothing
+  events' <- atomically $ getEvents store uuid allEvents
   print events'
 ```
 

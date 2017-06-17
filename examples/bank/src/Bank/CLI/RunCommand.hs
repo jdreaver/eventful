@@ -24,9 +24,9 @@ runCLICommand pool (ViewAccountCLI uuid) = do
     getLatestProjection cliEventStore accountBankProjection uuid
   printJSONPretty state
 runCLICommand pool (ViewCustomerAccountsCLI name) = do
-  allEvents <- runDB pool $ getSequencedEvents cliGloballyOrderedEventStore 0
+  events <- runDB pool $ getSequencedEvents cliGloballyOrderedEventStore allEvents
   let
-    projectionEvents = globallyOrderedEventToProjectionEvent <$> allEvents
+    projectionEvents = globallyOrderedEventToProjectionEvent <$> events
     allCustomerAccounts = latestProjection customerAccountsProjection projectionEvents
     thisCustomerAccounts = getCustomerAccountsFromName allCustomerAccounts name
   case thisCustomerAccounts of

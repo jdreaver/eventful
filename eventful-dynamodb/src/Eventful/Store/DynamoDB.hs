@@ -23,7 +23,6 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Network.AWS
@@ -71,11 +70,11 @@ getDynamoEvents
   :: (MonadAWS m)
   => DynamoDBEventStoreConfig serialized
   -> UUID
-  -> Maybe EventVersion
+  -> EventStoreQueryRange EventVersion
   -> m [StoredEvent serialized]
-getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid mStartingVersion = do
+getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid range = do
   latestEvents <-
-    paginate (queryBase config uuid mStartingVersion) =$=
+    paginate (queryBase config uuid range) =$=
     CL.concatMap (view qrsItems) $$
     CL.consume
   return $ mapMaybe (decodeDynamoEvent config uuid) latestEvents
@@ -100,7 +99,7 @@ latestEventVersion
   -> m EventVersion
 latestEventVersion config@DynamoDBEventStoreConfig{..} uuid = do
   latestEvents <- fmap (view qrsItems) . send $
-    queryBase config uuid Nothing
+    queryBase config uuid allEvents
     & qLimit ?~ 1
     & qScanIndexForward ?~ False
   return $ EventVersion $ fromMaybe (-1) $ do
@@ -115,23 +114,40 @@ latestEventVersion config@DynamoDBEventStoreConfig{..} uuid = do
 queryBase
   :: DynamoDBEventStoreConfig serialized
   -> UUID
-  -> Maybe EventVersion
+  -> EventStoreQueryRange EventVersion
   -> Query
-queryBase DynamoDBEventStoreConfig{..} uuid mStartingVersion =
+queryBase DynamoDBEventStoreConfig{..} uuid EventStoreQueryRange{..} =
   query
   dynamoDBEventStoreConfigTableName
-  & qKeyConditionExpression ?~ "#uuid = :uuid" <> versionCaseExpression
-  & qExpressionAttributeNames .~
-    HM.singleton "#uuid" dynamoDBEventStoreConfigUUIDAttributeName <>
-    versionVariableName
-  & qExpressionAttributeValues .~
-    HM.singleton ":uuid" (attributeValue & avS ?~ uuidToText uuid) <>
-    versionAttributeValue
+  & qKeyConditionExpression ?~ T.intercalate " AND " (uuidCaseExpression : versionCaseExpression)
+  & qExpressionAttributeNames .~ HM.fromList (uuidAttributeName : versionAttributeName)
+  & qExpressionAttributeValues .~ HM.fromList (uuidAttributeValue : versionAttributeValues)
   where
-    versionCaseExpression = maybe "" (const " AND #version >= :version") mStartingVersion
-    versionVariableName = maybe HM.empty (const $ HM.singleton "#version" dynamoDBEventStoreConfigVersionAttributeName) mStartingVersion
-    versionAttributeValue = maybe HM.empty (HM.singleton ":version" . mkVersionValue) mStartingVersion
-    mkVersionValue (EventVersion version) = attributeValue & avN ?~ T.pack (show version)
+    uuidAttributeName = ("#uuid", dynamoDBEventStoreConfigUUIDAttributeName)
+    uuidAttributeValue = (":uuid", attributeValue & avS ?~ uuidToText uuid)
+    uuidCaseExpression = "#uuid = :uuid"
+
+    mkStartVersionAttributeValue vers = (":startVersion", attributeValue & avN ?~ T.pack (show vers))
+    mkEndVersionAttributeValue vers = (":endVersion", attributeValue & avN ?~ T.pack (show vers))
+    mkJustStart (EventVersion start) = (["#version >= :startVersion"], [mkStartVersionAttributeValue start])
+    mkJustEnd (EventVersion end) = (["#version <= :endVersion"], [mkEndVersionAttributeValue end])
+    mkBoth (EventVersion start) (EventVersion end) =
+      ( ["#version BETWEEN :startVersion AND :endVersion"]
+      , [ mkStartVersionAttributeValue start
+        , mkEndVersionAttributeValue end
+        ]
+      )
+    (versionCaseExpression, versionAttributeValues) =
+      case (eventStoreQueryRangeStart, eventStoreQueryRangeLimit) of
+        (StartFromBeginning, NoQueryLimit) -> ([], [])
+        (StartFromBeginning, MaxNumberOfEvents maxNum) -> mkJustEnd (EventVersion maxNum - 1)
+        (StartFromBeginning, StopQueryAt end) -> mkJustEnd end
+        (StartQueryAt start, NoQueryLimit) -> mkJustStart start
+        (StartQueryAt start, MaxNumberOfEvents maxNum) -> mkBoth start (EventVersion maxNum + start - 1)
+        (StartQueryAt start, StopQueryAt end) -> mkBoth start end
+    versionAttributeName =
+      if null versionCaseExpression then []
+      else [("#version", dynamoDBEventStoreConfigVersionAttributeName)]
 
 storeDynamoEvents
   :: (MonadAWS m)
