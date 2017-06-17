@@ -5,6 +5,8 @@ module Eventful.Store.Memory
   ( memoryEventStore
   , stateEventStore
   , stateGloballyOrderedEventStore
+  , embeddedStateEventStore
+  , embeddedStateGloballyOrderedEventStore
   , EventMap
   , emptyEventMap
   , module Eventful.Store.Class
@@ -50,25 +52,49 @@ memoryEventStore = do
     getSequencedEvents seqNum = flip lookupEventMapSeq seqNum <$> readTVar tvar
   return (EventStore{..}, GloballyOrderedEventStore{..})
 
--- | An 'EventStore' that runs in a 'MonadState' monad.
+-- | Specialized version of 'embeddedStateEventStore' that only contains an
+-- 'EventMap' in the state.
 stateEventStore
   :: (MonadState (EventMap serialized) m)
   => EventStore serialized m
-stateEventStore =
+stateEventStore = embeddedStateEventStore id (flip const)
+
+-- | An 'EventStore' that runs on some 'MonadState' that contains an
+-- 'EventMap'. This is useful if you want to include other state in your
+-- 'MonadState'.
+embeddedStateEventStore
+  :: (MonadState s m)
+  => (s -> EventMap serialized)
+  -> (s -> EventMap serialized -> s)
+  -> EventStore serialized m
+embeddedStateEventStore getMap setMap =
   let
-    getLatestVersion uuid = flip latestEventVersion uuid <$> get
-    getEvents uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> get
-    storeEvents' uuid events = modify (\store -> storeEventMap store uuid events)
+    getLatestVersion uuid = flip latestEventVersion uuid <$> gets getMap
+    getEvents uuid vers = toList . (\s -> lookupEventsFromVersion s uuid vers) <$> gets getMap
+    storeEvents' uuid events = modify' (modifyStore uuid events)
     storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
   in EventStore{..}
+  where
+    modifyStore uuid events state' =
+      let
+        store = getMap state'
+        store' = storeEventMap store uuid events
+      in setMap state' store'
 
--- | A 'GloballyOrderedEventStore' that runs in a 'MonadState' monad.
+-- | Analogous to 'stateEventStore' for a 'GloballyOrderedEventStore'.
 stateGloballyOrderedEventStore
   :: (MonadState (EventMap serialized) m)
   => GloballyOrderedEventStore serialized m
-stateGloballyOrderedEventStore =
+stateGloballyOrderedEventStore = embeddedStateGloballyOrderedEventStore id
+
+-- | Analogous to 'embeddedStateEventStore' for a 'GloballyOrderedEventStore'.
+embeddedStateGloballyOrderedEventStore
+  :: (MonadState s m)
+  => (s -> EventMap serialized)
+  -> GloballyOrderedEventStore serialized m
+embeddedStateGloballyOrderedEventStore getMap =
   let
-    getSequencedEvents seqNum = flip lookupEventMapSeq seqNum <$> get
+    getSequencedEvents seqNum = flip lookupEventMapSeq seqNum <$> gets getMap
   in GloballyOrderedEventStore{..}
 
 lookupEventMapRaw :: EventMap serialized -> UUID -> Seq (StoredEvent serialized)

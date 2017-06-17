@@ -22,6 +22,10 @@ spec = do
     eventStoreSpec makeStateStore (const (flip evalStateT emptyEventMap))
     sequencedEventStoreSpec makeStateGlobalStore (const (flip evalStateT emptyEventMap))
 
+  describe "MonadState embedded memory event store with actual event type" $ do
+    eventStoreSpec makeEmbeddedStateStore (const (flip evalStateT emptyEmbeddedState))
+    sequencedEventStoreSpec makeEmbeddedStateGlobalStore (const (flip evalStateT emptyEmbeddedState))
+
 makeTVarStore :: IO (EventStore serialized STM, ())
 makeTVarStore = do
   (store, _, ()) <- makeTVarGlobalStore
@@ -51,3 +55,28 @@ makeStateStore = return (stateEventStore, ())
 makeStateGlobalStore
   :: IO (EventStore serialized (StateT (EventMap serialized) IO), GloballyOrderedEventStore serialized (StateT (EventMap serialized) IO), ())
 makeStateGlobalStore = return (stateEventStore, stateGloballyOrderedEventStore, ())
+
+
+data EmbeddedState serialized
+  = EmbeddedState
+  { _embeddedDummyArgument :: Int
+  , embeddedEventMap :: EventMap serialized
+  }
+
+setEventMap :: EmbeddedState serialized -> EventMap serialized -> EmbeddedState serialized
+setEventMap state' eventMap = state' { embeddedEventMap = eventMap }
+
+emptyEmbeddedState :: EmbeddedState serialized
+emptyEmbeddedState = EmbeddedState 100 emptyEventMap
+
+makeEmbeddedStateStore :: IO (EventStore serialized (StateT (EmbeddedState serialized) IO), ())
+makeEmbeddedStateStore = return (embeddedStateEventStore embeddedEventMap setEventMap, ())
+
+makeEmbeddedStateGlobalStore
+  :: IO (EventStore serialized (StateT (EmbeddedState serialized) IO), GloballyOrderedEventStore serialized (StateT (EmbeddedState serialized) IO), ())
+makeEmbeddedStateGlobalStore =
+  return
+    ( embeddedStateEventStore embeddedEventMap setEventMap
+    , embeddedStateGloballyOrderedEventStore embeddedEventMap
+    , ()
+    )

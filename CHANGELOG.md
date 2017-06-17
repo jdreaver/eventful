@@ -2,6 +2,10 @@
 
 ## 0.1.3
 
+* Added versions of the `MonadState` event stores that can include other state
+  along with the `EventMap`. These are called `embeddedStateEventStore` and
+  `embeddedStateGloballyOrderedEventStore`.
+
 ## 0.1.2
 
 * Refactored `ProcessManager` so it acts more like a read model that emits
