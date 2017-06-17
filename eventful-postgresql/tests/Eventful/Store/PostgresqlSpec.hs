@@ -12,6 +12,12 @@ import Eventful.Serializer
 import Eventful.Store.Postgresql
 import Eventful.TestHelpers
 
+spec :: Spec
+spec = do
+  describe "Postgres event store" $ do
+    eventStoreSpec postgresStoreRunner
+    sequencedEventStoreSpec postgresStoreGlobalRunner
+
 makeStore :: (MonadIO m) => m (EventStore CounterEvent (SqlPersistT m), ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
@@ -42,19 +48,13 @@ truncateTables = do
       query = "TRUNCATE TABLE " <> intercalate ", " escapedTables <> " RESTART IDENTITY CASCADE"
     rawExecute query []
 
-makeGlobalStore
-  :: (MonadIO m)
-  => m (EventStore CounterEvent (SqlPersistT m), GloballyOrderedEventStore CounterEvent (SqlPersistT m), ConnectionPool)
-makeGlobalStore = do
+postgresStoreRunner :: EventStoreRunner (SqlPersistT IO)
+postgresStoreRunner = EventStoreRunner $ \action -> do
   (store, pool) <- makeStore
-  let
-    globalStore = sqlGloballyOrderedEventStore defaultSqlEventStoreConfig
-    globalStore' = serializedGloballyOrderedEventStore jsonStringSerializer globalStore
-  return (store, globalStore', pool)
+  runSqlPool (action store) pool
 
-
-spec :: Spec
-spec = do
-  describe "Postgresql event store" $ do
-    eventStoreSpec makeStore (flip runSqlPool)
-    sequencedEventStoreSpec makeGlobalStore (flip runSqlPool)
+postgresStoreGlobalRunner :: GloballyOrderedEventStoreRunner (SqlPersistT IO)
+postgresStoreGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> do
+  (store, pool) <- makeStore
+  let globalStore = serializedGloballyOrderedEventStore jsonStringSerializer (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
+  runSqlPool (action store globalStore) pool

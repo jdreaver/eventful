@@ -10,52 +10,48 @@ import Eventful.TestHelpers
 
 spec :: Spec
 spec = do
-  describe "TVar memory event store with Dynamic serialized type" $ do
-    eventStoreSpec makeTVarDynamicStore (const atomically)
-    sequencedEventStoreSpec makeTVarDynamicGlobalStore (const atomically)
-
   describe "TVar memory event store with actual event type" $ do
-    eventStoreSpec makeTVarStore (const atomically)
-    sequencedEventStoreSpec makeTVarGlobalStore (const atomically)
+    eventStoreSpec tvarRunner
+    sequencedEventStoreSpec tvarGlobalRunner
+
+  describe "TVar memory event store with Dynamic serialized type" $ do
+    eventStoreSpec tvarDynamicRunner
+    sequencedEventStoreSpec tvarDynamicGlobalRunner
 
   describe "MonadState memory event store with actual event type" $ do
-    eventStoreSpec makeStateStore (const (flip evalStateT emptyEventMap))
-    sequencedEventStoreSpec makeStateGlobalStore (const (flip evalStateT emptyEventMap))
+    eventStoreSpec stateStoreRunner
+    sequencedEventStoreSpec stateStoreGlobalRunner
 
   describe "MonadState embedded memory event store with actual event type" $ do
-    eventStoreSpec makeEmbeddedStateStore (const (flip evalStateT emptyEmbeddedState))
-    sequencedEventStoreSpec makeEmbeddedStateGlobalStore (const (flip evalStateT emptyEmbeddedState))
+    eventStoreSpec embeddedStateStoreRunner
+    sequencedEventStoreSpec embeddedStateStoreGlobalRunner
 
-makeTVarStore :: IO (EventStore serialized STM, ())
-makeTVarStore = do
-  (store, _, ()) <- makeTVarGlobalStore
-  return (store, ())
+tvarRunner :: EventStoreRunner STM
+tvarRunner = EventStoreRunner $ \action -> (fst <$> memoryEventStore) >>= atomically . action
 
-makeTVarGlobalStore :: IO (EventStore serialized STM, GloballyOrderedEventStore serialized STM, ())
-makeTVarGlobalStore = do
-  (store, globalStore) <- memoryEventStore
-  return (store, globalStore, ())
+tvarGlobalRunner :: GloballyOrderedEventStoreRunner STM
+tvarGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> memoryEventStore >>= atomically . uncurry action
 
-makeTVarDynamicStore :: IO (EventStore CounterEvent STM, ())
-makeTVarDynamicStore = do
-  (store, _, ()) <- makeTVarDynamicGlobalStore
-  return (store, ())
+tvarDynamicRunner :: EventStoreRunner STM
+tvarDynamicRunner = EventStoreRunner $ \action -> (fst <$> makeDynamicTVarStore) >>= atomically . action
 
-makeTVarDynamicGlobalStore :: IO (EventStore CounterEvent STM, GloballyOrderedEventStore CounterEvent STM, ())
-makeTVarDynamicGlobalStore = do
+tvarDynamicGlobalRunner :: GloballyOrderedEventStoreRunner STM
+tvarDynamicGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> makeDynamicTVarStore >>= atomically . uncurry action
+
+makeDynamicTVarStore :: IO (EventStore CounterEvent STM, GloballyOrderedEventStore CounterEvent STM)
+makeDynamicTVarStore = do
   (store, globalStore) <- memoryEventStore
   let
     store' = serializedEventStore dynamicSerializer store
     globalStore' = serializedGloballyOrderedEventStore dynamicSerializer globalStore
-  return (store', globalStore', ())
+  return (store', globalStore')
 
-makeStateStore :: IO (EventStore serialized (StateT (EventMap serialized) IO), ())
-makeStateStore = return (stateEventStore, ())
+stateStoreRunner :: EventStoreRunner (StateT (EventMap CounterEvent) IO)
+stateStoreRunner = EventStoreRunner $ \action -> evalStateT (action stateEventStore) emptyEventMap
 
-makeStateGlobalStore
-  :: IO (EventStore serialized (StateT (EventMap serialized) IO), GloballyOrderedEventStore serialized (StateT (EventMap serialized) IO), ())
-makeStateGlobalStore = return (stateEventStore, stateGloballyOrderedEventStore, ())
-
+stateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EventMap CounterEvent) IO)
+stateStoreGlobalRunner = GloballyOrderedEventStoreRunner $
+  \action -> evalStateT (action stateEventStore stateGloballyOrderedEventStore) emptyEventMap
 
 data EmbeddedState serialized
   = EmbeddedState
@@ -69,14 +65,14 @@ setEventMap state' eventMap = state' { embeddedEventMap = eventMap }
 emptyEmbeddedState :: EmbeddedState serialized
 emptyEmbeddedState = EmbeddedState 100 emptyEventMap
 
-makeEmbeddedStateStore :: IO (EventStore serialized (StateT (EmbeddedState serialized) IO), ())
-makeEmbeddedStateStore = return (embeddedStateEventStore embeddedEventMap setEventMap, ())
+embeddedStateStoreRunner :: EventStoreRunner (StateT (EmbeddedState CounterEvent) IO)
+embeddedStateStoreRunner = EventStoreRunner $ \action -> evalStateT (action store) emptyEmbeddedState
+  where
+    store = embeddedStateEventStore embeddedEventMap setEventMap
 
-makeEmbeddedStateGlobalStore
-  :: IO (EventStore serialized (StateT (EmbeddedState serialized) IO), GloballyOrderedEventStore serialized (StateT (EmbeddedState serialized) IO), ())
-makeEmbeddedStateGlobalStore =
-  return
-    ( embeddedStateEventStore embeddedEventMap setEventMap
-    , embeddedStateGloballyOrderedEventStore embeddedEventMap
-    , ()
-    )
+embeddedStateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EmbeddedState CounterEvent) IO)
+embeddedStateStoreGlobalRunner = GloballyOrderedEventStoreRunner $
+  \action -> evalStateT (action store globalStore) emptyEmbeddedState
+  where
+    store = embeddedStateEventStore embeddedEventMap setEventMap
+    globalStore = embeddedStateGloballyOrderedEventStore embeddedEventMap

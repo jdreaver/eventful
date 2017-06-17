@@ -11,6 +11,11 @@ import Eventful
 import Eventful.Store.DynamoDB
 import Eventful.TestHelpers
 
+spec :: Spec
+spec = do
+  describe "DynamoDB event store" $ do
+    eventStoreSpec dynamoRunner
+
 makeStore :: IO (EventStore CounterEvent AWS, Env)
 makeStore = do
   let
@@ -27,7 +32,7 @@ makeStore = do
 
   return (store', env)
 
-spec :: Spec
-spec = do
-  describe "DynamoDB event store" $ do
-    eventStoreSpec makeStore (\env action -> runResourceT $ runAWS env action)
+dynamoRunner :: EventStoreRunner AWS
+dynamoRunner = EventStoreRunner $ \action -> do
+  (store, env) <- makeStore
+  runResourceT $ runAWS env (action store)

@@ -12,6 +12,8 @@ module Eventful.TestHelpers
   , counterAggregate
   , CounterEvent (..)
   , CounterCommand (..)
+  , EventStoreRunner (..)
+  , GloballyOrderedEventStoreRunner (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
   , module X
@@ -76,35 +78,36 @@ deriveJSON (aesonPrefix camelCase) ''CounterCommand
 
 -- Test harness for stores
 
+newtype EventStoreRunner m =
+  EventStoreRunner (forall a. (EventStore CounterEvent m -> m a) -> IO a)
+newtype GloballyOrderedEventStoreRunner m =
+  GloballyOrderedEventStoreRunner (forall a. (EventStore CounterEvent m -> GloballyOrderedEventStore CounterEvent m -> m a) -> IO a)
+
 eventStoreSpec
   :: (Monad m)
-  => IO (EventStore CounterEvent m, runargs)
-  -> (forall a. runargs -> m a -> IO a)
+  => EventStoreRunner m
   -> Spec
-eventStoreSpec makeStore runAsIO = do
+eventStoreSpec (EventStoreRunner withStore) = do
   context "when the event store is empty" $ do
 
     it "should return versions of -1 for a UUID" $ do
       -- TODO: Abstract out creating all of these stores and having to manually
       -- thread around makeStore, runAsIO, etc.
-      (store, runargs) <- liftIO makeStore
-      runAsIO runargs (getLatestVersion store nil) `shouldReturn` (-1)
+      withStore (\store -> getLatestVersion store nil) `shouldReturn` (-1)
 
   context "when a few events are inserted" $ do
     let
       events = [Added 1, Added 4, Added (-3)]
 
     it "should return events" $ do
-      (store, runargs) <- makeStore
-      events' <- runAsIO runargs $ do
+      events' <- withStore $ \store -> do
         _ <- storeEvents store NoStream nil events
         getEvents store nil Nothing
       (storedEventEvent <$> events') `shouldBe` events
       --(storedEventSequenceNumber <$> events') `shouldBe` [1, 2, 3]
 
     it "should return correct event versions" $ do
-      (store, runargs) <- makeStore
-      (latestVersion, allEvents, someEvents) <- runAsIO runargs $ do
+      (latestVersion, allEvents, someEvents) <- withStore $ \store -> do
         _ <- storeEvents store NoStream nil events
         (,,) <$>
           getLatestVersion store nil <*>
@@ -115,8 +118,7 @@ eventStoreSpec makeStore runAsIO = do
       (storedEventEvent <$> someEvents) `shouldBe` drop 1 events
 
     it "should return the latest projection" $ do
-      (store, runargs) <- makeStore
-      projection <- runAsIO runargs $ do
+      projection <- withStore $ \store -> do
         _ <- storeEvents store NoStream nil events
         getLatestProjection store counterProjection nil
       projection `shouldBe` (Counter 2, 2)
@@ -124,8 +126,7 @@ eventStoreSpec makeStore runAsIO = do
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events for each aggregate" $ do
-      (store, runargs) <- makeStore
-      (events1, events2) <- runAsIO runargs $ do
+      (events1, events2) <- withStore $ \store -> do
         _ <- insertExampleEvents store
         (,) <$> getEvents store uuid1 Nothing <*> getEvents store uuid2 Nothing
       (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
@@ -136,8 +137,7 @@ eventStoreSpec makeStore runAsIO = do
       (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
 
     it "should return correct event versions" $ do
-      (store, runargs) <- makeStore
-      (latestVersion1, latestVersion2, events1, events2) <- runAsIO runargs $ do
+      (latestVersion1, latestVersion2, events1, events2) <- withStore $ \store -> do
         _ <- insertExampleEvents store
         (,,,) <$>
           getLatestVersion store uuid1 <*>
@@ -150,8 +150,7 @@ eventStoreSpec makeStore runAsIO = do
       storedEventEvent <$> events2 `shouldBe` [Added 3, Added 5]
 
     it "should produce the correct projections" $ do
-      (store, runargs) <- makeStore
-      (proj1, proj2) <- runAsIO runargs $ do
+      (proj1, proj2) <- withStore $ \store -> do
         _ <- insertExampleEvents store
         (,) <$>
           getLatestProjection store counterProjection uuid1 <*>
@@ -162,8 +161,7 @@ eventStoreSpec makeStore runAsIO = do
   describe "can handle event storage errors" $ do
 
     it "rejects some writes when event store isn't created" $ do
-      (store, runargs) <- makeStore
-      (err1, err2) <- runAsIO runargs $
+      (err1, err2) <- withStore $ \store -> do
         (,) <$>
           storeEvents store StreamExists nil [Added 1] <*>
           storeEvents store (ExactVersion 0) nil [Added 1]
@@ -171,12 +169,10 @@ eventStoreSpec makeStore runAsIO = do
       err2 `shouldBe` Just (EventStreamNotAtExpectedVersion (-1))
 
     it "should be able to store events starting with an empty stream" $ do
-      (store, runargs) <- makeStore
-      runAsIO runargs (storeEvents store NoStream nil [Added 1]) `shouldReturn` Nothing
+      withStore (\store -> storeEvents store NoStream nil [Added 1]) `shouldReturn` Nothing
 
     it "should reject storing events sometimes with a stream" $ do
-      (store, runargs) <- makeStore
-      (err1, err2, err3) <- runAsIO runargs $
+      (err1, err2, err3) <- withStore $ \store ->
         (,,) <$>
           storeEvents store NoStream nil [Added 1] <*>
           storeEvents store NoStream nil [Added 1] <*>
@@ -186,8 +182,7 @@ eventStoreSpec makeStore runAsIO = do
       err3 `shouldBe` Just (EventStreamNotAtExpectedVersion 0)
 
     it "should accepts storing events sometimes with a stream" $ do
-      (store, runargs) <- makeStore
-      errors <- runAsIO runargs $
+      errors <- withStore $ \store ->
         sequence
           [ storeEvents store NoStream nil [Added 1]
           , storeEvents store AnyVersion nil [Added 1]
@@ -198,21 +193,19 @@ eventStoreSpec makeStore runAsIO = do
 
 sequencedEventStoreSpec
   :: (Monad m)
-  => IO (EventStore CounterEvent m, GloballyOrderedEventStore CounterEvent m, runargs)
-  -> (forall a. runargs -> m a -> IO a)
+  => GloballyOrderedEventStoreRunner m
   -> Spec
-sequencedEventStoreSpec makeStore runAsIO = do
+sequencedEventStoreSpec (GloballyOrderedEventStoreRunner withStore) = do
   context "when the event store is empty" $ do
 
     it "shouldn't have any events" $ do
-      (_, globalStore, runargs) <- makeStore
-      length <$> runAsIO runargs (getSequencedEvents globalStore 0) `shouldReturn` 0
+      events <- withStore (\_ globalStore -> getSequencedEvents globalStore 0)
+      length events `shouldBe` 0
 
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events in global order" $ do
-      (store, globalStore, runargs) <- makeStore
-      events' <- runAsIO runargs $ do
+      events' <- withStore $ \store globalStore -> do
         insertExampleEvents store
         getSequencedEvents globalStore 0
       (globallyOrderedEventEvent <$> events') `shouldBe` Added <$> [1..5]
