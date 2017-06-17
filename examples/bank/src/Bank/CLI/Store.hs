@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Bank.CLI.Store
   ( runDB
   , cliEventStore
@@ -9,6 +11,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy.Char8 as BSL
+import Data.Functor.Contravariant (contramap)
 import Database.Persist.Sqlite
 
 import Eventful
@@ -42,9 +45,11 @@ eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)
 
 transferManagerHandler :: (MonadIO m) => BankEventHandler m
 transferManagerHandler store _ _ = do
-  let projection = processManagerProjection transferProcessManager
-  (transferState, _) <- getLatestGlobalProjection cliGloballyOrderedEventStore projection Nothing
-  applyProcessManagerCommandsAndEvents transferProcessManager store transferState
+  let
+    projection = contramap globallyOrderedEventToProjectionEvent $ processManagerProjection transferProcessManager
+    globalProjection = initGloballyOrderedProjection projection
+  GloballyOrderedProjection{..} <- getLatestGlobalProjection cliGloballyOrderedEventStore globalProjection
+  applyProcessManagerCommandsAndEvents transferProcessManager store globallyOrderedProjectionState
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })

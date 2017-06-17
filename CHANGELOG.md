@@ -7,6 +7,8 @@
   `embeddedStateGloballyOrderedEventStore`.
 * Made `Projection` and instance of `Contravariant` so it is easier to change
   the `event` type parameter.
+* Added a `GloballyOrderedProjection` abstraction to make projecting from
+  globally-ordered event streams simpler.
 
 ## 0.1.2
 

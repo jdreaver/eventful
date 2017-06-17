@@ -16,6 +16,7 @@ dependencies:
   - aeson-pretty
   - bytestring
   - containers
+  - contravariant
   - lens
   - monad-logger
   - mtl

@@ -5,6 +5,9 @@ module Eventful.Projection
   , latestProjection
   , allProjections
   , getLatestProjection
+  , GloballyOrderedProjection (..)
+  , initGloballyOrderedProjection
+  , globallyOrderedProjectionEventHandler
   , getLatestGlobalProjection
   , serializedProjection
   )
@@ -13,7 +16,6 @@ module Eventful.Projection
 import Data.Foldable (foldl')
 import Data.Functor.Contravariant
 import Data.List (scanl')
-import Data.Maybe (fromMaybe)
 
 import Eventful.Serializer
 import Eventful.Store.Class
@@ -68,28 +70,52 @@ getLatestProjection store proj uuid = do
     maxEventVersion [] = -1
     maxEventVersion es = maximum $ storedEventVersion <$> es
 
+-- | This is a combination of a 'Projection' and the latest projection state
+-- with respect to some 'SequenceNumber'. This is useful for in-memory read
+-- models, and for querying the latest state starting from some previous state
+-- at a lower 'SequenceNumber'.
+data GloballyOrderedProjection proj serialized
+  = GloballyOrderedProjection
+  { globallyOrderedProjectionProjection :: !(Projection proj (GloballyOrderedEvent serialized))
+  , globallyOrderedProjectionSequenceNumber :: !SequenceNumber
+  , globallyOrderedProjectionState :: !proj
+  }
+
+-- | Initialize a 'GloballyOrderedProjection' at 'SequenceNumber' 0 and with
+-- the projection's seed value.
+initGloballyOrderedProjection
+  :: Projection proj (GloballyOrderedEvent serialized)
+  -> GloballyOrderedProjection proj serialized
+initGloballyOrderedProjection projection@Projection{..} =
+  GloballyOrderedProjection projection 0 projectionSeed
+
+-- | This applies an event to a 'GloballyOrderedProjection'. NOTE: There is no
+-- guarantee that the 'SequenceNumber' for the event is the previous
+-- 'SequenceNumber' plus one (in fact, that isn't even a guarantee that some
+-- stores can provide). This function will update the
+-- 'GloballyOrderedProjetion' to use the sequence number of the event.
+globallyOrderedProjectionEventHandler
+  :: GloballyOrderedProjection proj serialized
+  -> GloballyOrderedEvent serialized
+  -> GloballyOrderedProjection proj serialized
+globallyOrderedProjectionEventHandler GloballyOrderedProjection{..} event@GloballyOrderedEvent{..} =
+  let
+    Projection{..} = globallyOrderedProjectionProjection
+    seqNum = globallyOrderedEventSequenceNumber
+    state' = projectionEventHandler globallyOrderedProjectionState event
+  in GloballyOrderedProjection globallyOrderedProjectionProjection seqNum state'
+
 -- | Gets globally ordered events from the event store and builds a
 -- 'Projection' based on 'ProjectionEvent'. Optionally accepts the current
 -- projection state as an argument.
 getLatestGlobalProjection
   :: (Monad m)
   => GloballyOrderedEventStore serialized m
-  -> Projection proj (ProjectionEvent serialized)
-  -> Maybe (proj, SequenceNumber)
-  -> m (proj, SequenceNumber)
-getLatestGlobalProjection store proj mCurrentState = do
-  let
-    currentState = fromMaybe (projectionSeed proj) $ fst <$> mCurrentState
-    startingSequenceNumber = maybe 0 (+1) $ snd <$> mCurrentState
-  events <- getSequencedEvents store startingSequenceNumber
-  let
-    projectionEvents = globallyOrderedEventToProjectionEvent <$> events
-    latestState = foldl' (projectionEventHandler proj) currentState projectionEvents
-    latestSeq =
-      case events of
-        [] -> startingSequenceNumber
-        _ -> globallyOrderedEventSequenceNumber $ last events
-  return (latestState, latestSeq)
+  -> GloballyOrderedProjection proj serialized
+  -> m (GloballyOrderedProjection proj serialized)
+getLatestGlobalProjection store globalProjection@GloballyOrderedProjection{..} = do
+  events <- getSequencedEvents store (globallyOrderedProjectionSequenceNumber + 1)
+  return $ foldl' globallyOrderedProjectionEventHandler globalProjection events
 
 -- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it
 -- uses the @serialized@ type.
