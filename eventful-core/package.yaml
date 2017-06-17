@@ -20,6 +20,7 @@ dependencies:
 
   - aeson
   - containers
+  - contravariant
   - http-api-data
   - path-pieces
   - sum-type-boilerplate

@@ -11,6 +11,7 @@ module Eventful.Projection
   where
 
 import Data.Foldable (foldl')
+import Data.Functor.Contravariant
 import Data.List (scanl')
 import Data.Maybe (fromMaybe)
 
@@ -32,6 +33,11 @@ data Projection state event
     -- ^ The function that applies and event to the current state, producing a
     -- new state.
   }
+
+instance Contravariant (Projection state) where
+  contramap f (Projection seed handler) = Projection seed handler'
+    where
+      handler' state event = handler state (f event)
 
 -- | Computes the latest state of a 'Projection' from some events.
 latestProjection :: (Foldable t) => Projection state event -> t event -> state

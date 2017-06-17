@@ -5,6 +5,8 @@
 * Added versions of the `MonadState` event stores that can include other state
   along with the `EventMap`. These are called `embeddedStateEventStore` and
   `embeddedStateGloballyOrderedEventStore`.
+* Made `Projection` and instance of `Contravariant` so it is easier to change
+  the `event` type parameter.
 
 ## 0.1.2
 
