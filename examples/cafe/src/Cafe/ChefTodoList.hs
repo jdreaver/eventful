@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Cafe.ChefTodoList
   ( chefTodoListMain
   ) where
@@ -34,12 +35,12 @@ chefTodoListMain = do
 
 handleChefReadModelEvents
   :: Map UUID [Maybe Food]
-  -> [GloballyOrderedEvent (StoredEvent JSONString)]
+  -> [GloballyOrderedEvent JSONString]
   -> IO (Map UUID [Maybe Food])
-handleChefReadModelEvents foodMap events = do
+handleChefReadModelEvents foodMap (map globallyOrderedEventToStoredEvent -> events) = do
   let
-    tabEvents = mapMaybe (traverse (traverse (deserialize jsonStringSerializer))) events :: [GloballyOrderedEvent (StoredEvent TabEvent)]
-    foodMap' = foldl' handleEventToMap foodMap $ map globallyOrderedEventStoredEvent tabEvents
+    tabEvents = mapMaybe (traverse $ deserialize jsonStringSerializer) events :: [StoredEvent TabEvent]
+    foodMap' = foldl' handleEventToMap foodMap $ tabEvents
   unless (null events) $ printFood foodMap'
   return foodMap'
 

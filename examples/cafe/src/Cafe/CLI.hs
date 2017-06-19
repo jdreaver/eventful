@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Cafe.CLI
   ( cliMain
   , printJSONPretty
@@ -14,6 +15,7 @@ import Database.Persist.Sqlite
 import Safe
 
 import Eventful.Store.Sqlite
+import Eventful
 
 import Cafe.CLI.Options
 import Cafe.CLI.Transformer
@@ -43,16 +45,17 @@ runCLICommand ListMenu = liftIO $ do
   mapM_ printPair (zip [0 :: Int ..] $ map unDrink allDrinks)
 runCLICommand (ViewTab tabId) = do
   uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
-  latest <- runDB $ getLatestProjection cliEventStore jsonStringSerializer tabProjection uuid
+  latest <- runDB $ getLatestProjection cliEventStore (serializedProjection tabProjection jsonStringSerializer) uuid
   liftIO $ printJSONPretty latest
 runCLICommand (TabCommand tabId command) = do
   uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
-  result <- runDB $ commandStoredAggregate cliEventStore jsonStringSerializer tabAggregate  uuid command
+  result <- runDB $ commandStoredAggregate cliEventStore
+    (serializedAggregate tabAggregate jsonStringSerializer idSerializer) uuid command
   case result of
-    Left err -> liftIO . putStrLn $ "Error! " ++ show err
-    Right events -> do
+    [] -> liftIO . putStrLn $ "Error! "
+    events -> do
       liftIO . putStrLn $ "Events: " ++ show events
-      latest <- runDB $ getLatestProjection cliEventStore jsonStringSerializer tabProjection uuid
+      latest <- runDB $ getLatestProjection cliEventStore (serializedProjection tabProjection jsonStringSerializer) uuid
       liftIO . putStrLn $ "Latest state:"
       liftIO $ printJSONPretty latest
 

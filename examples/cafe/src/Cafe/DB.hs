@@ -1,4 +1,10 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Cafe.DB
   ( openTab
@@ -9,13 +15,13 @@ module Cafe.DB
   , Key (..)
   ) where
 
-import Control.Monad.IO.Class
-import Database.Persist
-import Database.Persist.Sql
-import Database.Persist.TH
+import           Control.Monad.IO.Class
+import           Database.Persist
+import           Database.Persist.Sql
+import           Database.Persist.TH
 
-import Eventful
-import Eventful.Store.Sqlite()
+import           Eventful
+import           Eventful.Store.Sqlite  ()
 
 share [mkPersist sqlSettings, mkMigrate "migrateTabEntity"] [persistLowerCase|
 TabEntity sql=tabs
