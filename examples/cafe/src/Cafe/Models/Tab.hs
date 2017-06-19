@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+
 module Cafe.Models.Tab
   ( TabState (..)
   , Drink (..)
@@ -160,8 +161,8 @@ applyTabCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
 type TabAggregate = Aggregate TabState TabEvent TabCommand
 
 tabAggregate :: TabAggregate
-tabAggregate = Aggregate ((either (const []) id) `boobs` applyTabCommand) tabProjection
-  where boobs = (.).(.)
+tabAggregate = Aggregate (either (const []) id `compose` applyTabCommand) tabProjection
+  where compose = (.).(.)
 
 -- | List of all drinks. The menu could be its own aggregate in the future.
 allDrinks :: [Drink]

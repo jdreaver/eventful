@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+
 module Cafe.CLI
   ( cliMain
   , printJSONPretty

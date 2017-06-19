@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Cafe.CLI.Options
   ( runOptionsParser
   , Options (..)
@@ -6,13 +7,13 @@ module Cafe.CLI.Options
   , parseDatabaseFileOption
   ) where
 
-import           Data.Monoid          ((<>))
-import           Database.Persist.Sql
-import           Options.Applicative
-import           Safe                 (atNote)
+import Data.Monoid ((<>))
+import Database.Persist.Sql
+import Options.Applicative
+import Safe (atNote)
 
-import           Cafe.DB
-import           Cafe.Models.Tab
+import Cafe.DB
+import Cafe.Models.Tab
 
 runOptionsParser :: IO Options
 runOptionsParser = execParser $ info (helper <*> parseOptions) (fullDesc <> progDesc "Cafe CLI")
