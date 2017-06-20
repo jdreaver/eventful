@@ -10,6 +10,7 @@ module Eventful.Projection
   , globallyOrderedProjectionEventHandler
   , getLatestGlobalProjection
   , serializedProjection
+  , projectionMapMaybe
   )
   where
 
@@ -123,9 +124,14 @@ serializedProjection
   :: Projection state event
   -> Serializer event serialized
   -> Projection state serialized
-serializedProjection (Projection seed eventHandler) Serializer{..} =
-  Projection seed serializedHandler
+serializedProjection proj Serializer{..} = projectionMapMaybe deserialize proj
+
+-- | Transform a 'Projection' when you only have a partial relationship between
+-- the source event type and the target event type.
+projectionMapMaybe
+  :: (eventB -> Maybe eventA)
+  -> Projection state eventA
+  -> Projection state eventB
+projectionMapMaybe f (Projection seed handler) = Projection seed handler'
   where
-    -- Try to deserialize the event and apply the handler. If we can't
-    -- deserialize, then just return the state.
-    serializedHandler state = maybe state (eventHandler state) . deserialize
+    handler' state = maybe state (handler state) . f

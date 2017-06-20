@@ -12,6 +12,7 @@
   the `event` type parameter.
 * Added a `GloballyOrderedProjection` abstraction to make projecting from
   globally-ordered event streams simpler.
+* Added useful `projectionMapMaybe` function.
 
 ## 0.1.2
 
