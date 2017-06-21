@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Eventful.Store.Class
@@ -10,6 +11,8 @@ module Eventful.Store.Class
   , GloballyOrderedEventStore (..)
   , ExpectedVersion (..)
   , EventWriteError (..)
+  , runEventStoreUsing
+  , runGloballyOrderedEventStoreUsing
   , module Eventful.Store.Queries
     -- * Utility types
   , ProjectionEvent (..)
@@ -102,6 +105,31 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid e
   if f latestVersion
   then storeEvents' uuid events >> return Nothing
   else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
+
+-- | Changes the monad an 'EventStore' runs in. This is useful to run event
+-- stores in another 'Monad' while forgetting the original 'Monad'.
+runEventStoreUsing
+  :: (Monad m, Monad mstore)
+  => (forall a. mstore a -> m a)
+  -> EventStore serialized mstore
+  -> EventStore serialized m
+runEventStoreUsing runStore EventStore{..} =
+  EventStore
+  { getLatestVersion = runStore . getLatestVersion
+  , getEvents = \uuid range -> runStore $ getEvents uuid range
+  , storeEvents = \vers uuid events -> runStore $ storeEvents vers uuid events
+  }
+
+-- | Analog of 'runEventStoreUsing' for a 'GloballyOrderedEventStore'.
+runGloballyOrderedEventStoreUsing
+  :: (Monad m, Monad mstore)
+  => (forall a. mstore a -> m a)
+  -> GloballyOrderedEventStore serialized mstore
+  -> GloballyOrderedEventStore serialized m
+runGloballyOrderedEventStoreUsing runStore GloballyOrderedEventStore{..} =
+  GloballyOrderedEventStore
+  { getSequencedEvents = runStore . getSequencedEvents
+  }
 
 -- | A 'ProjectionEvent' is an event that is associated with a 'Projection' via
 -- the projection's 'UUID'.
