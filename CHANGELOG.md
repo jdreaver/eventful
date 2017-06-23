@@ -2,6 +2,7 @@
 
 ## 0.1.3
 
+* Added `ProjectionCache` for caching `Projection` state in event streams.
 * Added `EventStoreQueryRange` to the APIs of the event store and the globally
   ordered event store. This allows the user to specify optional start and stop
   points for the query.
