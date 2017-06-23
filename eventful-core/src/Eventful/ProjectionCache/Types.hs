@@ -74,14 +74,14 @@ getLatestProjectionWithCache
   -> ProjectionCache state m
   -> StreamProjection state event
   -> m (StreamProjection state event)
-getLatestProjectionWithCache store cache projection@StreamProjection{..} = do
-  mLatestState <- loadProjectionSnapshot cache streamProjectionUuid
+getLatestProjectionWithCache store cache originalProj = do
+  mLatestState <- loadProjectionSnapshot cache (streamProjectionUuid originalProj)
   let
     mkProjection' (version, state) =
-      if version > streamProjectionVersion
-      then projection { streamProjectionVersion = version, streamProjectionState = state }
-      else projection
-    projection' = maybe projection mkProjection' mLatestState
+      if version > streamProjectionVersion originalProj
+      then originalProj { streamProjectionVersion = version, streamProjectionState = state }
+      else originalProj
+    projection' = maybe originalProj mkProjection' mLatestState
   getLatestProjection store projection'
 
 -- | Loads the latest projection state from the cache/store and stores this

@@ -3,6 +3,7 @@
 
 module Eventful.ProjectionCache.Memory
   ( ProjectionMap
+  , emptyProjectionMap
   , embeddedStateProjectionCache
   , module Eventful.ProjectionCache.Types
   ) where
@@ -17,6 +18,9 @@ import Eventful.UUID
 
 -- | A 'ProjectionMap' just stores the latest snapshot for each UUID.
 type ProjectionMap serialized = Map UUID (EventVersion, serialized)
+
+emptyProjectionMap :: ProjectionMap serialized
+emptyProjectionMap = Map.empty
 
 storeProjectionInMap :: UUID -> EventVersion -> serialized -> ProjectionMap serialized -> ProjectionMap serialized
 storeProjectionInMap uuid version state = Map.insert uuid (version, state)

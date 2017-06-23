@@ -16,6 +16,8 @@ module Eventful.TestHelpers
   , GloballyOrderedEventStoreRunner (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
+  , ProjectionCacheRunner (..)
+  , projectionCacheSpec
   , module X
   ) where
 
@@ -273,3 +275,37 @@ uuid1 = uuidFromInteger 1
 
 uuid2 :: UUID
 uuid2 = uuidFromInteger 2
+
+newtype ProjectionCacheRunner m =
+  ProjectionCacheRunner (forall a. (EventStore CounterEvent m -> ProjectionCache Counter m -> m a) -> IO a)
+
+projectionCacheSpec
+  :: (Monad m)
+  => ProjectionCacheRunner m
+  -> Spec
+projectionCacheSpec (ProjectionCacheRunner withStoreAndCache) = do
+  context "when the store is empty" $ do
+
+    it "should be able to store and load simple projections" $ do
+      snapshot <- withStoreAndCache $ \_ cache -> do
+        storeProjectionSnapshot cache nil 4 (Counter 100)
+        loadProjectionSnapshot cache nil
+      snapshot `shouldBe` Just (4, Counter 100)
+
+  context "when the store has some events in one stream" $ do
+
+    it "should load from a stream of events" $ do
+      snapshot <- withStoreAndCache $ \store cache -> do
+        _ <- storeEvents store AnyVersion nil [Added 1, Added 2]
+        getLatestProjectionWithCache store cache (streamProjection counterProjection nil)
+      streamProjectionVersion snapshot `shouldBe` 1
+      streamProjectionState snapshot `shouldBe` Counter 3
+
+    it "should work with updateProjectionCache" $ do
+      snapshot <- withStoreAndCache $ \store cache -> do
+        _ <- storeEvents store AnyVersion nil [Added 1, Added 2, Added 3]
+        updateProjectionCache store cache (streamProjection counterProjection nil)
+        getLatestProjectionWithCache store cache (streamProjection counterProjection nil)
+      streamProjectionUuid snapshot `shouldBe` nil
+      streamProjectionVersion snapshot `shouldBe` 2
+      streamProjectionState snapshot `shouldBe` Counter 6

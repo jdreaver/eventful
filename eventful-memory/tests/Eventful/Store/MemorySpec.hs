@@ -4,9 +4,10 @@ import Control.Concurrent.STM
 import Control.Monad.State.Strict
 import Test.Hspec
 
-import Eventful.Serializer
 import Eventful.Store.Memory
 import Eventful.TestHelpers
+
+import MemoryTestImport
 
 spec :: Spec
 spec = do
@@ -38,14 +39,6 @@ tvarDynamicRunner = EventStoreRunner $ \action -> (fst <$> makeDynamicTVarStore)
 tvarDynamicGlobalRunner :: GloballyOrderedEventStoreRunner STM
 tvarDynamicGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> makeDynamicTVarStore >>= atomically . uncurry action
 
-makeDynamicTVarStore :: IO (EventStore CounterEvent STM, GloballyOrderedEventStore CounterEvent STM)
-makeDynamicTVarStore = do
-  (store, globalStore) <- memoryEventStore
-  let
-    store' = serializedEventStore dynamicSerializer store
-    globalStore' = serializedGloballyOrderedEventStore dynamicSerializer globalStore
-  return (store', globalStore')
-
 stateStoreRunner :: EventStoreRunner (StateT (EventMap CounterEvent) IO)
 stateStoreRunner = EventStoreRunner $ \action -> evalStateT (action stateEventStore) emptyEventMap
 
@@ -53,24 +46,12 @@ stateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EventMap Coun
 stateStoreGlobalRunner = GloballyOrderedEventStoreRunner $
   \action -> evalStateT (action stateEventStore stateGloballyOrderedEventStore) emptyEventMap
 
-data EmbeddedState serialized
-  = EmbeddedState
-  { _embeddedDummyArgument :: Int
-  , embeddedEventMap :: EventMap serialized
-  }
-
-setEventMap :: EmbeddedState serialized -> EventMap serialized -> EmbeddedState serialized
-setEventMap state' eventMap = state' { embeddedEventMap = eventMap }
-
-emptyEmbeddedState :: EmbeddedState serialized
-emptyEmbeddedState = EmbeddedState 100 emptyEventMap
-
-embeddedStateStoreRunner :: EventStoreRunner (StateT (EmbeddedState CounterEvent) IO)
+embeddedStateStoreRunner :: EventStoreRunner (StateT (EmbeddedState Counter CounterEvent) IO)
 embeddedStateStoreRunner = EventStoreRunner $ \action -> evalStateT (action store) emptyEmbeddedState
   where
     store = embeddedStateEventStore embeddedEventMap setEventMap
 
-embeddedStateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EmbeddedState CounterEvent) IO)
+embeddedStateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EmbeddedState Counter CounterEvent) IO)
 embeddedStateStoreGlobalRunner = GloballyOrderedEventStoreRunner $
   \action -> evalStateT (action store globalStore) emptyEmbeddedState
   where
