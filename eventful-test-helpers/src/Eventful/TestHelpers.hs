@@ -136,6 +136,15 @@ eventStoreSpec (EventStoreRunner withStore) = do
       streamProjectionVersion projection `shouldBe` 3
       streamProjectionUuid projection `shouldBe` nil
 
+    it "should return the latest projection with some starting StreamProjection" $ do
+      projection <- withStore' $ \store -> do
+        initialEvents <- getEvents store nil (eventsUntil 1)
+        let initialProjection = latestProjection counterProjection (storedEventEvent <$> initialEvents)
+        getLatestProjection store (StreamProjection counterProjection nil 1 initialProjection)
+      streamProjectionState projection `shouldBe` Counter 7
+      streamProjectionVersion projection `shouldBe` 3
+      streamProjectionUuid projection `shouldBe` nil
+
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events for each aggregate" $ do
