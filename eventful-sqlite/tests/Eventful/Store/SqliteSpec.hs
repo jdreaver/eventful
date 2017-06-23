@@ -5,7 +5,6 @@ module Eventful.Store.SqliteSpec (spec) where
 import Database.Persist.Sqlite
 import Test.Hspec
 
-import Eventful.Serializer
 import Eventful.Store.Sqlite
 import Eventful.TestHelpers
 

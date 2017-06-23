@@ -14,9 +14,6 @@ module Eventful.Serializer
   , jsonSerializer
   , jsonTextSerializer
   , dynamicSerializer
-    -- * Serialized event store
-  , serializedEventStore
-  , serializedGloballyOrderedEventStore
     -- * Sum types
   , EventSumType (..)
   , eventSumTypeSerializer
@@ -25,12 +22,10 @@ module Eventful.Serializer
 import Control.Applicative ((<|>))
 import Data.Aeson
 import Data.Dynamic
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import GHC.Generics
-
-import Eventful.Store.Class
 
 -- | A 'Serializer' describes the injective conversion between types @a@ and
 -- @b@. In plain English, this means that you can go from @a@ to @b@, and you
@@ -112,35 +107,6 @@ eventSumTypeSerializer = simpleSerializer serialize' deserialize'
       (error $ "Failure in eventSumTypeSerializer. Can't serialize " ++ show (typeOf event))
       (eventFromDyn $ eventToDyn event)
     deserialize' = eventFromDyn . eventToDyn
-
--- | Wraps an 'EventStore' and transparently serializes/deserializes events for
--- you. Note that in this implementation deserialization errors when using
--- 'getEvents' are simply ignored (the event is not returned).
-serializedEventStore
-  :: (Monad m)
-  => Serializer event serialized
-  -> EventStore serialized m
-  -> EventStore event m
-serializedEventStore Serializer{..} store =
-  EventStore
-  (getLatestVersion store)
-  getEvents'
-  storeEvents'
-  where
-    getEvents' uuid mVersion = mapMaybe (traverse deserialize) <$> getEvents store uuid mVersion
-    storeEvents' expectedVersion uuid events = storeEvents store expectedVersion uuid (serialize <$> events)
-
--- | Like 'serializedEventStore' except for 'GloballyOrderedEventStore'.
-serializedGloballyOrderedEventStore
-  :: (Monad m)
-  => Serializer event serialized
-  -> GloballyOrderedEventStore serialized m
-  -> GloballyOrderedEventStore event m
-serializedGloballyOrderedEventStore Serializer{..} store =
-  GloballyOrderedEventStore getSequencedEvents'
-  where
-    getSequencedEvents' sequenceNumber =
-      mapMaybe (traverse deserialize) <$> getSequencedEvents store sequenceNumber
 
 -- | This is a type class for serializing sum types of events to 'Dynamic'
 -- without the associated constructor. This is useful when transforming between

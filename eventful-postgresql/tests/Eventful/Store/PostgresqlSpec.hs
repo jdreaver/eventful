@@ -8,7 +8,6 @@ import Data.Text (Text, intercalate)
 import Database.Persist.Postgresql
 import Test.Hspec
 
-import Eventful.Serializer
 import Eventful.Store.Postgresql
 import Eventful.TestHelpers
 

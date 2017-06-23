@@ -14,6 +14,9 @@ module Eventful.Store.Class
   , runEventStoreUsing
   , runGloballyOrderedEventStoreUsing
   , module Eventful.Store.Queries
+    -- * Serialization
+  , serializedEventStore
+  , serializedGloballyOrderedEventStore
     -- * Utility types
   , ProjectionEvent (..)
   , StoredEvent (..)
@@ -29,9 +32,11 @@ module Eventful.Store.Class
   ) where
 
 import Data.Aeson
+import Data.Maybe (mapMaybe)
 import Web.HttpApiData
 import Web.PathPieces
 
+import Eventful.Serializer
 import Eventful.Store.Queries
 import Eventful.UUID
 
@@ -130,6 +135,35 @@ runGloballyOrderedEventStoreUsing runStore GloballyOrderedEventStore{..} =
   GloballyOrderedEventStore
   { getSequencedEvents = runStore . getSequencedEvents
   }
+
+-- | Wraps an 'EventStore' and transparently serializes/deserializes events for
+-- you. Note that in this implementation deserialization errors when using
+-- 'getEvents' are simply ignored (the event is not returned).
+serializedEventStore
+  :: (Monad m)
+  => Serializer event serialized
+  -> EventStore serialized m
+  -> EventStore event m
+serializedEventStore Serializer{..} store =
+  EventStore
+  (getLatestVersion store)
+  getEvents'
+  storeEvents'
+  where
+    getEvents' uuid mVersion = mapMaybe (traverse deserialize) <$> getEvents store uuid mVersion
+    storeEvents' expectedVersion uuid events = storeEvents store expectedVersion uuid (serialize <$> events)
+
+-- | Like 'serializedEventStore' except for 'GloballyOrderedEventStore'.
+serializedGloballyOrderedEventStore
+  :: (Monad m)
+  => Serializer event serialized
+  -> GloballyOrderedEventStore serialized m
+  -> GloballyOrderedEventStore event m
+serializedGloballyOrderedEventStore Serializer{..} store =
+  GloballyOrderedEventStore getSequencedEvents'
+  where
+    getSequencedEvents' sequenceNumber =
+      mapMaybe (traverse deserialize) <$> getSequencedEvents store sequenceNumber
 
 -- | A 'ProjectionEvent' is an event that is associated with a 'Projection' via
 -- the projection's 'UUID'.
