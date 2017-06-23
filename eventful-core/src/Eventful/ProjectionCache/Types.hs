@@ -17,16 +17,21 @@ import Eventful.UUID
 -- | A 'ProjectionCache' caches snapshots of 'Projection's in event streams.
 -- This is useful if your event streams are very large. This cache operates on
 -- some 'Monad' @m@ and stores the 'Projection' state of type @serialized@.
+--
+-- At its core, this is essentially just a key-value store with knowledge of
+-- the stream 'UUID' and 'EventVersion'. The key is to use the other helper
+-- functions in this module to interpret the stored values using a
+-- 'Projection'.
 data ProjectionCache serialized m
   = ProjectionCache
-  { storeProjection :: serialized -> EventVersion -> UUID -> m ()
+  { storeProjectionSnapshot :: UUID -> EventVersion -> serialized -> m ()
     -- ^ Stores the state for a projection at a given 'EventVersion'. This is
     -- pretty unsafe, because there is no guarantee what is stored actually
     -- corresponds to the events in the stream. Consider using
     -- 'updateProjectionCache'.
-  , loadCachedProjection :: UUID -> m (Maybe (EventVersion, serialized))
+  , loadProjectionSnapshot :: UUID -> m (Maybe (EventVersion, serialized))
     -- ^ Loads latest projection state from the cache.
-  , clearOldProjections :: UUID -> m ()
+  , clearSnapshots :: UUID -> m ()
     -- ^ Clears all projections in the cache that are not the latest
     -- projections.
   }
@@ -40,9 +45,9 @@ runProjectionCacheUsing
   -> ProjectionCache serialized m
 runProjectionCacheUsing runCache ProjectionCache{..} =
   ProjectionCache
-  { storeProjection = \state version uuid -> runCache $ storeProjection state version uuid
-  , loadCachedProjection = runCache . loadCachedProjection
-  , clearOldProjections = runCache . clearOldProjections
+  { storeProjectionSnapshot = \uuid version state -> runCache $ storeProjectionSnapshot uuid version state
+  , loadProjectionSnapshot = runCache . loadProjectionSnapshot
+  , clearSnapshots = runCache . clearSnapshots
   }
 
 -- | Wraps a 'ProjectionCache' and transparently serializes/deserializes events for
@@ -54,11 +59,11 @@ serializedProjectionCache
   -> ProjectionCache serialized m
   -> ProjectionCache state m
 serializedProjectionCache Serializer{..} ProjectionCache{..} =
-  ProjectionCache storeProjection' loadCachedProjection' clearOldProjections
+  ProjectionCache storeProjectionSnapshot' loadProjectionSnapshot' clearSnapshots
   where
-    storeProjection' state = storeProjection (serialize state)
-    loadCachedProjection' uuid = do
-      mState <- loadCachedProjection uuid
+    storeProjectionSnapshot' uuid version = storeProjectionSnapshot uuid version . serialize
+    loadProjectionSnapshot' uuid = do
+      mState <- loadProjectionSnapshot uuid
       return $ mState >>= traverse deserialize
 
 -- | Like 'getLatestProjection', but uses a 'ProjectionCache' if it contains
@@ -70,7 +75,7 @@ getLatestProjectionWithCache
   -> StreamProjection state event
   -> m (StreamProjection state event)
 getLatestProjectionWithCache store cache projection@StreamProjection{..} = do
-  mLatestState <- loadCachedProjection cache streamProjectionUuid
+  mLatestState <- loadProjectionSnapshot cache streamProjectionUuid
   let
     mkProjection' (version, state) =
       if version > streamProjectionVersion
@@ -89,4 +94,4 @@ updateProjectionCache
   -> m ()
 updateProjectionCache store cache projection = do
   StreamProjection{..} <- getLatestProjectionWithCache store cache projection
-  storeProjection cache streamProjectionState streamProjectionVersion streamProjectionUuid
+  storeProjectionSnapshot cache streamProjectionUuid streamProjectionVersion streamProjectionState
