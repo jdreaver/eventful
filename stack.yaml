@@ -9,5 +9,5 @@ packages:
   - 'eventful-sqlite'
   - 'eventful-test-helpers'
   - 'examples/bank'
-  - 'examples/cafe'
+  # - 'examples/cafe'
   - 'examples/counter-cli'

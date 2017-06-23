@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- | Defines an Aggregate type-class from DDD parlance.
 
 module Eventful.Aggregate
@@ -48,9 +50,9 @@ commandStoredAggregate
   -> command
   -> m [serialized]
 commandStoredAggregate store (Aggregate handler proj) uuid command = do
-  (latest, vers) <- getLatestProjection store proj uuid
-  let events = handler latest command
-  mError <- storeEvents store (ExactVersion vers) uuid events
+  StreamProjection{..} <- getLatestProjection store (streamProjection proj uuid)
+  let events = handler streamProjectionState command
+  mError <- storeEvents store (ExactVersion streamProjectionVersion) uuid events
   case mError of
     (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
     Nothing -> return events

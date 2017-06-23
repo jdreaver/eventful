@@ -20,9 +20,9 @@ runCLICommand pool (CreateCustomerCLI createCommand) = do
   let command = CreateCustomerCommand createCommand
   void $ runDB pool $ commandStoredAggregate cliEventStore customerBankAggregate uuid command
 runCLICommand pool (ViewAccountCLI uuid) = do
-  (state, _) <- runDB pool $
-    getLatestProjection cliEventStore accountBankProjection uuid
-  printJSONPretty state
+  latestStreamProjection <- runDB pool $
+    getLatestProjection cliEventStore (streamProjection accountBankProjection uuid)
+  printJSONPretty (streamProjectionState latestStreamProjection)
 runCLICommand pool (ViewCustomerAccountsCLI name) = do
   events <- runDB pool $ getSequencedEvents cliGloballyOrderedEventStore allEvents
   let

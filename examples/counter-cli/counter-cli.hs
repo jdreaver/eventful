@@ -24,7 +24,9 @@ readAndHandleCommand store = do
   let uuid = nil
 
   -- Get current state and print it out
-  (currentState, _) <- atomically $ getLatestProjection store counterProjection uuid
+  latestStreamProjection <- atomically $ getLatestProjection store (streamProjection counterProjection uuid)
+  let
+    currentState = streamProjectionState latestStreamProjection
   putStrLn $ "Current state: " ++ show currentState
 
   -- Ask user for command

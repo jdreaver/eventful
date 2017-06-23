@@ -131,8 +131,10 @@ eventStoreSpec (EventStoreRunner withStore) = do
 
     it "should return the latest projection" $ do
       projection <- withStore' $ \store ->
-        getLatestProjection store counterProjection nil
-      projection `shouldBe` (Counter 7, 3)
+        getLatestProjection store (streamProjection counterProjection nil)
+      streamProjectionState projection `shouldBe` Counter 7
+      streamProjectionVersion projection `shouldBe` 3
+      streamProjectionUuid projection `shouldBe` nil
 
   context "when events from multiple UUIDs are inserted" $ do
 
@@ -173,10 +175,10 @@ eventStoreSpec (EventStoreRunner withStore) = do
     it "should produce the correct projections" $ do
       (proj1, proj2) <- withStoreExampleEvents $ \store ->
         (,) <$>
-          getLatestProjection store counterProjection uuid1 <*>
-          getLatestProjection store counterProjection uuid2
-      proj1 `shouldBe` (Counter 5, 1)
-      proj2 `shouldBe` (Counter 10, 2)
+          getLatestProjection store (streamProjection counterProjection uuid1) <*>
+          getLatestProjection store (streamProjection counterProjection uuid2)
+      (streamProjectionState proj1, streamProjectionVersion proj1) `shouldBe` (Counter 5, 1)
+      (streamProjectionState proj2, streamProjectionVersion proj2) `shouldBe` (Counter 10, 2)
 
   describe "can handle event storage errors" $ do
 

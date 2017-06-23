@@ -4,9 +4,11 @@ module Eventful.Projection
   ( Projection (..)
   , latestProjection
   , allProjections
+  , StreamProjection (..)
+  , streamProjection
   , getLatestProjection
   , GloballyOrderedProjection (..)
-  , initGloballyOrderedProjection
+  , globallyOrderedProjection
   , globallyOrderedProjectionEventHandler
   , getLatestGlobalProjection
   , serializedProjection
@@ -53,20 +55,42 @@ latestProjection (Projection seed handler) = foldl' handler seed
 allProjections :: Projection state event -> [event] -> [state]
 allProjections (Projection seed handler) = scanl' handler seed
 
+-- | A 'StreamProjection' is a 'Projection' that has been constructed from
+-- events from a particular event stream. This is mostly useful so we can
+-- associate an 'EventVersion' with some state.
+data StreamProjection state event
+  = StreamProjection
+  { streamProjectionProjection :: Projection state event
+  , streamProjectionUuid :: !UUID
+  , streamProjectionVersion :: EventVersion
+  , streamProjectionState :: !state
+  }
+
+-- | Initialize a 'StreamProjection' with a 'Projection'.
+streamProjection
+  :: Projection state event
+  -> UUID
+  -> StreamProjection state event
+streamProjection projection@Projection{..} uuid =
+  StreamProjection projection uuid (-1) projectionSeed
+
 -- | Gets the latest projection from a store by using 'getEvents' and then
 -- applying the events using the Projection's event handler.
 getLatestProjection
   :: (Monad m)
-  => EventStore serialized m
-  -> Projection proj serialized
-  -> UUID
-  -> m (proj, EventVersion)
-getLatestProjection store proj uuid = do
-  events <- getEvents store uuid allEvents
+  => EventStore event m
+  -> StreamProjection state event
+  -> m (StreamProjection state event)
+getLatestProjection store projection@StreamProjection{..} = do
+  events <- getEvents store streamProjectionUuid (eventsStartingAt streamProjectionVersion)
   let
     latestVersion = maxEventVersion events
-    latestProj = latestProjection proj $ storedEventEvent <$> events
-  return (latestProj, latestVersion)
+    latestState = latestProjection streamProjectionProjection $ storedEventEvent <$> events
+  return $
+    projection
+    { streamProjectionVersion = latestVersion
+    , streamProjectionState = latestState
+    }
   where
     maxEventVersion [] = -1
     maxEventVersion es = maximum $ storedEventVersion <$> es
@@ -84,10 +108,10 @@ data GloballyOrderedProjection state serialized
 
 -- | Initialize a 'GloballyOrderedProjection' at 'SequenceNumber' 0 and with
 -- the projection's seed value.
-initGloballyOrderedProjection
+globallyOrderedProjection
   :: Projection state (GloballyOrderedEvent serialized)
   -> GloballyOrderedProjection state serialized
-initGloballyOrderedProjection projection@Projection{..} =
+globallyOrderedProjection projection@Projection{..} =
   GloballyOrderedProjection projection 0 projectionSeed
 
 -- | This applies an event to a 'GloballyOrderedProjection'. NOTE: There is no
