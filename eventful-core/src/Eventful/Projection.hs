@@ -82,10 +82,10 @@ getLatestProjection
   -> StreamProjection state event
   -> m (StreamProjection state event)
 getLatestProjection store projection@StreamProjection{..} = do
-  events <- getEvents store streamProjectionUuid (eventsStartingAt streamProjectionVersion)
+  events <- getEvents store streamProjectionUuid (eventsStartingAt $ streamProjectionVersion + 1)
   let
     latestVersion = maxEventVersion events
-    latestState = latestProjection streamProjectionProjection $ storedEventEvent <$> events
+    latestState = foldl' (projectionEventHandler streamProjectionProjection) streamProjectionState $ storedEventEvent <$> events
   return $
     projection
     { streamProjectionVersion = latestVersion
