@@ -11,7 +11,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy.Char8 as BSL
-import Data.Functor.Contravariant (contramap)
 import Database.Persist.Sqlite
 
 import Eventful
@@ -46,7 +45,7 @@ eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)
 transferManagerHandler :: (MonadIO m) => BankEventHandler m
 transferManagerHandler store _ _ = do
   let
-    projection = contramap streamEventEvent $ processManagerProjection transferProcessManager
+    projection = processManagerProjection transferProcessManager
     globalProjection = globalStreamProjection () projection
   StreamProjection{..} <- getLatestGlobalProjection cliGlobalStreamEventStore globalProjection
   applyProcessManagerCommandsAndEvents transferProcessManager store streamProjectionState

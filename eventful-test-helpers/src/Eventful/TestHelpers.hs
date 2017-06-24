@@ -56,11 +56,11 @@ counterProjection =
   (Counter 0)
   (\(Counter k) (Added x) -> Counter (k + x))
 
-counterGlobalProjection :: Projection Counter (GlobalStreamEvent CounterEvent)
+counterGlobalProjection :: Projection Counter (VersionedStreamEvent CounterEvent)
 counterGlobalProjection =
   Projection
   (Counter 0)
-  (\(Counter k) (StreamEvent _ _ (StreamEvent _ _ (Added x))) -> Counter (k + x))
+  (\(Counter k) (StreamEvent _ _ (Added x)) -> Counter (k + x))
 
 data CounterCommand
   = Increment
