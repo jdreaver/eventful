@@ -17,7 +17,6 @@ module Eventful.Store.Memory
 import Control.Concurrent.STM
 import Control.Monad.State.Class
 import Data.Foldable (toList)
-import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
@@ -30,15 +29,14 @@ import Eventful.UUID
 -- | Internal data structure used for the in-memory event stores.
 data EventMap serialized
   = EventMap
-  { _eventMapUuidMap :: Map UUID (Seq (GlobalStreamEvent serialized))
-  , _eventMapSeqNum :: SequenceNumber
-  -- TODO: Add projection cache here
+  { _eventMapUuidMap :: Map UUID (Seq (VersionedStreamEvent serialized))
+  , _eventMapGlobalEvents :: Seq (VersionedStreamEvent serialized)
   }
   deriving (Show)
 
 -- | What it says on the tin, an initialized empty 'EventMap'
 emptyEventMap :: EventMap serialized
-emptyEventMap = EventMap Map.empty 0
+emptyEventMap = EventMap Map.empty Seq.empty
 
 -- | Initialize an 'EventMap' in a 'TVar'
 eventMapTVar :: IO (TVar (EventMap serialized))
@@ -60,7 +58,7 @@ tvarEventStore tvar =
 tvarGlobalStreamEventStore :: TVar (EventMap serialized) -> GlobalStreamEventStore serialized STM
 tvarGlobalStreamEventStore tvar =
   let
-    getGlobalEvents range = flip lookupEventMapRange range <$> readTVar tvar
+    getGlobalEvents range = lookupGlobalEvents range <$> readTVar tvar
   in GlobalStreamEventStore{..}
 
 -- | Specialized version of 'embeddedStateEventStore' that only contains an
@@ -105,53 +103,50 @@ embeddedStateGlobalStreamEventStore
   -> GlobalStreamEventStore serialized m
 embeddedStateGlobalStreamEventStore getMap =
   let
-    getGlobalEvents range = flip lookupEventMapRange range <$> gets getMap
+    getGlobalEvents range = lookupGlobalEvents range <$> gets getMap
   in GlobalStreamEventStore{..}
 
 lookupEventMapRaw :: EventMap serialized -> UUID -> Seq (VersionedStreamEvent serialized)
-lookupEventMapRaw (EventMap uuidMap _) uuid =
-  fmap streamEventEvent $ fromMaybe Seq.empty $ Map.lookup uuid uuidMap
+lookupEventMapRaw (EventMap uuidMap _) uuid = fromMaybe Seq.empty $ Map.lookup uuid uuidMap
 
 lookupEventsInRange :: QueryRange UUID EventVersion -> EventMap serialized -> [VersionedStreamEvent serialized]
-lookupEventsInRange (QueryRange uuid start limit) store = filterEventsByRange start' limit' 0 rawEvents
+lookupEventsInRange (QueryRange uuid start limit) store = toList $ filterEventsByRange start' limit' 0 rawEvents
   where
     start' = unEventVersion <$> start
     limit' = unEventVersion <$> limit
-    rawEvents = toList $ lookupEventMapRaw store uuid
+    rawEvents = lookupEventMapRaw store uuid
 
-filterEventsByRange :: QueryStart Int -> QueryLimit Int -> Int -> [event] -> [event]
+filterEventsByRange :: QueryStart Int -> QueryLimit Int -> Int -> Seq event -> Seq event
 filterEventsByRange queryStart queryLimit defaultStart events =
   let
     (start', events') =
       case queryStart of
         StartFromBeginning -> (defaultStart, events)
-        StartQueryAt start -> (start, drop (start - defaultStart) events)
+        StartQueryAt start -> (start, Seq.drop (start - defaultStart) events)
     events'' =
       case queryLimit of
         NoQueryLimit -> events'
-        MaxNumberOfEvents num -> take num events'
-        StopQueryAt stop -> take (stop - start' + 1) events'
+        MaxNumberOfEvents num -> Seq.take num events'
+        StopQueryAt stop -> Seq.take (stop - start' + 1) events'
   in events''
 
 latestEventVersion :: EventMap serialized -> UUID -> EventVersion
 latestEventVersion store uuid = EventVersion $ Seq.length (lookupEventMapRaw store uuid) - 1
 
-lookupEventMapRange :: EventMap serialized -> QueryRange () SequenceNumber -> [GlobalStreamEvent serialized]
-lookupEventMapRange (EventMap uuidMap _) (QueryRange () start limit) = filterEventsByRange start' limit' 1 rawEvents
+lookupGlobalEvents :: QueryRange () SequenceNumber -> EventMap serialized -> [GlobalStreamEvent serialized]
+lookupGlobalEvents (QueryRange () start limit) (EventMap _ globalEvents) = events'
   where
     start' = unSequenceNumber <$> start
     limit' = unSequenceNumber <$> limit
-    rawEvents =
-      sortOn streamEventOrderKey $
-      concat $
-      toList <$> toList uuidMap
+    events = toList $ filterEventsByRange start' limit' 1 globalEvents
+    events' = zipWith (StreamEvent ()) [1..] events
 
 storeEventMap
   :: EventMap serialized -> UUID -> [serialized] -> EventMap serialized
-storeEventMap store@(EventMap uuidMap seqNum) uuid events =
+storeEventMap store@(EventMap uuidMap globalEvents) uuid events =
   let
     versStart = latestEventVersion store uuid + 1
-    streamEvents = zipWith3 (\seqNum' vers event -> StreamEvent () seqNum' (StreamEvent uuid vers event)) [seqNum + 1..] [versStart..] events
+    streamEvents = zipWith (StreamEvent uuid) [versStart..] events
     newMap = Map.insertWith (flip (><)) uuid (Seq.fromList streamEvents) uuidMap
-    newSeq = seqNum + (SequenceNumber $ length events)
-  in EventMap newMap newSeq
+    globalEvents' = globalEvents >< Seq.fromList streamEvents
+  in EventMap newMap globalEvents'
