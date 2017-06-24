@@ -1,5 +1,5 @@
 name: eventful-dynamodb
-version: "0.1.3"
+version: "0.2.0"
 maintainer: David Reaver
 synopsis: Library for eventful DynamoDB event stores
 description: Library for eventful DynamoDB event stores

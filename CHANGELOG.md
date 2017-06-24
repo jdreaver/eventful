@@ -1,5 +1,7 @@
 # eventful Changelog
 
+## 0.2.0
+
 ## 0.1.3
 
 * Added `ProjectionCache` for caching `Projection` state in event streams.
