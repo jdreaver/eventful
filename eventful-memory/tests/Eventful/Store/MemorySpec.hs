@@ -51,12 +51,12 @@ stateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EventMap Coun
 stateStoreGlobalRunner = GloballyOrderedEventStoreRunner $
   \action -> evalStateT (action stateEventStore stateGloballyOrderedEventStore) emptyEventMap
 
-embeddedStateStoreRunner :: EventStoreRunner (StateT (EmbeddedState Counter CounterEvent) IO)
+embeddedStateStoreRunner :: EventStoreRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
 embeddedStateStoreRunner = EventStoreRunner $ \action -> evalStateT (action store) emptyEmbeddedState
   where
     store = embeddedStateEventStore embeddedEventMap setEventMap
 
-embeddedStateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (EmbeddedState Counter CounterEvent) IO)
+embeddedStateStoreGlobalRunner :: GloballyOrderedEventStoreRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
 embeddedStateStoreGlobalRunner = GloballyOrderedEventStoreRunner $
   \action -> evalStateT (action store globalStore) emptyEmbeddedState
   where

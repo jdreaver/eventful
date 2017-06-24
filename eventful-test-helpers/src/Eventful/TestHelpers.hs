@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -16,8 +17,11 @@ module Eventful.TestHelpers
   , GloballyOrderedEventStoreRunner (..)
   , eventStoreSpec
   , sequencedEventStoreSpec
-  , ProjectionCacheRunner (..)
-  , projectionCacheSpec
+  , StreamProjectionCacheRunner (..)
+  , streamProjectionCacheSpec
+  , GloballyOrderedProjectionCacheRunner (..)
+  , globallyOrderedProjectionCacheSpec
+  , Text
   , module X
   ) where
 
@@ -28,6 +32,7 @@ import Control.Monad.Logger as X
 import Data.Aeson
 import Data.Aeson.Casing
 import Data.Aeson.TH
+import Data.Text (Text)
 import Test.Hspec
 
 import Eventful
@@ -50,6 +55,12 @@ counterProjection =
   Projection
   (Counter 0)
   (\(Counter k) (Added x) -> Counter (k + x))
+
+counterGlobalProjection :: Projection Counter (GloballyOrderedEvent CounterEvent)
+counterGlobalProjection =
+  Projection
+  (Counter 0)
+  (\(Counter k) (GloballyOrderedEvent _ _ _ (Added x)) -> Counter (k + x))
 
 data CounterCommand
   = Increment
@@ -276,14 +287,14 @@ uuid1 = uuidFromInteger 1
 uuid2 :: UUID
 uuid2 = uuidFromInteger 2
 
-newtype ProjectionCacheRunner m =
-  ProjectionCacheRunner (forall a. (EventStore CounterEvent m -> ProjectionCache Counter m -> m a) -> IO a)
+newtype StreamProjectionCacheRunner m =
+  StreamProjectionCacheRunner (forall a. (EventStore CounterEvent m -> StreamProjectionCache Counter m -> m a) -> IO a)
 
-projectionCacheSpec
+streamProjectionCacheSpec
   :: (Monad m)
-  => ProjectionCacheRunner m
+  => StreamProjectionCacheRunner m
   -> Spec
-projectionCacheSpec (ProjectionCacheRunner withStoreAndCache) = do
+streamProjectionCacheSpec (StreamProjectionCacheRunner withStoreAndCache) = do
   context "when the store is empty" $ do
 
     it "should be able to store and load simple projections" $ do
@@ -309,3 +320,51 @@ projectionCacheSpec (ProjectionCacheRunner withStoreAndCache) = do
       streamProjectionUuid snapshot `shouldBe` nil
       streamProjectionVersion snapshot `shouldBe` 2
       streamProjectionState snapshot `shouldBe` Counter 6
+
+newtype GloballyOrderedProjectionCacheRunner m =
+  GloballyOrderedProjectionCacheRunner
+  (forall a.
+    ( EventStore CounterEvent m
+    -> GloballyOrderedEventStore CounterEvent m
+    -> GloballyOrderedProjectionCache Text Counter m -> m a
+    ) -> IO a)
+
+globallyOrderedProjectionCacheSpec
+  :: (Monad m)
+  => GloballyOrderedProjectionCacheRunner m
+  -> Spec
+globallyOrderedProjectionCacheSpec (GloballyOrderedProjectionCacheRunner withStoreAndCache) = do
+  context "when the store is empty" $ do
+
+    it "should be able to store and load simple projections" $ do
+      snapshot <- withStoreAndCache $ \_ _ cache -> do
+        storeProjectionSnapshot cache "key" 4 (Counter 100)
+        loadProjectionSnapshot cache "key"
+      snapshot `shouldBe` Just (4, Counter 100)
+
+  context "when the store has some events in one stream" $ do
+
+    it "should load from a global stream of events" $ do
+      snapshot <- withStoreAndCache $ \store globalStore cache -> do
+        _ <- storeEvents store AnyVersion nil [Added 1, Added 2]
+        getLatestGlobalProjectionWithCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
+      globallyOrderedProjectionSequenceNumber snapshot `shouldBe` 2
+      globallyOrderedProjectionState snapshot `shouldBe` Counter 3
+
+    it "should work with updateGlobalProjectionCache" $ do
+      snapshot <- withStoreAndCache $ \store globalStore cache -> do
+        _ <- storeEvents store AnyVersion nil [Added 1, Added 2, Added 3]
+        updateGlobalProjectionCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
+        getLatestGlobalProjectionWithCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
+      globallyOrderedProjectionSequenceNumber snapshot `shouldBe` 3
+      globallyOrderedProjectionState snapshot `shouldBe` Counter 6
+
+  context "when events from multiple UUIDs are inserted" $ do
+
+    it "should have the correct cached projection value" $ do
+      snapshot <- withStoreAndCache $ \store globalStore cache -> do
+        insertExampleEvents store
+        updateGlobalProjectionCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
+        getLatestGlobalProjectionWithCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
+      globallyOrderedProjectionSequenceNumber snapshot `shouldBe` 5
+      globallyOrderedProjectionState snapshot `shouldBe` Counter 15
