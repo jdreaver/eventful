@@ -84,7 +84,7 @@ getLatestProjection
 getLatestProjection store projection@StreamProjection{..} = do
   events <- getEvents store streamProjectionUuid (eventsStartingAt $ streamProjectionVersion + 1)
   let
-    latestVersion = maxEventVersion events
+    latestVersion = newEventVersion events
     latestState = foldl' (projectionEventHandler streamProjectionProjection) streamProjectionState $ storedEventEvent <$> events
   return $
     projection
@@ -92,8 +92,8 @@ getLatestProjection store projection@StreamProjection{..} = do
     , streamProjectionState = latestState
     }
   where
-    maxEventVersion [] = -1
-    maxEventVersion es = maximum $ storedEventVersion <$> es
+    newEventVersion [] = streamProjectionVersion
+    newEventVersion es = maximum $ storedEventVersion <$> es
 
 -- | This is a combination of a 'Projection' and the latest projection state
 -- with respect to some 'SequenceNumber'. This is useful for in-memory read
