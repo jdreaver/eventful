@@ -151,7 +151,7 @@ storeEventMap
 storeEventMap store@(EventMap uuidMap seqNum) uuid events =
   let
     versStart = latestEventVersion store uuid + 1
-    storedEvents = zipWith3 (\seqNum' vers event -> StreamEvent () seqNum' (StreamEvent uuid vers event)) [seqNum + 1..] [versStart..] events
-    newMap = Map.insertWith (flip (><)) uuid (Seq.fromList storedEvents) uuidMap
+    streamEvents = zipWith3 (\seqNum' vers event -> StreamEvent () seqNum' (StreamEvent uuid vers event)) [seqNum + 1..] [versStart..] events
+    newMap = Map.insertWith (flip (><)) uuid (Seq.fromList streamEvents) uuidMap
     newSeq = seqNum + (SequenceNumber $ length events)
   in EventMap newMap newSeq

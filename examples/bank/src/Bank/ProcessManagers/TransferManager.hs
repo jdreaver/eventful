@@ -22,7 +22,7 @@ data TransferManager
   { _transferManagerData :: Map UUID TransferManagerTransferData
   , _transferManagerCanceled :: Bool
   , _transferManagerPendingCommands :: [ProcessManagerCommand BankEvent BankCommand]
-  , _transferManagerPendingEvents :: [ProjectionEvent BankEvent]
+  , _transferManagerPendingEvents :: [StreamEvent UUID () BankEvent]
   } deriving (Show)
 
 data TransferManagerTransferData
@@ -36,14 +36,14 @@ makeLenses ''TransferManager
 transferManagerDefault :: TransferManager
 transferManagerDefault = TransferManager Map.empty False [] []
 
-transferManagerProjection :: Projection TransferManager (ProjectionEvent BankEvent)
+transferManagerProjection :: Projection TransferManager (VersionedStreamEvent BankEvent)
 transferManagerProjection =
   Projection
   transferManagerDefault
   handleAccountEvent
 
-handleAccountEvent :: TransferManager -> ProjectionEvent BankEvent -> TransferManager
-handleAccountEvent manager (ProjectionEvent sourceAccount (AccountTransferStartedEvent AccountTransferStarted{..})) =
+handleAccountEvent :: TransferManager -> VersionedStreamEvent BankEvent -> TransferManager
+handleAccountEvent manager (StreamEvent sourceAccount _ (AccountTransferStartedEvent AccountTransferStarted{..})) =
   manager
   & transferManagerData . at accountTransferStartedTransferId ?~
     TransferManagerTransferData
@@ -64,7 +64,7 @@ handleAccountEvent manager (ProjectionEvent sourceAccount (AccountTransferStarte
       , acceptTransferSourceAccount = sourceAccount
       , acceptTransferAmount = accountTransferStartedAmount
       }
-handleAccountEvent manager (ProjectionEvent _ (AccountTransferRejectedEvent AccountTransferRejected{..})) =
+handleAccountEvent manager (StreamEvent _ _ (AccountTransferRejectedEvent AccountTransferRejected{..})) =
   manager
   & transferManagerCanceled .~ True
   & transferManagerPendingCommands .~ []
@@ -74,16 +74,16 @@ handleAccountEvent manager (ProjectionEvent _ (AccountTransferRejectedEvent Acco
     mkEvent (TransferManagerTransferData sourceId _) =
       -- TODO: Find a way to get the actual error so we can put it in this
       -- event.
-      [ProjectionEvent sourceId $
+      [StreamEvent sourceId () $
        AccountTransferRejectedEvent $ AccountTransferRejected accountTransferRejectedTransferId "Rejected in transfer saga"]
-handleAccountEvent manager (ProjectionEvent _ (AccountCreditedFromTransferEvent AccountCreditedFromTransfer{..})) =
+handleAccountEvent manager (StreamEvent _ _ (AccountCreditedFromTransferEvent AccountCreditedFromTransfer{..})) =
   manager
   & transferManagerPendingCommands .~ []
   & transferManagerPendingEvents .~ events
   where
     events = maybe [] mkEvent (manager ^. transferManagerData . at accountCreditedFromTransferTransferId)
     mkEvent (TransferManagerTransferData sourceId _) =
-      [ProjectionEvent sourceId $ AccountTransferCompletedEvent $ AccountTransferCompleted accountCreditedFromTransferTransferId]
+      [StreamEvent sourceId () $ AccountTransferCompletedEvent $ AccountTransferCompleted accountCreditedFromTransferTransferId]
 handleAccountEvent manager _ =
   manager
   & transferManagerPendingCommands .~ []

@@ -21,7 +21,7 @@ import Eventful.UUID
 -- appropriate Aggregates or Projections in other streams.
 data ProcessManager state event command
   = ProcessManager
-  { processManagerProjection :: Projection state (StreamEvent UUID () event)
+  { processManagerProjection :: Projection state (VersionedStreamEvent event)
   , processManagerPendingCommands :: state -> [ProcessManagerCommand event command]
   , processManagerPendingEvents :: state -> [StreamEvent UUID () event]
   }
