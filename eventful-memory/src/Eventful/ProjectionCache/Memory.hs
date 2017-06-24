@@ -37,7 +37,6 @@ tvarProjectionCache tvar =
   let
     storeProjectionSnapshot uuid version projState = modifyTVar' tvar (storeProjectionInMap uuid version projState)
     loadProjectionSnapshot uuid = Map.lookup uuid <$> readTVar tvar
-    clearSnapshots _ = pure ()
   in ProjectionCache{..}
 
 -- | A 'ProjectionCache' for some 'MonadState' that contains a 'ProjectionMap'.
@@ -50,7 +49,6 @@ embeddedStateProjectionCache getMap setMap =
   let
     storeProjectionSnapshot uuid version projState = modify' (storeProjectionSnapshot' uuid version projState)
     loadProjectionSnapshot uuid = Map.lookup uuid <$> gets getMap
-    clearSnapshots _ = pure ()
   in ProjectionCache{..}
   where
     storeProjectionSnapshot' uuid version projState state =

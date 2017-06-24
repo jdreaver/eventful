@@ -19,24 +19,21 @@ import Eventful.UUID
 -- some 'Monad' @m@ and stores the 'Projection' state of type @serialized@.
 --
 -- At its core, this is essentially just a key-value store with knowledge of
--- the stream 'UUID' and 'EventVersion'. The key is to use the other helper
--- functions in this module to interpret the stored values using a
+-- the stream 'UUID' and 'EventVersion'. It is recommended to use the other
+-- helper functions in this module to interpret the stored values using a
 -- 'Projection'.
 data ProjectionCache serialized m
   = ProjectionCache
   { storeProjectionSnapshot :: UUID -> EventVersion -> serialized -> m ()
     -- ^ Stores the state for a projection at a given 'EventVersion'. This is
-    -- pretty unsafe, because there is no guarantee what is stored actually
-    -- corresponds to the events in the stream. Consider using
+    -- pretty unsafe, because there is no guarantee what is stored is actually
+    -- derived from the events in the stream. Consider using
     -- 'updateProjectionCache'.
   , loadProjectionSnapshot :: UUID -> m (Maybe (EventVersion, serialized))
-    -- ^ Loads latest projection state from the cache.
-  , clearSnapshots :: UUID -> m ()
-    -- ^ Clears all projections in the cache that are not the latest
-    -- projections.
+    -- ^ Loads the latest projection state from the cache.
   }
 
--- | Changes the monad an 'ProjectionCache' runs in. This is useful to run the
+-- | Changes the monad a 'ProjectionCache' runs in. This is useful to run the
 -- cache in another 'Monad' while forgetting the original 'Monad'.
 runProjectionCacheUsing
   :: (Monad m, Monad mstore)
@@ -47,7 +44,6 @@ runProjectionCacheUsing runCache ProjectionCache{..} =
   ProjectionCache
   { storeProjectionSnapshot = \uuid version state -> runCache $ storeProjectionSnapshot uuid version state
   , loadProjectionSnapshot = runCache . loadProjectionSnapshot
-  , clearSnapshots = runCache . clearSnapshots
   }
 
 -- | Wraps a 'ProjectionCache' and transparently serializes/deserializes events for
@@ -59,7 +55,7 @@ serializedProjectionCache
   -> ProjectionCache serialized m
   -> ProjectionCache state m
 serializedProjectionCache Serializer{..} ProjectionCache{..} =
-  ProjectionCache storeProjectionSnapshot' loadProjectionSnapshot' clearSnapshots
+  ProjectionCache storeProjectionSnapshot' loadProjectionSnapshot'
   where
     storeProjectionSnapshot' uuid version = storeProjectionSnapshot uuid version . serialize
     loadProjectionSnapshot' uuid = do
