@@ -5,7 +5,7 @@
 
 module Eventful.Store.Sql.Operations
   ( SqlEventStoreConfig (..)
-  , sqlGloballyOrderedEventStore
+  , sqlGlobalStreamEventStore
   , sqlGetProjectionIds
   , sqlGetAggregateEvents
   , sqlMaxEventVersion
@@ -42,26 +42,26 @@ data SqlEventStoreConfig entity serialized =
   , sqlEventStoreConfigDataField :: EntityField entity serialized
   }
 
-sqlGloballyOrderedEventStore
+sqlGlobalStreamEventStore
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> GloballyOrderedEventStore serialized (SqlPersistT m)
-sqlGloballyOrderedEventStore config =
-  GloballyOrderedEventStore $ sqlGetAllEventsInRange config
+  -> GlobalStreamEventStore serialized (SqlPersistT m)
+sqlGlobalStreamEventStore config =
+  GlobalStreamEventStore $ sqlGetAllEventsInRange config
 
-sqlEventToGloballyOrdered
+sqlEventToGlobalStream
   :: SqlEventStoreConfig entity serialized
   -> Entity entity
-  -> GloballyOrderedEvent serialized
-sqlEventToGloballyOrdered config@SqlEventStoreConfig{..} (Entity key event) =
-  storedEventToGloballyOrderedEvent (sqlEventStoreConfigUnKey key) (sqlEventToStored config event)
+  -> GlobalStreamEvent serialized
+sqlEventToGlobalStream config@SqlEventStoreConfig{..} (Entity key event) =
+  StreamEvent () (sqlEventStoreConfigUnKey key) (sqlEventToVersioned config event)
 
-sqlEventToStored
+sqlEventToVersioned
   :: SqlEventStoreConfig entity serialized
   -> entity
-  -> StoredEvent serialized
-sqlEventToStored SqlEventStoreConfig{..} entity =
-  StoredEvent
+  -> VersionedStreamEvent serialized
+sqlEventToVersioned SqlEventStoreConfig{..} entity =
+  StreamEvent
   (sqlEventStoreConfigUUID entity)
   (sqlEventStoreConfigVersion entity)
   (sqlEventStoreConfigData entity)
@@ -79,40 +79,39 @@ sqlGetProjectionIds SqlEventStoreConfig{..} =
 sqlGetAggregateEvents
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> UUID
-  -> EventStoreQueryRange EventVersion
-  -> SqlPersistT m [StoredEvent serialized]
-sqlGetAggregateEvents config@SqlEventStoreConfig{..} uuid EventStoreQueryRange{..} = do
+  -> QueryRange UUID EventVersion
+  -> SqlPersistT m [VersionedStreamEvent serialized]
+sqlGetAggregateEvents config@SqlEventStoreConfig{..} QueryRange{..} = do
   entities <- selectList filters selectOpts
-  return $ sqlEventToStored config . entityVal <$> entities
+  return $ sqlEventToVersioned config . entityVal <$> entities
   where
     startFilter =
-      case eventStoreQueryRangeStart of
+      case queryRangeStart of
         StartFromBeginning -> []
         StartQueryAt start -> [sqlEventStoreConfigVersionField >=. start]
     (endFilter, endSelectOpt) =
-      case eventStoreQueryRangeLimit of
+      case queryRangeLimit of
         NoQueryLimit -> ([], [])
         MaxNumberOfEvents maxNum -> ([], [LimitTo maxNum])
         StopQueryAt stop -> ([sqlEventStoreConfigVersionField <=. stop], [])
-    filters = (sqlEventStoreConfigUUIDField ==. uuid) : startFilter ++ endFilter
+    filters = (sqlEventStoreConfigUUIDField ==. queryRangeKey) : startFilter ++ endFilter
     selectOpts = Asc sqlEventStoreConfigSequenceNumberField : endSelectOpt
 
 sqlGetAllEventsInRange
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> EventStoreQueryRange SequenceNumber
-  -> SqlPersistT m [GloballyOrderedEvent serialized]
-sqlGetAllEventsInRange config@SqlEventStoreConfig{..} EventStoreQueryRange{..} = do
+  -> QueryRange () SequenceNumber
+  -> SqlPersistT m [GlobalStreamEvent serialized]
+sqlGetAllEventsInRange config@SqlEventStoreConfig{..} QueryRange{..} = do
   entities <- selectList filters selectOpts
-  return $ sqlEventToGloballyOrdered config <$> entities
+  return $ sqlEventToGlobalStream config <$> entities
   where
     startFilter =
-      case eventStoreQueryRangeStart of
+      case queryRangeStart of
         StartFromBeginning -> []
         StartQueryAt start -> [sqlEventStoreConfigSequenceNumberField >=. sqlEventStoreConfigMakeKey start]
     (endFilter, endSelectOpt) =
-      case eventStoreQueryRangeLimit of
+      case queryRangeLimit of
         NoQueryLimit -> ([], [])
         MaxNumberOfEvents maxNum -> ([], [LimitTo maxNum])
         StopQueryAt stop -> ([sqlEventStoreConfigSequenceNumberField <=. sqlEventStoreConfigMakeKey stop], [])

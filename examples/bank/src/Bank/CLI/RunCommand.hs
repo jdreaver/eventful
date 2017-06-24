@@ -21,13 +21,12 @@ runCLICommand pool (CreateCustomerCLI createCommand) = do
   void $ runDB pool $ commandStoredAggregate cliEventStore customerBankAggregate uuid command
 runCLICommand pool (ViewAccountCLI uuid) = do
   latestStreamProjection <- runDB pool $
-    getLatestProjection cliEventStore (streamProjection accountBankProjection uuid)
+    getLatestProjection cliEventStore (versionedStreamProjection uuid accountBankProjection)
   printJSONPretty (streamProjectionState latestStreamProjection)
 runCLICommand pool (ViewCustomerAccountsCLI name) = do
-  events <- runDB pool $ getSequencedEvents cliGloballyOrderedEventStore allEvents
+  events <- runDB pool $ getGlobalEvents cliGlobalStreamEventStore (allEvents ())
   let
-    projectionEvents = globallyOrderedEventToProjectionEvent <$> events
-    allCustomerAccounts = latestProjection customerAccountsProjection projectionEvents
+    allCustomerAccounts = latestProjection customerAccountsProjection (streamEventEvent <$> events)
     thisCustomerAccounts = getCustomerAccountsFromName allCustomerAccounts name
   case thisCustomerAccounts of
     [] -> putStrLn "No accounts found"

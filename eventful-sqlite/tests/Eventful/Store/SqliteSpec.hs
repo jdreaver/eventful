@@ -12,13 +12,13 @@ spec :: Spec
 spec = do
   describe "Sqlite event store" $ do
     eventStoreSpec sqliteStoreRunner
-    sequencedEventStoreSpec sqliteStoreGlobalRunner
+    globalStreamEventStoreSpec sqliteStoreGlobalRunner
 
   -- This is really a test for runEventStoreUsing and
-  -- runGloballyOrderedEventStoreUsing. This is just a good place to put it.
-  describe "runEventStoreUsing and runGloballyOrderedEventStoreUsing for the sqlite store" $ do
+  -- runGlobalStreamEventStoreUsing. This is just a good place to put it.
+  describe "runEventStoreUsing and runGlobalStreamEventStoreUsing for the sqlite store" $ do
     eventStoreSpec sqliteIOStoreRunner
-    sequencedEventStoreSpec sqliteIOStoreGlobalRunner
+    globalStreamEventStoreSpec sqliteIOStoreGlobalRunner
 
 makeStore :: IO (EventStore CounterEvent (SqlPersistT IO), ConnectionPool)
 makeStore = do
@@ -32,10 +32,10 @@ sqliteStoreRunner = EventStoreRunner $ \action -> do
   (store, pool) <- makeStore
   runSqlPool (action store) pool
 
-sqliteStoreGlobalRunner :: GloballyOrderedEventStoreRunner (SqlPersistT IO)
-sqliteStoreGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> do
+sqliteStoreGlobalRunner :: GlobalStreamEventStoreRunner (SqlPersistT IO)
+sqliteStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
   (store, pool) <- makeStore
-  let globalStore = serializedGloballyOrderedEventStore jsonStringSerializer (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
+  let globalStore = serializedGlobalStreamEventStore jsonStringSerializer (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
   runSqlPool (action store globalStore) pool
 
 makeIOStore :: IO (EventStore CounterEvent IO, ConnectionPool)
@@ -49,10 +49,10 @@ sqliteIOStoreRunner = EventStoreRunner $ \action -> do
   (store, _) <- makeIOStore
   action store
 
-sqliteIOStoreGlobalRunner :: GloballyOrderedEventStoreRunner IO
-sqliteIOStoreGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> do
+sqliteIOStoreGlobalRunner :: GlobalStreamEventStoreRunner IO
+sqliteIOStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
   (store, pool) <- makeIOStore
   let
-    globalStore = serializedGloballyOrderedEventStore jsonStringSerializer (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
-    globalStore' = runGloballyOrderedEventStoreUsing (flip runSqlPool pool) globalStore
+    globalStore = serializedGlobalStreamEventStore jsonStringSerializer (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
+    globalStore' = runGlobalStreamEventStoreUsing (flip runSqlPool pool) globalStore
   action store globalStore'

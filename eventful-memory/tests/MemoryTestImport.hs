@@ -2,7 +2,7 @@ module MemoryTestImport
   ( makeDynamicTVarStore
   , EmbeddedState (..)
   , StreamEmbeddedState
-  , GloballyOrderedEmbeddedState
+  , GlobalStreamEmbeddedState
   , emptyEmbeddedState
   , setEventMap
   , setProjectionMap
@@ -16,14 +16,14 @@ import Eventful.Store.Memory
 import Eventful.TestHelpers
 import Eventful.UUID
 
-makeDynamicTVarStore :: IO (EventStore CounterEvent STM, GloballyOrderedEventStore CounterEvent STM)
+makeDynamicTVarStore :: IO (EventStore CounterEvent STM, GlobalStreamEventStore CounterEvent STM)
 makeDynamicTVarStore = do
   tvar <- eventMapTVar
   let
     store = tvarEventStore tvar
-    globalStore = tvarGloballyOrderedEventStore tvar
+    globalStore = tvarGlobalStreamEventStore tvar
     store' = serializedEventStore dynamicSerializer store
-    globalStore' = serializedGloballyOrderedEventStore dynamicSerializer globalStore
+    globalStore' = serializedGlobalStreamEventStore dynamicSerializer globalStore
   return (store', globalStore')
 
 data EmbeddedState state event key orderKey
@@ -34,7 +34,7 @@ data EmbeddedState state event key orderKey
   }
 
 type StreamEmbeddedState state event = EmbeddedState state event UUID EventVersion
-type GloballyOrderedEmbeddedState state event key = EmbeddedState state event key SequenceNumber
+type GlobalStreamEmbeddedState state event key = EmbeddedState state event key SequenceNumber
 
 emptyEmbeddedState :: EmbeddedState state event key orderKey
 emptyEmbeddedState = EmbeddedState 100 emptyEventMap emptyProjectionMap

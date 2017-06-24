@@ -3,7 +3,7 @@
 module Bank.CLI.Store
   ( runDB
   , cliEventStore
-  , cliGloballyOrderedEventStore
+  , cliGlobalStreamEventStore
   , printJSONPretty
   ) where
 
@@ -11,7 +11,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy.Char8 as BSL
-import Data.Functor.Contravariant (contramap)
 import Database.Persist.Sqlite
 
 import Eventful
@@ -33,10 +32,10 @@ cliEventStore = synchronousEventBusWrapper store handlers
       , transferManagerHandler
       ]
 
-cliGloballyOrderedEventStore :: (MonadIO m) => GloballyOrderedEventStore BankEvent (SqlPersistT m)
-cliGloballyOrderedEventStore =
-  serializedGloballyOrderedEventStore jsonStringSerializer
-    (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
+cliGlobalStreamEventStore :: (MonadIO m) => GlobalStreamEventStore BankEvent (SqlPersistT m)
+cliGlobalStreamEventStore =
+  serializedGlobalStreamEventStore jsonStringSerializer
+    (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
 
 type BankEventHandler m = EventStore BankEvent (SqlPersistT m) -> UUID -> BankEvent -> SqlPersistT m ()
 
@@ -46,10 +45,10 @@ eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)
 transferManagerHandler :: (MonadIO m) => BankEventHandler m
 transferManagerHandler store _ _ = do
   let
-    projection = contramap globallyOrderedEventToProjectionEvent $ processManagerProjection transferProcessManager
-    globalProjection = globallyOrderedProjection projection
-  GloballyOrderedProjection{..} <- getLatestGlobalProjection cliGloballyOrderedEventStore globalProjection
-  applyProcessManagerCommandsAndEvents transferProcessManager store globallyOrderedProjectionState
+    projection = processManagerProjection transferProcessManager
+    globalProjection = globalStreamProjection projection
+  StreamProjection{..} <- getLatestGlobalProjection cliGlobalStreamEventStore globalProjection
+  applyProcessManagerCommandsAndEvents transferProcessManager store streamProjectionState
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })

@@ -15,7 +15,7 @@ spec :: Spec
 spec = do
   describe "Postgres event store" $ do
     eventStoreSpec postgresStoreRunner
-    sequencedEventStoreSpec postgresStoreGlobalRunner
+    globalStreamEventStoreSpec postgresStoreGlobalRunner
 
 makeStore :: (MonadIO m) => m (EventStore CounterEvent (SqlPersistT m), ConnectionPool)
 makeStore = do
@@ -52,8 +52,8 @@ postgresStoreRunner = EventStoreRunner $ \action -> do
   (store, pool) <- makeStore
   runSqlPool (action store) pool
 
-postgresStoreGlobalRunner :: GloballyOrderedEventStoreRunner (SqlPersistT IO)
-postgresStoreGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> do
+postgresStoreGlobalRunner :: GlobalStreamEventStoreRunner (SqlPersistT IO)
+postgresStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
   (store, pool) <- makeStore
-  let globalStore = serializedGloballyOrderedEventStore jsonStringSerializer (sqlGloballyOrderedEventStore defaultSqlEventStoreConfig)
+  let globalStore = serializedGlobalStreamEventStore jsonStringSerializer (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
   runSqlPool (action store globalStore) pool

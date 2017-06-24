@@ -16,7 +16,7 @@ data ReadModel model serialized m =
   ReadModel
   { readModelModel :: model
   , readModelLatestAppliedSequence :: model -> m SequenceNumber
-  , readModelHandleEvents :: model -> [GloballyOrderedEvent serialized] -> m ()
+  , readModelHandleEvents :: model -> [GlobalStreamEvent serialized] -> m ()
   }
 
 type PollingPeriodSeconds = Double
@@ -24,14 +24,14 @@ type PollingPeriodSeconds = Double
 runPollingReadModel
   :: (MonadIO m, Monad mstore)
   => ReadModel model serialized m
-  -> GloballyOrderedEventStore serialized mstore
+  -> GlobalStreamEventStore serialized mstore
   -> (forall a. mstore a -> m a)
   -> PollingPeriodSeconds
   -> m ()
-runPollingReadModel ReadModel{..} getGloballyOrderedEvents runStore waitSeconds = forever $ do
+runPollingReadModel ReadModel{..} globalStore runStore waitSeconds = forever $ do
   -- Get new events starting from latest applied sequence number
   latestSeq <- readModelLatestAppliedSequence readModelModel
-  newEvents <- runStore $ getSequencedEvents getGloballyOrderedEvents (eventsStartingAt $ latestSeq + 1)
+  newEvents <- runStore $ getGlobalEvents globalStore (eventsStartingAt () $ latestSeq + 1)
 
   -- Handle the new events
   readModelHandleEvents readModelModel newEvents

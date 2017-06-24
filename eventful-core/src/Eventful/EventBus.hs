@@ -22,8 +22,7 @@ synchronousEventBusWrapper store handlers =
     handlers' = map ($ wrappedStore) handlers
     wrappedStore =
       EventStore
-      { getLatestVersion = getLatestVersion store
-      , getEvents = getEvents store
+      { getEvents = getEvents store
       , storeEvents = storeAndPublishEvents store handlers'
       }
   in wrappedStore

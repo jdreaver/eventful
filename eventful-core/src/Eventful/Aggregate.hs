@@ -50,9 +50,9 @@ commandStoredAggregate
   -> command
   -> m [serialized]
 commandStoredAggregate store (Aggregate handler proj) uuid command = do
-  StreamProjection{..} <- getLatestProjection store (streamProjection proj uuid)
+  StreamProjection{..} <- getLatestProjection store (versionedStreamProjection uuid proj)
   let events = handler streamProjectionState command
-  mError <- storeEvents store (ExactVersion streamProjectionVersion) uuid events
+  mError <- storeEvents store (ExactVersion streamProjectionOrderKey) uuid events
   case mError of
     (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
     Nothing -> return events

@@ -121,27 +121,27 @@ counterStoreExample = do
   _ <- atomically $ storeEvents store AnyVersion uuid events
 
   -- Now read the events back and print
-  events' <- atomically $ getEvents store uuid allEvents
+  events' <- atomically $ getEvents store (allEvents uuid)
   print events'
 ```
 
 Output:
 
 ```
-[ StoredEvent
-  { storedEventProjectionId = 123e4567-e89b-12d3-a456-426655440000
-  , storedEventVersion = EventVersion {unEventVersion = 0}
-  , storedEventEvent = CounterIncremented 3
+[ StreamEvent
+  { streamEventProjectionId = 123e4567-e89b-12d3-a456-426655440000
+  , streamEventVersion = EventVersion {unEventVersion = 0}
+  , streamEventEvent = CounterIncremented 3
   }
-, StoredEvent
-  { storedEventProjectionId = 123e4567-e89b-12d3-a456-426655440000
-  , storedEventVersion = EventVersion {unEventVersion = 1}
-  , storedEventEvent = CounterDecremented 1
+, StreamEvent
+  { streamEventProjectionId = 123e4567-e89b-12d3-a456-426655440000
+  , streamEventVersion = EventVersion {unEventVersion = 1}
+  , streamEventEvent = CounterDecremented 1
   }
-, StoredEvent
-  { storedEventProjectionId = 123e4567-e89b-12d3-a456-426655440000
-  , storedEventVersion = EventVersion {unEventVersion = 2}
-  , storedEventEvent = CounterReset
+, StreamEvent
+  { streamEventProjectionId = 123e4567-e89b-12d3-a456-426655440000
+  , streamEventVersion = EventVersion {unEventVersion = 2}
+  , streamEventEvent = CounterReset
   }
 ]
 ```

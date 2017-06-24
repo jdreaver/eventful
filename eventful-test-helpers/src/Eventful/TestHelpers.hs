@@ -14,13 +14,13 @@ module Eventful.TestHelpers
   , CounterEvent (..)
   , CounterCommand (..)
   , EventStoreRunner (..)
-  , GloballyOrderedEventStoreRunner (..)
+  , GlobalStreamEventStoreRunner (..)
   , eventStoreSpec
-  , sequencedEventStoreSpec
-  , StreamProjectionCacheRunner (..)
-  , streamProjectionCacheSpec
-  , GloballyOrderedProjectionCacheRunner (..)
-  , globallyOrderedProjectionCacheSpec
+  , globalStreamEventStoreSpec
+  , VersionedProjectionCacheRunner (..)
+  , versionedProjectionCacheSpec
+  , GlobalStreamProjectionCacheRunner (..)
+  , globalStreamProjectionCacheSpec
   , Text
   , module X
   ) where
@@ -56,11 +56,11 @@ counterProjection =
   (Counter 0)
   (\(Counter k) (Added x) -> Counter (k + x))
 
-counterGlobalProjection :: Projection Counter (GloballyOrderedEvent CounterEvent)
+counterGlobalProjection :: Projection Counter (VersionedStreamEvent CounterEvent)
 counterGlobalProjection =
   Projection
   (Counter 0)
-  (\(Counter k) (GloballyOrderedEvent _ _ _ (Added x)) -> Counter (k + x))
+  (\(Counter k) (StreamEvent _ _ (Added x)) -> Counter (k + x))
 
 data CounterCommand
   = Increment
@@ -93,8 +93,8 @@ deriveJSON (aesonPrefix camelCase) ''CounterCommand
 
 newtype EventStoreRunner m =
   EventStoreRunner (forall a. (EventStore CounterEvent m -> m a) -> IO a)
-newtype GloballyOrderedEventStoreRunner m =
-  GloballyOrderedEventStoreRunner (forall a. (EventStore CounterEvent m -> GloballyOrderedEventStore CounterEvent m -> m a) -> IO a)
+newtype GlobalStreamEventStoreRunner m =
+  GlobalStreamEventStoreRunner (forall a. (EventStore CounterEvent m -> GlobalStreamEventStore CounterEvent m -> m a) -> IO a)
 
 eventStoreSpec
   :: (Monad m)
@@ -106,11 +106,6 @@ eventStoreSpec (EventStoreRunner withStore) = do
       _ <- insertExampleEvents store
       action store
 
-  context "when the event store is empty" $ do
-
-    it "should return versions of -1 for a UUID" $ do
-      withStore (\store -> getLatestVersion store nil) `shouldReturn` (-1)
-
   context "when a few events are inserted" $ do
     let
       sampleEvents = [Added 1, Added 4, Added (-3), Added 5]
@@ -119,88 +114,80 @@ eventStoreSpec (EventStoreRunner withStore) = do
         action store
 
     it "should return events" $ do
-      events' <- withStore' $ \store -> getEvents store nil allEvents
-      (storedEventEvent <$> events') `shouldBe` sampleEvents
+      events' <- withStore' $ \store -> getEvents store (allEvents nil)
+      (streamEventEvent <$> events') `shouldBe` sampleEvents
 
     it "should return correct event versions" $ do
-      (latestVersion, events) <- withStore' $ \store ->
-        (,) <$>
-          getLatestVersion store nil <*>
-          getEvents store nil allEvents
-      latestVersion `shouldBe` 3
-      (storedEventVersion <$> events) `shouldBe` [0, 1, 2, 3]
+      events <- withStore' $ \store -> getEvents store (allEvents nil)
+      (streamEventOrderKey <$> events) `shouldBe` [0, 1, 2, 3]
 
     it "should return correct events with queries" $ do
       (firstEvents, middleEvents, laterEvents, maxEvents) <- withStore' $ \store ->
         (,,,) <$>
-          getEvents store nil (eventsUntil 1) <*>
-          getEvents store nil (eventsStartingAtUntil 1 2) <*>
-          getEvents store nil (eventsStartingAt 2) <*>
-          getEvents store nil (eventsStartingAtTakeLimit 0 2)
-      (storedEventEvent <$> firstEvents) `shouldBe` take 2 sampleEvents
-      (storedEventEvent <$> middleEvents) `shouldBe` take 2 (drop 1 sampleEvents)
-      (storedEventEvent <$> laterEvents) `shouldBe` drop 2 sampleEvents
-      (storedEventEvent <$> maxEvents) `shouldBe` take 2 sampleEvents
+          getEvents store (eventsUntil nil 1) <*>
+          getEvents store (eventsStartingAtUntil nil 1 2) <*>
+          getEvents store (eventsStartingAt nil 2) <*>
+          getEvents store (eventsStartingAtTakeLimit nil 0 2)
+      (streamEventEvent <$> firstEvents) `shouldBe` take 2 sampleEvents
+      (streamEventEvent <$> middleEvents) `shouldBe` take 2 (drop 1 sampleEvents)
+      (streamEventEvent <$> laterEvents) `shouldBe` drop 2 sampleEvents
+      (streamEventEvent <$> maxEvents) `shouldBe` take 2 sampleEvents
 
     it "should return the latest projection" $ do
       projection <- withStore' $ \store ->
-        getLatestProjection store (streamProjection counterProjection nil)
+        getLatestProjection store (versionedStreamProjection nil counterProjection)
       streamProjectionState projection `shouldBe` Counter 7
-      streamProjectionVersion projection `shouldBe` 3
-      streamProjectionUuid projection `shouldBe` nil
+      streamProjectionOrderKey projection `shouldBe` 3
+      streamProjectionKey projection `shouldBe` nil
 
     it "should return the latest projection with some starting StreamProjection" $ do
       projection <- withStore' $ \store -> do
-        initialEvents <- getEvents store nil (eventsUntil 1)
-        let initialProjection = latestProjection counterProjection (storedEventEvent <$> initialEvents)
-        getLatestProjection store (StreamProjection counterProjection nil 1 initialProjection)
+        initialEvents <- getEvents store (eventsUntil nil 1)
+        let initialProjection = latestProjection counterProjection (streamEventEvent <$> initialEvents)
+        getLatestProjection store (StreamProjection nil 1 counterProjection initialProjection)
       streamProjectionState projection `shouldBe` Counter 7
-      streamProjectionVersion projection `shouldBe` 3
-      streamProjectionUuid projection `shouldBe` nil
+      streamProjectionOrderKey projection `shouldBe` 3
+      streamProjectionKey projection `shouldBe` nil
 
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct events for each aggregate" $ do
       (events1, events2) <- withStoreExampleEvents $ \store ->
-        (,) <$> getEvents store uuid1 allEvents <*> getEvents store uuid2 allEvents
-      (storedEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
-      (storedEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
-      (storedEventProjectionId <$> events1) `shouldBe` [uuid1, uuid1]
-      (storedEventProjectionId <$> events2) `shouldBe` [uuid2, uuid2, uuid2]
-      (storedEventVersion <$> events1) `shouldBe` [0, 1]
-      (storedEventVersion <$> events2) `shouldBe` [0, 1, 2]
+        (,) <$> getEvents store (allEvents uuid1) <*> getEvents store (allEvents uuid2)
+      (streamEventEvent <$> events1) `shouldBe` Added <$> [1, 4]
+      (streamEventEvent <$> events2) `shouldBe` Added <$> [2, 3, 5]
+      (streamEventKey <$> events1) `shouldBe` [uuid1, uuid1]
+      (streamEventKey <$> events2) `shouldBe` [uuid2, uuid2, uuid2]
+      (streamEventOrderKey <$> events1) `shouldBe` [0, 1]
+      (streamEventOrderKey <$> events2) `shouldBe` [0, 1, 2]
 
     it "should return correct event versions" $ do
-      (latestVersion1, latestVersion2, events1, events2) <- withStoreExampleEvents $ \store ->
-        (,,,) <$>
-          getLatestVersion store uuid1 <*>
-          getLatestVersion store uuid2 <*>
-          getEvents store uuid1 allEvents <*>
-          getEvents store uuid2 allEvents
-      latestVersion1 `shouldBe` 1
-      latestVersion2 `shouldBe` 2
-      storedEventEvent <$> events1 `shouldBe` [Added 1, Added 4]
-      storedEventEvent <$> events2 `shouldBe` [Added 2, Added 3, Added 5]
+      (events1, events2) <- withStoreExampleEvents $ \store ->
+        (,) <$>
+          getEvents store (allEvents uuid1) <*>
+          getEvents store (allEvents uuid2)
+      streamEventEvent <$> events1 `shouldBe` [Added 1, Added 4]
+      streamEventEvent <$> events2 `shouldBe` [Added 2, Added 3, Added 5]
 
     it "should return correct events with queries" $ do
       (firstEvents, middleEvents, laterEvents, maxEvents) <- withStoreExampleEvents $ \store ->
         (,,,) <$>
-          getEvents store uuid1 (eventsUntil 1) <*>
-          getEvents store uuid2 (eventsStartingAtUntil 1 2) <*>
-          getEvents store uuid2 (eventsStartingAt 2) <*>
-          getEvents store uuid1 (eventsStartingAtTakeLimit 1 1)
-      (storedEventEvent <$> firstEvents) `shouldBe` [Added 1, Added 4]
-      (storedEventEvent <$> middleEvents) `shouldBe` [Added 3, Added 5]
-      (storedEventEvent <$> laterEvents) `shouldBe` [Added 5]
-      (storedEventEvent <$> maxEvents) `shouldBe` [Added 4]
+          getEvents store (eventsUntil uuid1 1) <*>
+          getEvents store (eventsStartingAtUntil uuid2 1 2) <*>
+          getEvents store (eventsStartingAt uuid2 2) <*>
+          getEvents store (eventsStartingAtTakeLimit uuid1 1 1)
+      (streamEventEvent <$> firstEvents) `shouldBe` [Added 1, Added 4]
+      (streamEventEvent <$> middleEvents) `shouldBe` [Added 3, Added 5]
+      (streamEventEvent <$> laterEvents) `shouldBe` [Added 5]
+      (streamEventEvent <$> maxEvents) `shouldBe` [Added 4]
 
     it "should produce the correct projections" $ do
       (proj1, proj2) <- withStoreExampleEvents $ \store ->
         (,) <$>
-          getLatestProjection store (streamProjection counterProjection uuid1) <*>
-          getLatestProjection store (streamProjection counterProjection uuid2)
-      (streamProjectionState proj1, streamProjectionVersion proj1) `shouldBe` (Counter 5, 1)
-      (streamProjectionState proj2, streamProjectionVersion proj2) `shouldBe` (Counter 10, 2)
+          getLatestProjection store (versionedStreamProjection uuid1 counterProjection) <*>
+          getLatestProjection store (versionedStreamProjection uuid2 counterProjection)
+      (streamProjectionState proj1, streamProjectionOrderKey proj1) `shouldBe` (Counter 5, 1)
+      (streamProjectionState proj2, streamProjectionOrderKey proj2) `shouldBe` (Counter 10, 2)
 
   describe "can handle event storage errors" $ do
 
@@ -235,15 +222,15 @@ eventStoreSpec (EventStoreRunner withStore) = do
           ]
       errors `shouldBe` [Nothing, Nothing, Nothing, Nothing]
 
-sequencedEventStoreSpec
+globalStreamEventStoreSpec
   :: (Monad m)
-  => GloballyOrderedEventStoreRunner m
+  => GlobalStreamEventStoreRunner m
   -> Spec
-sequencedEventStoreSpec (GloballyOrderedEventStoreRunner withStore) = do
+globalStreamEventStoreSpec (GlobalStreamEventStoreRunner withStore) = do
   context "when the event store is empty" $ do
 
     it "shouldn't have any events" $ do
-      events <- withStore (\_ globalStore -> getSequencedEvents globalStore allEvents)
+      events <- withStore (\_ globalStore -> getGlobalEvents globalStore (allEvents ()))
       length events `shouldBe` 0
 
   context "when events from multiple UUIDs are inserted" $ do
@@ -251,25 +238,25 @@ sequencedEventStoreSpec (GloballyOrderedEventStoreRunner withStore) = do
     it "should have the correct events in global order" $ do
       events <- withStore $ \store globalStore -> do
         insertExampleEvents store
-        getSequencedEvents globalStore allEvents
-      (globallyOrderedEventEvent <$> events) `shouldBe` Added <$> [1..5]
-      (globallyOrderedEventProjectionId <$> events) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
-      (globallyOrderedEventVersion <$> events) `shouldBe` [0, 0, 1, 1, 2]
-      (globallyOrderedEventSequenceNumber <$> events) `shouldBe` [1..5]
+        getGlobalEvents globalStore (allEvents ())
+      (streamEventEvent . streamEventEvent <$> events) `shouldBe` Added <$> [1..5]
+      (streamEventKey . streamEventEvent <$> events) `shouldBe` [uuid1, uuid2, uuid2, uuid1, uuid2]
+      (streamEventOrderKey . streamEventEvent <$> events) `shouldBe` [0, 0, 1, 1, 2]
+      (streamEventOrderKey <$> events) `shouldBe` [1..5]
 
     it "should handle queries" $ do
       (firstEvents, middleEvents, laterEvents, maxEvents) <- withStore $ \store globalStore -> do
         insertExampleEvents store
         (,,,) <$>
-          getSequencedEvents globalStore (eventsUntil 2) <*>
-          getSequencedEvents globalStore (eventsStartingAtUntil 2 3) <*>
-          getSequencedEvents globalStore (eventsStartingAt 3) <*>
-          getSequencedEvents globalStore (eventsStartingAtTakeLimit 2 3)
+          getGlobalEvents globalStore (eventsUntil () 2) <*>
+          getGlobalEvents globalStore (eventsStartingAtUntil () 2 3) <*>
+          getGlobalEvents globalStore (eventsStartingAt () 3) <*>
+          getGlobalEvents globalStore (eventsStartingAtTakeLimit () 2 3)
 
-      (globallyOrderedEventEvent <$> firstEvents) `shouldBe` Added <$> [1..2]
-      (globallyOrderedEventEvent <$> middleEvents) `shouldBe` Added <$> [2..3]
-      (globallyOrderedEventEvent <$> laterEvents) `shouldBe` Added <$> [3..5]
-      (globallyOrderedEventEvent <$> maxEvents) `shouldBe` Added <$> [2..4]
+      (streamEventEvent . streamEventEvent <$> firstEvents) `shouldBe` Added <$> [1..2]
+      (streamEventEvent . streamEventEvent <$> middleEvents) `shouldBe` Added <$> [2..3]
+      (streamEventEvent . streamEventEvent <$> laterEvents) `shouldBe` Added <$> [3..5]
+      (streamEventEvent . streamEventEvent <$> maxEvents) `shouldBe` Added <$> [2..4]
 
 insertExampleEvents
   :: (Monad m)
@@ -287,14 +274,14 @@ uuid1 = uuidFromInteger 1
 uuid2 :: UUID
 uuid2 = uuidFromInteger 2
 
-newtype StreamProjectionCacheRunner m =
-  StreamProjectionCacheRunner (forall a. (EventStore CounterEvent m -> StreamProjectionCache Counter m -> m a) -> IO a)
+newtype VersionedProjectionCacheRunner m =
+  VersionedProjectionCacheRunner (forall a. (EventStore CounterEvent m -> VersionedProjectionCache Counter m -> m a) -> IO a)
 
-streamProjectionCacheSpec
+versionedProjectionCacheSpec
   :: (Monad m)
-  => StreamProjectionCacheRunner m
+  => VersionedProjectionCacheRunner m
   -> Spec
-streamProjectionCacheSpec (StreamProjectionCacheRunner withStoreAndCache) = do
+versionedProjectionCacheSpec (VersionedProjectionCacheRunner withStoreAndCache) = do
   context "when the store is empty" $ do
 
     it "should be able to store and load simple projections" $ do
@@ -308,32 +295,32 @@ streamProjectionCacheSpec (StreamProjectionCacheRunner withStoreAndCache) = do
     it "should load from a stream of events" $ do
       snapshot <- withStoreAndCache $ \store cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2]
-        getLatestProjectionWithCache store cache (streamProjection counterProjection nil)
-      streamProjectionVersion snapshot `shouldBe` 1
+        getLatestProjectionWithCache store cache (versionedStreamProjection nil counterProjection)
+      streamProjectionOrderKey snapshot `shouldBe` 1
       streamProjectionState snapshot `shouldBe` Counter 3
 
     it "should work with updateProjectionCache" $ do
       snapshot <- withStoreAndCache $ \store cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2, Added 3]
-        updateProjectionCache store cache (streamProjection counterProjection nil)
-        getLatestProjectionWithCache store cache (streamProjection counterProjection nil)
-      streamProjectionUuid snapshot `shouldBe` nil
-      streamProjectionVersion snapshot `shouldBe` 2
+        updateProjectionCache store cache (versionedStreamProjection nil counterProjection)
+        getLatestProjectionWithCache store cache (versionedStreamProjection nil counterProjection)
+      streamProjectionKey snapshot `shouldBe` nil
+      streamProjectionOrderKey snapshot `shouldBe` 2
       streamProjectionState snapshot `shouldBe` Counter 6
 
-newtype GloballyOrderedProjectionCacheRunner m =
-  GloballyOrderedProjectionCacheRunner
+newtype GlobalStreamProjectionCacheRunner m =
+  GlobalStreamProjectionCacheRunner
   (forall a.
     ( EventStore CounterEvent m
-    -> GloballyOrderedEventStore CounterEvent m
-    -> GloballyOrderedProjectionCache Text Counter m -> m a
+    -> GlobalStreamEventStore CounterEvent m
+    -> GlobalStreamProjectionCache Text Counter m -> m a
     ) -> IO a)
 
-globallyOrderedProjectionCacheSpec
+globalStreamProjectionCacheSpec
   :: (Monad m)
-  => GloballyOrderedProjectionCacheRunner m
+  => GlobalStreamProjectionCacheRunner m
   -> Spec
-globallyOrderedProjectionCacheSpec (GloballyOrderedProjectionCacheRunner withStoreAndCache) = do
+globalStreamProjectionCacheSpec (GlobalStreamProjectionCacheRunner withStoreAndCache) = do
   context "when the store is empty" $ do
 
     it "should be able to store and load simple projections" $ do
@@ -347,24 +334,24 @@ globallyOrderedProjectionCacheSpec (GloballyOrderedProjectionCacheRunner withSto
     it "should load from a global stream of events" $ do
       snapshot <- withStoreAndCache $ \store globalStore cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2]
-        getLatestGlobalProjectionWithCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
-      globallyOrderedProjectionSequenceNumber snapshot `shouldBe` 2
-      globallyOrderedProjectionState snapshot `shouldBe` Counter 3
+        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+      streamProjectionOrderKey snapshot `shouldBe` 2
+      streamProjectionState snapshot `shouldBe` Counter 3
 
     it "should work with updateGlobalProjectionCache" $ do
       snapshot <- withStoreAndCache $ \store globalStore cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2, Added 3]
-        updateGlobalProjectionCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
-        getLatestGlobalProjectionWithCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
-      globallyOrderedProjectionSequenceNumber snapshot `shouldBe` 3
-      globallyOrderedProjectionState snapshot `shouldBe` Counter 6
+        updateGlobalProjectionCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+      streamProjectionOrderKey snapshot `shouldBe` 3
+      streamProjectionState snapshot `shouldBe` Counter 6
 
   context "when events from multiple UUIDs are inserted" $ do
 
     it "should have the correct cached projection value" $ do
       snapshot <- withStoreAndCache $ \store globalStore cache -> do
         insertExampleEvents store
-        updateGlobalProjectionCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
-        getLatestGlobalProjectionWithCache globalStore cache (globallyOrderedProjection counterGlobalProjection) "key"
-      globallyOrderedProjectionSequenceNumber snapshot `shouldBe` 5
-      globallyOrderedProjectionState snapshot `shouldBe` Counter 15
+        updateGlobalProjectionCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+      streamProjectionOrderKey snapshot `shouldBe` 5
+      streamProjectionState snapshot `shouldBe` Counter 15

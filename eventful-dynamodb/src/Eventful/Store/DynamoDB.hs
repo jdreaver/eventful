@@ -69,28 +69,27 @@ dynamoDBEventStore config =
 getDynamoEvents
   :: (MonadAWS m)
   => DynamoDBEventStoreConfig serialized
-  -> UUID
-  -> EventStoreQueryRange EventVersion
-  -> m [StoredEvent serialized]
-getDynamoEvents config@DynamoDBEventStoreConfig{..} uuid range = do
+  -> QueryRange UUID EventVersion
+  -> m [VersionedStreamEvent serialized]
+getDynamoEvents config@DynamoDBEventStoreConfig{..} range = do
   latestEvents <-
-    paginate (queryBase config uuid range) =$=
+    paginate (queryBase config range) =$=
     CL.concatMap (view qrsItems) $$
     CL.consume
-  return $ mapMaybe (decodeDynamoEvent config uuid) latestEvents
+  return $ mapMaybe (decodeDynamoEvent config $ queryRangeKey range) latestEvents
 
 decodeDynamoEvent
   :: DynamoDBEventStoreConfig serialized
   -> UUID
   -> HashMap Text AttributeValue
-  -> Maybe (StoredEvent serialized)
+  -> Maybe (VersionedStreamEvent serialized)
 decodeDynamoEvent DynamoDBEventStoreConfig{..} uuid attributeMap = do
   versionValue <- HM.lookup dynamoDBEventStoreConfigVersionAttributeName attributeMap
   versionText <- versionValue ^. avN
   version <- EventVersion <$> readMay (T.unpack versionText)
   eventAttributeValue <- HM.lookup dynamoDBEventStoreConfigEventAttributeName attributeMap
   let event = dynamoDBEventStoreConfigValueToSerialized eventAttributeValue
-  return $ StoredEvent uuid version event
+  return $ StreamEvent uuid version event
 
 latestEventVersion
   :: (MonadAWS m)
@@ -99,7 +98,7 @@ latestEventVersion
   -> m EventVersion
 latestEventVersion config@DynamoDBEventStoreConfig{..} uuid = do
   latestEvents <- fmap (view qrsItems) . send $
-    queryBase config uuid allEvents
+    queryBase config (allEvents uuid)
     & qLimit ?~ 1
     & qScanIndexForward ?~ False
   return $ EventVersion $ fromMaybe (-1) $ do
@@ -113,10 +112,9 @@ latestEventVersion config@DynamoDBEventStoreConfig{..} uuid = do
 -- UUID.
 queryBase
   :: DynamoDBEventStoreConfig serialized
-  -> UUID
-  -> EventStoreQueryRange EventVersion
+  -> QueryRange UUID EventVersion
   -> Query
-queryBase DynamoDBEventStoreConfig{..} uuid EventStoreQueryRange{..} =
+queryBase DynamoDBEventStoreConfig{..} QueryRange{..} =
   query
   dynamoDBEventStoreConfigTableName
   & qKeyConditionExpression ?~ T.intercalate " AND " (uuidCaseExpression : versionCaseExpression)
@@ -124,7 +122,7 @@ queryBase DynamoDBEventStoreConfig{..} uuid EventStoreQueryRange{..} =
   & qExpressionAttributeValues .~ HM.fromList (uuidAttributeValue : versionAttributeValues)
   where
     uuidAttributeName = ("#uuid", dynamoDBEventStoreConfigUUIDAttributeName)
-    uuidAttributeValue = (":uuid", attributeValue & avS ?~ uuidToText uuid)
+    uuidAttributeValue = (":uuid", attributeValue & avS ?~ uuidToText queryRangeKey)
     uuidCaseExpression = "#uuid = :uuid"
 
     mkStartVersionAttributeValue vers = (":startVersion", attributeValue & avN ?~ T.pack (show vers))
@@ -138,7 +136,7 @@ queryBase DynamoDBEventStoreConfig{..} uuid EventStoreQueryRange{..} =
         ]
       )
     (versionCaseExpression, versionAttributeValues) =
-      case (eventStoreQueryRangeStart, eventStoreQueryRangeLimit) of
+      case (queryRangeStart, queryRangeLimit) of
         (StartFromBeginning, NoQueryLimit) -> ([], [])
         (StartFromBeginning, MaxNumberOfEvents maxNum) -> mkJustEnd (EventVersion maxNum - 1)
         (StartFromBeginning, StopQueryAt end) -> mkJustEnd end
