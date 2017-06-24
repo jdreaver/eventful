@@ -2,6 +2,11 @@
 
 ## 0.2.0
 
+* Breaking change: Made the API for `EventStore` and `GlobalStreamEventStore`
+  more similar so code can be more generic between them. This simplified a lot
+  of the event and projection types as well (now just variations on
+  `StreamEvent` and `StreamProjection`.
+
 ## 0.1.3
 
 * Added `ProjectionCache` for caching `Projection` state in event streams.
