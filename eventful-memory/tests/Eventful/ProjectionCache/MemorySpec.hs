@@ -13,15 +13,15 @@ import MemoryTestImport
 spec :: Spec
 spec = do
   describe "TVar projection cache" $ do
-    streamProjectionCacheSpec tvarStreamProjectionCacheRunner
-    globallyOrderedProjectionCacheSpec tvarGloballyOrderedProjectionCacheRunner
+    versionedProjectionCacheSpec tvarVersionedProjectionCacheRunner
+    globalStreamProjectionCacheSpec tvarGlobalStreamProjectionCacheRunner
 
   describe "MonadState embedded memory projection cache" $ do
-    streamProjectionCacheSpec stateStreamProjectionCacheRunner
-    globallyOrderedProjectionCacheSpec stateGloballyOrderedProjectionCacheRunner
+    versionedProjectionCacheSpec stateVersionedProjectionCacheRunner
+    globalStreamProjectionCacheSpec stateGlobalStreamProjectionCacheRunner
 
-tvarStreamProjectionCacheRunner :: StreamProjectionCacheRunner STM
-tvarStreamProjectionCacheRunner = StreamProjectionCacheRunner $ \action -> do
+tvarVersionedProjectionCacheRunner :: VersionedProjectionCacheRunner STM
+tvarVersionedProjectionCacheRunner = VersionedProjectionCacheRunner $ \action -> do
   eventTVar <- eventMapTVar
   projTVar <- projectionMapTVar
   let
@@ -29,26 +29,26 @@ tvarStreamProjectionCacheRunner = StreamProjectionCacheRunner $ \action -> do
     cache = tvarProjectionCache projTVar
   atomically $ action store cache
 
-tvarGloballyOrderedProjectionCacheRunner :: GloballyOrderedProjectionCacheRunner STM
-tvarGloballyOrderedProjectionCacheRunner = GloballyOrderedProjectionCacheRunner $ \action -> do
+tvarGlobalStreamProjectionCacheRunner :: GlobalStreamProjectionCacheRunner STM
+tvarGlobalStreamProjectionCacheRunner = GlobalStreamProjectionCacheRunner $ \action -> do
   eventTVar <- eventMapTVar
   projTVar <- projectionMapTVar
   let
     store = tvarEventStore eventTVar
-    globalStore = tvarGloballyOrderedEventStore eventTVar
+    globalStore = tvarGlobalStreamEventStore eventTVar
     cache = tvarProjectionCache projTVar
   atomically $ action store globalStore cache
 
-stateStreamProjectionCacheRunner :: StreamProjectionCacheRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
-stateStreamProjectionCacheRunner = StreamProjectionCacheRunner $ \action -> evalStateT (action store cache) emptyEmbeddedState
+stateVersionedProjectionCacheRunner :: VersionedProjectionCacheRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
+stateVersionedProjectionCacheRunner = VersionedProjectionCacheRunner $ \action -> evalStateT (action store cache) emptyEmbeddedState
   where
     store = embeddedStateEventStore embeddedEventMap setEventMap
     cache = embeddedStateProjectionCache embeddedProjectionMap setProjectionMap
 
-stateGloballyOrderedProjectionCacheRunner :: GloballyOrderedProjectionCacheRunner (StateT (GloballyOrderedEmbeddedState Counter CounterEvent Text) IO)
-stateGloballyOrderedProjectionCacheRunner =
-  GloballyOrderedProjectionCacheRunner $ \action -> evalStateT (action store globalStore cache) emptyEmbeddedState
+stateGlobalStreamProjectionCacheRunner :: GlobalStreamProjectionCacheRunner (StateT (GlobalStreamEmbeddedState Counter CounterEvent Text) IO)
+stateGlobalStreamProjectionCacheRunner =
+  GlobalStreamProjectionCacheRunner $ \action -> evalStateT (action store globalStore cache) emptyEmbeddedState
   where
     store = embeddedStateEventStore embeddedEventMap setEventMap
-    globalStore = embeddedStateGloballyOrderedEventStore embeddedEventMap
+    globalStore = embeddedStateGlobalStreamEventStore embeddedEventMap
     cache = embeddedStateProjectionCache embeddedProjectionMap setProjectionMap

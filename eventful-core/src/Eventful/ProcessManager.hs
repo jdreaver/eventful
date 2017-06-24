@@ -21,9 +21,9 @@ import Eventful.UUID
 -- appropriate Aggregates or Projections in other streams.
 data ProcessManager state event command
   = ProcessManager
-  { processManagerProjection :: Projection state (ProjectionEvent event)
+  { processManagerProjection :: Projection state (StreamEvent UUID () event)
   , processManagerPendingCommands :: state -> [ProcessManagerCommand event command]
-  , processManagerPendingEvents :: state -> [ProjectionEvent event]
+  , processManagerPendingEvents :: state -> [StreamEvent UUID () event]
   }
 
 -- | This is a @command@ along with the UUID of the target 'Aggregate', and
@@ -52,5 +52,5 @@ applyProcessManagerCommandsAndEvents
 applyProcessManagerCommandsAndEvents ProcessManager{..} store state = do
   forM_ (processManagerPendingCommands state) $ \(ProcessManagerCommand aggregateId aggregate command) ->
     void $ commandStoredAggregate store aggregate aggregateId command
-  forM_ (processManagerPendingEvents state) $ \(ProjectionEvent projectionId event) ->
+  forM_ (processManagerPendingEvents state) $ \(StreamEvent projectionId () event) ->
     storeEvents store AnyVersion projectionId [event]

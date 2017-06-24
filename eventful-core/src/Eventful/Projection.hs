@@ -5,11 +5,13 @@ module Eventful.Projection
   , latestProjection
   , allProjections
   , StreamProjection (..)
+  , VersionedStreamProjection
+  , GlobalStreamProjection
   , streamProjection
+  , versionedStreamProjection
+  , globalStreamProjection
   , getLatestProjection
-  , GloballyOrderedProjection (..)
-  , globallyOrderedProjection
-  , globallyOrderedProjectionEventHandler
+  , globalStreamProjectionEventHandler
   , getLatestGlobalProjection
   , serializedProjection
   , projectionMapMaybe
@@ -58,89 +60,87 @@ allProjections (Projection seed handler) = scanl' handler seed
 -- | A 'StreamProjection' is a 'Projection' that has been constructed from
 -- events from a particular event stream. This is mostly useful so we can
 -- associate an 'EventVersion' with some state.
-data StreamProjection state event
+data StreamProjection key orderKey state event
   = StreamProjection
-  { streamProjectionProjection :: Projection state event
-  , streamProjectionUuid :: !UUID
-  , streamProjectionVersion :: EventVersion
+  { streamProjectionKey :: !key
+  , streamProjectionOrderKey :: !orderKey
+  , streamProjectionProjection :: !(Projection state event)
   , streamProjectionState :: !state
   }
 
--- | Initialize a 'StreamProjection' with a 'Projection'.
+type VersionedStreamProjection = StreamProjection UUID EventVersion
+type GlobalStreamProjection state event = StreamProjection () SequenceNumber state (GlobalStreamEvent event)
+
+-- | Initialize a 'StreamProjection' with a 'Projection', key, and order key.
 streamProjection
-  :: Projection state event
-  -> UUID
-  -> StreamProjection state event
-streamProjection projection@Projection{..} uuid =
-  StreamProjection projection uuid (-1) projectionSeed
+  :: key
+  -> orderKey
+  -> Projection state event
+  -> StreamProjection key orderKey state event
+streamProjection key orderKey projection@Projection{..} =
+  StreamProjection key orderKey projection projectionSeed
+
+-- | Initialize a 'VersionedStreamProjection'.
+versionedStreamProjection
+  :: UUID
+  -> Projection state event
+  -> VersionedStreamProjection state event
+versionedStreamProjection uuid = streamProjection uuid (-1)
+
+-- | Initialize a 'GlobalStreamProjection'.
+globalStreamProjection
+  :: Projection state (GlobalStreamEvent event)
+  -> GlobalStreamProjection state event
+globalStreamProjection = streamProjection () 0
 
 -- | Gets the latest projection from a store by using 'getEvents' and then
 -- applying the events using the Projection's event handler.
 getLatestProjection
   :: (Monad m)
   => EventStore event m
-  -> StreamProjection state event
-  -> m (StreamProjection state event)
+  -> VersionedStreamProjection state event
+  -> m (VersionedStreamProjection state event)
 getLatestProjection store projection@StreamProjection{..} = do
-  events <- getEvents store streamProjectionUuid (eventsStartingAt $ streamProjectionVersion + 1)
+  events <- getEvents store (eventsStartingAt streamProjectionKey $ streamProjectionOrderKey + 1)
   let
     latestVersion = newEventVersion events
-    latestState = foldl' (projectionEventHandler streamProjectionProjection) streamProjectionState $ storedEventEvent <$> events
+    latestState = foldl' (projectionEventHandler streamProjectionProjection) streamProjectionState $ streamEventEvent <$> events
   return $
     projection
-    { streamProjectionVersion = latestVersion
+    { streamProjectionOrderKey = latestVersion
     , streamProjectionState = latestState
     }
   where
-    newEventVersion [] = streamProjectionVersion
-    newEventVersion es = maximum $ storedEventVersion <$> es
+    newEventVersion [] = streamProjectionOrderKey
+    newEventVersion es = maximum $ streamEventOrderKey <$> es
 
--- | This is a combination of a 'Projection' and the latest projection state
--- with respect to some 'SequenceNumber'. This is useful for in-memory read
--- models, and for querying the latest state starting from some previous state
--- at a lower 'SequenceNumber'.
-data GloballyOrderedProjection state serialized
-  = GloballyOrderedProjection
-  { globallyOrderedProjectionProjection :: !(Projection state (GloballyOrderedEvent serialized))
-  , globallyOrderedProjectionSequenceNumber :: !SequenceNumber
-  , globallyOrderedProjectionState :: !state
-  }
-
--- | Initialize a 'GloballyOrderedProjection' at 'SequenceNumber' 0 and with
--- the projection's seed value.
-globallyOrderedProjection
-  :: Projection state (GloballyOrderedEvent serialized)
-  -> GloballyOrderedProjection state serialized
-globallyOrderedProjection projection@Projection{..} =
-  GloballyOrderedProjection projection 0 projectionSeed
-
--- | This applies an event to a 'GloballyOrderedProjection'. NOTE: There is no
+-- | This applies an event to a 'GlobalStreamProjection'. NOTE: There is no
 -- guarantee that the 'SequenceNumber' for the event is the previous
 -- 'SequenceNumber' plus one (in fact, that isn't even a guarantee that some
--- stores can provide). This function will update the
--- 'GloballyOrderedProjetion' to use the sequence number of the event.
-globallyOrderedProjectionEventHandler
-  :: GloballyOrderedProjection state serialized
-  -> GloballyOrderedEvent serialized
-  -> GloballyOrderedProjection state serialized
-globallyOrderedProjectionEventHandler GloballyOrderedProjection{..} event@GloballyOrderedEvent{..} =
+-- stores can provide). This function will update the 'GlobalStreamProjetion'
+-- to use the sequence number of the event.
+globalStreamProjectionEventHandler
+  :: GlobalStreamProjection state serialized
+  -> GlobalStreamEvent serialized
+  -> GlobalStreamProjection state serialized
+globalStreamProjectionEventHandler StreamProjection{..} event =
   let
-    Projection{..} = globallyOrderedProjectionProjection
-    seqNum = globallyOrderedEventSequenceNumber
-    state' = projectionEventHandler globallyOrderedProjectionState event
-  in GloballyOrderedProjection globallyOrderedProjectionProjection seqNum state'
+    Projection{..} = streamProjectionProjection
+    seqNum = streamEventOrderKey event
+    state' = projectionEventHandler streamProjectionState event
+  in StreamProjection streamProjectionKey seqNum streamProjectionProjection state'
 
 -- | Gets globally ordered events from the event store and builds a
 -- 'Projection' based on 'ProjectionEvent'. Optionally accepts the current
 -- projection state as an argument.
 getLatestGlobalProjection
   :: (Monad m)
-  => GloballyOrderedEventStore serialized m
-  -> GloballyOrderedProjection state serialized
-  -> m (GloballyOrderedProjection state serialized)
-getLatestGlobalProjection store globalProjection@GloballyOrderedProjection{..} = do
-  events <- getSequencedEvents store (eventsStartingAt $ globallyOrderedProjectionSequenceNumber + 1)
-  return $ foldl' globallyOrderedProjectionEventHandler globalProjection events
+  => GlobalStreamEventStore serialized m
+  -> GlobalStreamProjection state serialized
+  -> m (GlobalStreamProjection state serialized)
+getLatestGlobalProjection store globalProjection@StreamProjection{..} = do
+  events <- getGlobalEvents store (eventsStartingAt () $ streamProjectionOrderKey + 1)
+  return $ foldl' globalStreamProjectionEventHandler globalProjection events
 
 -- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it
 -- uses the @serialized@ type.
