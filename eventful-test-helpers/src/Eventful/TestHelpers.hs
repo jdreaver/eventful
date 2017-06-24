@@ -334,15 +334,15 @@ globalStreamProjectionCacheSpec (GlobalStreamProjectionCacheRunner withStoreAndC
     it "should load from a global stream of events" $ do
       snapshot <- withStoreAndCache $ \store globalStore cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2]
-        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection "key" counterGlobalProjection)
+        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
       streamProjectionOrderKey snapshot `shouldBe` 2
       streamProjectionState snapshot `shouldBe` Counter 3
 
     it "should work with updateGlobalProjectionCache" $ do
       snapshot <- withStoreAndCache $ \store globalStore cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2, Added 3]
-        updateGlobalProjectionCache globalStore cache (globalStreamProjection "key" counterGlobalProjection)
-        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection "key" counterGlobalProjection)
+        updateGlobalProjectionCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
       streamProjectionOrderKey snapshot `shouldBe` 3
       streamProjectionState snapshot `shouldBe` Counter 6
 
@@ -351,7 +351,7 @@ globalStreamProjectionCacheSpec (GlobalStreamProjectionCacheRunner withStoreAndC
     it "should have the correct cached projection value" $ do
       snapshot <- withStoreAndCache $ \store globalStore cache -> do
         insertExampleEvents store
-        updateGlobalProjectionCache globalStore cache (globalStreamProjection "key" counterGlobalProjection)
-        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection "key" counterGlobalProjection)
+        updateGlobalProjectionCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
+        getLatestGlobalProjectionWithCache globalStore cache (globalStreamProjection counterGlobalProjection) "key"
       streamProjectionOrderKey snapshot `shouldBe` 5
       streamProjectionState snapshot `shouldBe` Counter 15

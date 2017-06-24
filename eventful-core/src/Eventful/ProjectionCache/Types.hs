@@ -85,8 +85,8 @@ getLatestProjectionWithCache
   -> VersionedProjectionCache state m
   -> VersionedStreamProjection state event
   -> m (VersionedStreamProjection state event)
-getLatestProjectionWithCache store cache originalProj =
-  getLatestProjectionWithCache' cache originalProj >>= getLatestProjection store
+getLatestProjectionWithCache store cache projection =
+  getLatestProjectionWithCache' cache projection (streamProjectionKey projection) >>= getLatestProjection store
 
 -- | Like 'getLatestGlobalProjection', but uses a 'ProjectionCache' if it
 -- contains more recent state.
@@ -94,28 +94,30 @@ getLatestGlobalProjectionWithCache
   :: (Monad m)
   => GlobalStreamEventStore event m
   -> GlobalStreamProjectionCache key state m
-  -> GlobalStreamProjection key state event
-  -> m (GlobalStreamProjection key state event)
-getLatestGlobalProjectionWithCache store cache originalProj =
-  getLatestProjectionWithCache' cache originalProj >>= getLatestGlobalProjection store
+  -> GlobalStreamProjection state event
+  -> key
+  -> m (GlobalStreamProjection state event)
+getLatestGlobalProjectionWithCache store cache projection key =
+  getLatestProjectionWithCache' cache projection key >>= getLatestGlobalProjection store
 
 getLatestProjectionWithCache'
   :: (Monad m, Ord orderKey)
   => ProjectionCache key orderKey state m
-  -> StreamProjection key orderKey state event
-  -> m (StreamProjection key orderKey state event)
-getLatestProjectionWithCache' cache originalProj = do
-  mLatestState <- loadProjectionSnapshot cache (streamProjectionKey originalProj)
+  -> StreamProjection projKey orderKey state event
+  -> key
+  -> m (StreamProjection projKey orderKey state event)
+getLatestProjectionWithCache' cache projection key = do
+  mLatestState <- loadProjectionSnapshot cache key
   let
     mkProjection' (orderKey, state) =
-      if orderKey > streamProjectionOrderKey originalProj
+      if orderKey > streamProjectionOrderKey projection
       then
-        originalProj
+        projection
         { streamProjectionOrderKey = orderKey
         , streamProjectionState = state
         }
-      else originalProj
-  return $ maybe originalProj mkProjection' mLatestState
+      else projection
+  return $ maybe projection mkProjection' mLatestState
 
 -- | Loads the latest projection state from the cache/store and stores this
 -- value back into the projection cache.
@@ -134,8 +136,9 @@ updateGlobalProjectionCache
   :: (Monad m)
   => GlobalStreamEventStore event m
   -> GlobalStreamProjectionCache key state m
-  -> GlobalStreamProjection key state event
+  -> GlobalStreamProjection state event
+  -> key
   -> m ()
-updateGlobalProjectionCache store cache projection = do
-  StreamProjection{..} <- getLatestGlobalProjectionWithCache store cache projection
-  storeProjectionSnapshot cache streamProjectionKey streamProjectionOrderKey streamProjectionState
+updateGlobalProjectionCache store cache projection key = do
+  StreamProjection{..} <- getLatestGlobalProjectionWithCache store cache projection key
+  storeProjectionSnapshot cache key streamProjectionOrderKey streamProjectionState

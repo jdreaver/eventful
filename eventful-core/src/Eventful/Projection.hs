@@ -68,7 +68,7 @@ data StreamProjection key orderKey state event
   }
 
 type VersionedStreamProjection = StreamProjection UUID EventVersion
-type GlobalStreamProjection key state event = StreamProjection key SequenceNumber state (VersionedStreamEvent event)
+type GlobalStreamProjection state event = StreamProjection () SequenceNumber state (VersionedStreamEvent event)
 
 -- | Initialize a 'StreamProjection' with a 'Projection', key, and order key.
 streamProjection
@@ -88,10 +88,9 @@ versionedStreamProjection uuid = streamProjection uuid (-1)
 
 -- | Initialize a 'GlobalStreamProjection'.
 globalStreamProjection
-  :: key
-  -> Projection state (VersionedStreamEvent event)
-  -> GlobalStreamProjection key state event
-globalStreamProjection key = streamProjection key 0
+  :: Projection state (VersionedStreamEvent event)
+  -> GlobalStreamProjection state event
+globalStreamProjection = streamProjection () 0
 
 -- | Apply an event to the 'StreamProjection'. NOTE: There is no guarantee that
 -- the order key for the event is greater than the current order key in the
@@ -134,16 +133,9 @@ getLatestProjection store = getLatestStreamProjection (getEvents store)
 getLatestGlobalProjection
   :: (Monad m)
   => GlobalStreamEventStore serialized m
-  -> GlobalStreamProjection key state serialized
-  -> m (GlobalStreamProjection key state serialized)
-getLatestGlobalProjection store projection = do
-  let
-    -- This setting the key nonsense is so we can preserve the key for the
-    -- projection while still using the global event store, which uses a key of
-    -- ().
-    projection' = projection { streamProjectionKey = () }
-  projection'' <- getLatestStreamProjection (getGlobalEvents store) projection'
-  return $ projection'' { streamProjectionKey = streamProjectionKey projection }
+  -> GlobalStreamProjection state serialized
+  -> m (GlobalStreamProjection state serialized)
+getLatestGlobalProjection store = getLatestStreamProjection (getGlobalEvents store)
 
 -- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it
 -- uses the @serialized@ type.
