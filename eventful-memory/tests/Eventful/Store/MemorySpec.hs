@@ -28,10 +28,15 @@ spec = do
     sequencedEventStoreSpec embeddedStateStoreGlobalRunner
 
 tvarRunner :: EventStoreRunner STM
-tvarRunner = EventStoreRunner $ \action -> (fst <$> memoryEventStore) >>= atomically . action
+tvarRunner = EventStoreRunner $ \action -> (tvarEventStore <$> eventMapTVar) >>= atomically . action
 
 tvarGlobalRunner :: GloballyOrderedEventStoreRunner STM
-tvarGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> memoryEventStore >>= atomically . uncurry action
+tvarGlobalRunner = GloballyOrderedEventStoreRunner $ \action -> do
+  tvar <- eventMapTVar
+  let
+    store = tvarEventStore tvar
+    globalStore = tvarGloballyOrderedEventStore tvar
+  atomically $ action store globalStore
 
 tvarDynamicRunner :: EventStoreRunner STM
 tvarDynamicRunner = EventStoreRunner $ \action -> (fst <$> makeDynamicTVarStore) >>= atomically . action

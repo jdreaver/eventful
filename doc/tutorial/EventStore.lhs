@@ -107,7 +107,7 @@ import Counter
 counterStoreExample :: IO ()
 counterStoreExample = do
   -- First we need to create our in-memory event store.
-  (store :: EventStore CounterEvent STM, _) <- memoryEventStore
+  store :: EventStore CounterEvent STM <- tvarEventStore <$> eventMapTVar
 
   -- Lets store some events. Note that the 'atomically' functions is how we
   -- execute STM actions.

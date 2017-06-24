@@ -15,7 +15,7 @@ import Eventful.Store.Memory
 main :: IO ()
 main = do
   -- Create the event store and run loop forever
-  (store, _) <- memoryEventStore
+  store <- tvarEventStore <$> eventMapTVar
   forever (readAndHandleCommand store)
 
 readAndHandleCommand :: EventStore CounterEvent STM -> IO ()

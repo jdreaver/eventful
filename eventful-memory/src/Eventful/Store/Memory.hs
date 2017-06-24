@@ -2,13 +2,15 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Eventful.Store.Memory
-  ( memoryEventStore
+  ( tvarEventStore
+  , tvarGloballyOrderedEventStore
   , stateEventStore
   , stateGloballyOrderedEventStore
   , embeddedStateEventStore
   , embeddedStateGloballyOrderedEventStore
   , EventMap
   , emptyEventMap
+  , eventMapTVar
   , module Eventful.Store.Class
   ) where
 
@@ -38,19 +40,28 @@ data EventMap serialized
 emptyEventMap :: EventMap serialized
 emptyEventMap = EventMap Map.empty 0
 
+-- | Initialize an 'EventMap' in a 'TVar'
+eventMapTVar :: IO (TVar (EventMap serialized))
+eventMapTVar = newTVarIO emptyEventMap
+
 -- | An 'EventStore' that stores events in a 'TVar' and runs in 'STM'. This
 -- functions initializes the store by creating the 'TVar' and hooking up the
 -- event store API to that 'TVar'.
-memoryEventStore :: IO (EventStore serialized STM, GloballyOrderedEventStore serialized STM)
-memoryEventStore = do
-  tvar <- newTVarIO emptyEventMap
+tvarEventStore :: TVar (EventMap serialized) -> EventStore serialized STM
+tvarEventStore tvar =
   let
     getLatestVersion uuid = flip latestEventVersion uuid <$> readTVar tvar
     getEvents uuid range = (\s -> lookupEventsInRange s uuid range) <$> readTVar tvar
     storeEvents' uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
     storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  in EventStore{..}
+
+-- | Analog of 'tvarEventStore' for a 'GloballyOrderedEventStore'
+tvarGloballyOrderedEventStore :: TVar (EventMap serialized) -> GloballyOrderedEventStore serialized STM
+tvarGloballyOrderedEventStore tvar =
+  let
     getSequencedEvents range = flip lookupEventMapRange range <$> readTVar tvar
-  return (EventStore{..}, GloballyOrderedEventStore{..})
+  in GloballyOrderedEventStore{..}
 
 -- | Specialized version of 'embeddedStateEventStore' that only contains an
 -- 'EventMap' in the state.

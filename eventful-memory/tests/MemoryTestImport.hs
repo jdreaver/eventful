@@ -15,8 +15,10 @@ import Eventful.TestHelpers
 
 makeDynamicTVarStore :: IO (EventStore CounterEvent STM, GloballyOrderedEventStore CounterEvent STM)
 makeDynamicTVarStore = do
-  (store, globalStore) <- memoryEventStore
+  tvar <- eventMapTVar
   let
+    store = tvarEventStore tvar
+    globalStore = tvarGloballyOrderedEventStore tvar
     store' = serializedEventStore dynamicSerializer store
     globalStore' = serializedGloballyOrderedEventStore dynamicSerializer globalStore
   return (store', globalStore')
