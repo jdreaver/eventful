@@ -69,7 +69,7 @@ data StreamProjection key orderKey state event
   }
 
 type VersionedStreamProjection = StreamProjection UUID EventVersion
-type GlobalStreamProjection state event = StreamProjection () SequenceNumber state (GlobalStreamEvent event)
+type GlobalStreamProjection key state event = StreamProjection key SequenceNumber state (GlobalStreamEvent event)
 
 -- | Initialize a 'StreamProjection' with a 'Projection', key, and order key.
 streamProjection
@@ -89,9 +89,10 @@ versionedStreamProjection uuid = streamProjection uuid (-1)
 
 -- | Initialize a 'GlobalStreamProjection'.
 globalStreamProjection
-  :: Projection state (GlobalStreamEvent event)
-  -> GlobalStreamProjection state event
-globalStreamProjection = streamProjection () 0
+  :: key
+  -> Projection state (GlobalStreamEvent event)
+  -> GlobalStreamProjection key state event
+globalStreamProjection key = streamProjection key 0
 
 -- | Gets the latest projection from a store by using 'getEvents' and then
 -- applying the events using the Projection's event handler.
@@ -120,9 +121,9 @@ getLatestProjection store projection@StreamProjection{..} = do
 -- stores can provide). This function will update the 'GlobalStreamProjetion'
 -- to use the sequence number of the event.
 globalStreamProjectionEventHandler
-  :: GlobalStreamProjection state serialized
+  :: GlobalStreamProjection key state serialized
   -> GlobalStreamEvent serialized
-  -> GlobalStreamProjection state serialized
+  -> GlobalStreamProjection key state serialized
 globalStreamProjectionEventHandler StreamProjection{..} event =
   let
     Projection{..} = streamProjectionProjection
@@ -136,8 +137,8 @@ globalStreamProjectionEventHandler StreamProjection{..} event =
 getLatestGlobalProjection
   :: (Monad m)
   => GlobalStreamEventStore serialized m
-  -> GlobalStreamProjection state serialized
-  -> m (GlobalStreamProjection state serialized)
+  -> GlobalStreamProjection key state serialized
+  -> m (GlobalStreamProjection key state serialized)
 getLatestGlobalProjection store globalProjection@StreamProjection{..} = do
   events <- getGlobalEvents store (eventsStartingAt () $ streamProjectionOrderKey + 1)
   return $ foldl' globalStreamProjectionEventHandler globalProjection events

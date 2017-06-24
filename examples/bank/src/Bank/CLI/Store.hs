@@ -47,7 +47,7 @@ transferManagerHandler :: (MonadIO m) => BankEventHandler m
 transferManagerHandler store _ _ = do
   let
     projection = contramap streamEventEvent $ processManagerProjection transferProcessManager
-    globalProjection = globalStreamProjection projection
+    globalProjection = globalStreamProjection () projection
   StreamProjection{..} <- getLatestGlobalProjection cliGlobalStreamEventStore globalProjection
   applyProcessManagerCommandsAndEvents transferProcessManager store streamProjectionState
 
