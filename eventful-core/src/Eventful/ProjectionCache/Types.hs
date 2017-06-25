@@ -7,7 +7,7 @@ module Eventful.ProjectionCache.Types
   , GlobalStreamProjectionCache
   , runProjectionCacheUsing
   , serializedProjectionCache
-  , getLatestProjectionWithCache
+  , getLatestVersionedProjectionWithCache
   , getLatestGlobalProjectionWithCache
   , updateProjectionCache
   , updateGlobalProjectionCache
@@ -77,16 +77,16 @@ serializedProjectionCache Serializer{..} ProjectionCache{..} =
       mState <- loadProjectionSnapshot uuid
       return $ mState >>= traverse deserialize
 
--- | Like 'getLatestProjection', but uses a 'ProjectionCache' if it contains
+-- | Like 'getLatestVersionedProjection', but uses a 'ProjectionCache' if it contains
 -- more recent state.
-getLatestProjectionWithCache
+getLatestVersionedProjectionWithCache
   :: (Monad m)
   => EventStore event m
   -> VersionedProjectionCache state m
   -> VersionedStreamProjection state event
   -> m (VersionedStreamProjection state event)
-getLatestProjectionWithCache store cache projection =
-  getLatestProjectionWithCache' cache projection (streamProjectionKey projection) >>= getLatestProjection store
+getLatestVersionedProjectionWithCache store cache projection =
+  getLatestProjectionWithCache' cache projection (streamProjectionKey projection) >>= getLatestVersionedProjection store
 
 -- | Like 'getLatestGlobalProjection', but uses a 'ProjectionCache' if it
 -- contains more recent state.
@@ -128,7 +128,7 @@ updateProjectionCache
   -> VersionedStreamProjection state event
   -> m ()
 updateProjectionCache store cache projection = do
-  StreamProjection{..} <- getLatestProjectionWithCache store cache projection
+  StreamProjection{..} <- getLatestVersionedProjectionWithCache store cache projection
   storeProjectionSnapshot cache streamProjectionKey streamProjectionOrderKey streamProjectionState
 
 -- | Analog of 'updateProjectionCache' for a 'GlobalStreamProjectionCache'.

@@ -10,7 +10,7 @@ module Eventful.Projection
   , streamProjection
   , versionedStreamProjection
   , globalStreamProjection
-  , getLatestProjection
+  , getLatestVersionedProjection
   , getLatestGlobalProjection
   , serializedProjection
   , projectionMapMaybe
@@ -120,12 +120,12 @@ getLatestStreamProjection getEvents' projection@StreamProjection{..} = do
 
 -- | Gets the latest projection from a store by using 'getEvents' and then
 -- applying the events using the Projection's event handler.
-getLatestProjection
+getLatestVersionedProjection
   :: (Monad m)
   => EventStore event m
   -> VersionedStreamProjection state event
   -> m (VersionedStreamProjection state event)
-getLatestProjection store = getLatestStreamProjection (getEvents store)
+getLatestVersionedProjection store = getLatestStreamProjection (getEvents store)
 
 -- | Gets globally ordered events from the event store and builds a
 -- 'Projection' based on 'ProjectionEvent'. Optionally accepts the current

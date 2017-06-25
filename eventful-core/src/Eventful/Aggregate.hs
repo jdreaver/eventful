@@ -50,7 +50,7 @@ commandStoredAggregate
   -> command
   -> m [serialized]
 commandStoredAggregate store (Aggregate handler proj) uuid command = do
-  StreamProjection{..} <- getLatestProjection store (versionedStreamProjection uuid proj)
+  StreamProjection{..} <- getLatestVersionedProjection store (versionedStreamProjection uuid proj)
   let events = handler streamProjectionState command
   mError <- storeEvents store (ExactVersion streamProjectionOrderKey) uuid events
   case mError of

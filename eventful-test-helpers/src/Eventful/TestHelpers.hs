@@ -135,7 +135,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
 
     it "should return the latest projection" $ do
       projection <- withStore' $ \store ->
-        getLatestProjection store (versionedStreamProjection nil counterProjection)
+        getLatestVersionedProjection store (versionedStreamProjection nil counterProjection)
       streamProjectionState projection `shouldBe` Counter 7
       streamProjectionOrderKey projection `shouldBe` 3
       streamProjectionKey projection `shouldBe` nil
@@ -144,7 +144,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
       projection <- withStore' $ \store -> do
         initialEvents <- getEvents store (eventsUntil nil 1)
         let initialProjection = latestProjection counterProjection (streamEventEvent <$> initialEvents)
-        getLatestProjection store (StreamProjection nil 1 counterProjection initialProjection)
+        getLatestVersionedProjection store (StreamProjection nil 1 counterProjection initialProjection)
       streamProjectionState projection `shouldBe` Counter 7
       streamProjectionOrderKey projection `shouldBe` 3
       streamProjectionKey projection `shouldBe` nil
@@ -184,8 +184,8 @@ eventStoreSpec (EventStoreRunner withStore) = do
     it "should produce the correct projections" $ do
       (proj1, proj2) <- withStoreExampleEvents $ \store ->
         (,) <$>
-          getLatestProjection store (versionedStreamProjection uuid1 counterProjection) <*>
-          getLatestProjection store (versionedStreamProjection uuid2 counterProjection)
+          getLatestVersionedProjection store (versionedStreamProjection uuid1 counterProjection) <*>
+          getLatestVersionedProjection store (versionedStreamProjection uuid2 counterProjection)
       (streamProjectionState proj1, streamProjectionOrderKey proj1) `shouldBe` (Counter 5, 1)
       (streamProjectionState proj2, streamProjectionOrderKey proj2) `shouldBe` (Counter 10, 2)
 
@@ -295,7 +295,7 @@ versionedProjectionCacheSpec (VersionedProjectionCacheRunner withStoreAndCache) 
     it "should load from a stream of events" $ do
       snapshot <- withStoreAndCache $ \store cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2]
-        getLatestProjectionWithCache store cache (versionedStreamProjection nil counterProjection)
+        getLatestVersionedProjectionWithCache store cache (versionedStreamProjection nil counterProjection)
       streamProjectionOrderKey snapshot `shouldBe` 1
       streamProjectionState snapshot `shouldBe` Counter 3
 
@@ -303,7 +303,7 @@ versionedProjectionCacheSpec (VersionedProjectionCacheRunner withStoreAndCache) 
       snapshot <- withStoreAndCache $ \store cache -> do
         _ <- storeEvents store AnyVersion nil [Added 1, Added 2, Added 3]
         updateProjectionCache store cache (versionedStreamProjection nil counterProjection)
-        getLatestProjectionWithCache store cache (versionedStreamProjection nil counterProjection)
+        getLatestVersionedProjectionWithCache store cache (versionedStreamProjection nil counterProjection)
       streamProjectionKey snapshot `shouldBe` nil
       streamProjectionOrderKey snapshot `shouldBe` 2
       streamProjectionState snapshot `shouldBe` Counter 6
