@@ -244,6 +244,17 @@ globalStreamEventStoreSpec (GlobalStreamEventStoreRunner withStore) = do
       (streamEventOrderKey . streamEventEvent <$> events) `shouldBe` [0, 0, 1, 1, 2]
       (streamEventOrderKey <$> events) `shouldBe` [1..5]
 
+    it "should work with global projections" $ do
+      (proj1, proj2) <- withStore $ \store globalStore -> do
+        insertExampleEvents store
+        p1 <- getLatestGlobalProjection globalStore (globalStreamProjection counterGlobalProjection)
+        _ <- storeEvents store AnyVersion uuid1 [Added 10, Added 20]
+        p2 <- getLatestGlobalProjection globalStore p1
+        return (p1, p2)
+
+      streamProjectionOrderKey proj1 `shouldBe` 5
+      streamProjectionOrderKey proj2 `shouldBe` 7
+
     it "should handle queries" $ do
       (firstEvents, middleEvents, laterEvents, maxEvents) <- withStore $ \store globalStore -> do
         insertExampleEvents store
@@ -254,9 +265,13 @@ globalStreamEventStoreSpec (GlobalStreamEventStoreRunner withStore) = do
           getGlobalEvents globalStore (eventsStartingAtTakeLimit () 2 3)
 
       (streamEventEvent . streamEventEvent <$> firstEvents) `shouldBe` Added <$> [1..2]
+      (streamEventOrderKey <$> firstEvents) `shouldBe` [1..2]
       (streamEventEvent . streamEventEvent <$> middleEvents) `shouldBe` Added <$> [2..3]
+      (streamEventOrderKey <$> middleEvents) `shouldBe` [2..3]
       (streamEventEvent . streamEventEvent <$> laterEvents) `shouldBe` Added <$> [3..5]
+      (streamEventOrderKey <$> laterEvents) `shouldBe` [3..5]
       (streamEventEvent . streamEventEvent <$> maxEvents) `shouldBe` Added <$> [2..4]
+      (streamEventOrderKey <$> maxEvents) `shouldBe` [2..4]
 
 insertExampleEvents
   :: (Monad m)

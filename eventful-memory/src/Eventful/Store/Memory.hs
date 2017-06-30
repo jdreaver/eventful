@@ -139,7 +139,11 @@ lookupGlobalEvents (QueryRange () start limit) (EventMap _ globalEvents) = event
     start' = unSequenceNumber <$> start
     limit' = unSequenceNumber <$> limit
     events = toList $ filterEventsByRange start' limit' 1 globalEvents
-    events' = zipWith (StreamEvent ()) [1..] events
+    events' = zipWith (StreamEvent ()) [startingSeqNum..] events
+    startingSeqNum =
+      case start of
+        StartFromBeginning -> 1
+        (StartQueryAt startSeq) -> startSeq
 
 storeEventMap
   :: EventMap serialized -> UUID -> [serialized] -> EventMap serialized
