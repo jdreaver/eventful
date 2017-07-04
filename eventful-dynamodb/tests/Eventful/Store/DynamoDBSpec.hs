@@ -16,23 +16,23 @@ spec = do
   describe "DynamoDB event store" $ do
     eventStoreSpec dynamoRunner
 
-makeStore :: IO (EventStore CounterEvent AWS, Env)
+makeStore :: IO (EventStoreWriter AWS CounterEvent, VersionedEventStoreReader AWS CounterEvent, Env)
 makeStore = do
   let
     dynamo = setEndpoint False "localhost" 8000 dynamoDB
   env <- newEnv Discover <&> configure dynamo
 
   let
-    store = dynamoDBEventStore defaultDynamoDBEventStoreConfig
-    store' = serializedEventStore jsonSerializer store
+    writer = serializedEventStoreWriter jsonSerializer $ dynamoDBEventStoreWriter defaultDynamoDBEventStoreConfig
+    reader = serializedVersionedEventStoreReader jsonSerializer $ dynamoDBEventStoreReader defaultDynamoDBEventStoreConfig
   liftIO $ runResourceT . runAWS env $ do
     -- Delete and recreate table
     deleteDynamoDBEventStoreTable defaultDynamoDBEventStoreConfig
     initializeDynamoDBEventStore defaultDynamoDBEventStoreConfig (provisionedThroughput 1 1)
 
-  return (store', env)
+  return (writer, reader, env)
 
 dynamoRunner :: EventStoreRunner AWS
 dynamoRunner = EventStoreRunner $ \action -> do
-  (store, env) <- makeStore
-  runResourceT $ runAWS env (action store)
+  (writer, reader, env) <- makeStore
+  runResourceT $ runAWS env (action writer reader)

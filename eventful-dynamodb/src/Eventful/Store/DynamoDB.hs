@@ -2,7 +2,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Eventful.Store.DynamoDB
-  ( dynamoDBEventStore
+  ( dynamoDBEventStoreReader
+  , dynamoDBEventStoreWriter
   , DynamoDBEventStoreConfig (..)
   , defaultDynamoDBEventStoreConfig
   , initializeDynamoDBEventStore
@@ -53,18 +54,20 @@ defaultDynamoDBEventStoreConfig =
   , dynamoDBEventStoreConfigValueToSerialized = attributeValueToValue
   }
 
--- | An 'EventStore' that uses AWS DynamoDB as the storage backend. Use a
+-- | An 'EventStoreReader' that uses AWS DynamoDB as the storage backend. Use a
 -- 'DynamoDBEventStoreConfig' to configure this event store.
-dynamoDBEventStore
+dynamoDBEventStoreReader
   :: DynamoDBEventStoreConfig serialized
-  -> EventStore serialized AWS
-dynamoDBEventStore config =
-  let
+  -> VersionedEventStoreReader AWS serialized
+dynamoDBEventStoreReader config = EventStoreReader $ getDynamoEvents config
+
+dynamoDBEventStoreWriter
+  :: DynamoDBEventStoreConfig serialized
+  -> EventStoreWriter AWS serialized
+dynamoDBEventStoreWriter config = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  where
     getLatestVersion = latestEventVersion config
-    getEvents = getDynamoEvents config
     storeEvents' = storeDynamoEvents config
-    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
-  in EventStore{..}
 
 getDynamoEvents
   :: (MonadAWS m)
