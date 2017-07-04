@@ -3,7 +3,6 @@ module Eventful
   ) where
 
 import Eventful.Aggregate as X
-import Eventful.EventBus as X
 import Eventful.Projection as X
 import Eventful.ProjectionCache.Types as X
 import Eventful.ProcessManager as X

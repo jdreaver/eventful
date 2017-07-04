@@ -1,21 +1,27 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Eventful.Store.Class
   ( -- * EventStore
-    EventStore (..)
+    EventStoreReader (..)
+  , EventStoreWriter (..)
+  , VersionedEventStoreReader
+  , GlobalEventStoreReader
+  , StreamEvent (..)
   , VersionedStreamEvent
-  , GlobalStreamEventStore (..)
   , GlobalStreamEvent
   , ExpectedVersion (..)
   , EventWriteError (..)
-  , runEventStoreUsing
-  , runGlobalStreamEventStoreUsing
+  , runEventStoreReaderUsing
+  , runEventStoreWriterUsing
   , module Eventful.Store.Queries
     -- * Serialization
-  , serializedEventStore
-  , serializedGlobalStreamEventStore
+  , serializedEventStoreReader
+  , serializedEventStoreWriter
     -- * Utility types
   , EventVersion (..)
   , SequenceNumber (..)
@@ -32,29 +38,32 @@ import Eventful.Serializer
 import Eventful.Store.Queries
 import Eventful.UUID
 
--- | The 'EventStore' is the core type of eventful. A store operates in some
--- monad @m@ and stores events by serializing them to the type @serialized@.
-data EventStore serialized m
-  = EventStore
-  { getEvents :: QueryRange UUID EventVersion -> m [VersionedStreamEvent serialized]
-    -- ^ Retrieves all the events for a given 'Projection' using that
-    -- projection's UUID. If an event version is provided then all events with
-    -- a version greater than or equal to that version are returned.
-  , storeEvents :: ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
-    -- ^ Stores the events for a given 'Projection' using that projection's
-    -- UUID.
-  }
+-- | An 'EventStoreReader' is a function to query a stream from an event store.
+-- It operates in some monad @m@ and returns events of type @event@ from a
+-- stream at @key@ ordered by @position@.
+newtype EventStoreReader key position m event = EventStoreReader { getEvents :: QueryRange key position -> m [event] }
 
--- | Gets all the events ordered starting with a given 'SequenceNumber', and
--- ordered by 'SequenceNumber'. This is used when replaying all the events in a
--- store.
-newtype GlobalStreamEventStore serialized m =
-  GlobalStreamEventStore
-  { getGlobalEvents :: QueryRange () SequenceNumber -> m [GlobalStreamEvent serialized]
-  }
+instance (Functor m) => Functor (EventStoreReader key position m) where
+  fmap f (EventStoreReader reader) = EventStoreReader $ fmap (fmap f) <$> reader
 
-type VersionedStreamEvent serialized = StreamEvent UUID EventVersion serialized
-type GlobalStreamEvent serialized = StreamEvent () SequenceNumber (VersionedStreamEvent serialized)
+type VersionedEventStoreReader m event = EventStoreReader UUID EventVersion m (VersionedStreamEvent event)
+type GlobalEventStoreReader m event = EventStoreReader () SequenceNumber m (GlobalStreamEvent event)
+
+-- | An 'EventStoreWriter' is a function to write some events of type @event@
+-- to an event store in some monad @m@.
+newtype EventStoreWriter m event = EventStoreWriter { storeEvents :: ExpectedVersion -> UUID -> [event] -> m (Maybe EventWriteError) }
+
+-- | An event along with the @key@ for the event stream it is from and its
+-- @position@ in that event stream.
+data StreamEvent key position event
+  = StreamEvent
+  { streamEventKey :: !key
+  , streamEventPosition :: !position
+  , streamEventEvent :: !event
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
+
+type VersionedStreamEvent event = StreamEvent UUID EventVersion event
+type GlobalStreamEvent event = StreamEvent () SequenceNumber (VersionedStreamEvent event)
 
 -- | ExpectedVersion is used to assert the event stream is at a certain version
 -- number. This is used when multiple writers are concurrently writing to the
@@ -80,8 +89,8 @@ data EventWriteError
 transactionalExpectedWriteHelper
   :: (Monad m)
   => (UUID -> m EventVersion)
-  -> (UUID -> [serialized] -> m ())
-  -> ExpectedVersion -> UUID -> [serialized] -> m (Maybe EventWriteError)
+  -> (UUID -> [event] -> m ())
+  -> ExpectedVersion -> UUID -> [event] -> m (Maybe EventWriteError)
 transactionalExpectedWriteHelper getLatestVersion' storeEvents' expected =
   go expected getLatestVersion' storeEvents'
   where
@@ -94,8 +103,8 @@ transactionalExpectedWriteHelper'
   :: (Monad m)
   => Maybe (EventVersion -> Bool)
   -> (UUID -> m EventVersion)
-  -> (UUID -> [serialized] -> m ())
-  -> UUID -> [serialized] -> m (Maybe EventWriteError)
+  -> (UUID -> [event] -> m ())
+  -> UUID -> [event] -> m (Maybe EventWriteError)
 transactionalExpectedWriteHelper' Nothing _ storeEvents' uuid events =
   storeEvents' uuid events >> return Nothing
 transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid events = do
@@ -104,57 +113,43 @@ transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid e
   then storeEvents' uuid events >> return Nothing
   else return $ Just $ EventStreamNotAtExpectedVersion latestVersion
 
--- | Changes the monad an 'EventStore' runs in. This is useful to run event
--- stores in another 'Monad' while forgetting the original 'Monad'.
-runEventStoreUsing
+-- | Changes the monad an 'EventStoreReader' runs in. This is useful to run
+-- event stores in another 'Monad' while forgetting the original 'Monad'.
+runEventStoreReaderUsing
   :: (Monad m, Monad mstore)
   => (forall a. mstore a -> m a)
-  -> EventStore serialized mstore
-  -> EventStore serialized m
-runEventStoreUsing runStore EventStore{..} =
-  EventStore
-  { getEvents = runStore . getEvents
-  , storeEvents = \vers uuid events -> runStore $ storeEvents vers uuid events
-  }
+  -> EventStoreReader key position mstore event
+  -> EventStoreReader key position m event
+runEventStoreReaderUsing runStore (EventStoreReader f) = EventStoreReader (runStore . f)
 
--- | Analog of 'runEventStoreUsing' for a 'GlobalStreamEventStore'.
-runGlobalStreamEventStoreUsing
+-- | Analog of 'runEventStoreReaderUsing' for a 'EventStoreWriter'.
+runEventStoreWriterUsing
   :: (Monad m, Monad mstore)
   => (forall a. mstore a -> m a)
-  -> GlobalStreamEventStore serialized mstore
-  -> GlobalStreamEventStore serialized m
-runGlobalStreamEventStoreUsing runStore GlobalStreamEventStore{..} =
-  GlobalStreamEventStore
-  { getGlobalEvents = runStore . getGlobalEvents
-  }
+  -> EventStoreWriter mstore event
+  -> EventStoreWriter m event
+runEventStoreWriterUsing runStore (EventStoreWriter f) =
+  EventStoreWriter $ \vers uuid events -> runStore $ f vers uuid events
 
--- | Wraps an 'EventStore' and transparently serializes/deserializes events for
--- you. Note that in this implementation deserialization errors when using
--- 'getEvents' are simply ignored (the event is not returned).
-serializedEventStore
+-- | Wraps an 'EventStoreReader' and transparently serializes/deserializes
+-- events for you. Note that in this implementation deserialization errors are
+-- simply ignored (the event is not returned).
+serializedEventStoreReader
   :: (Monad m)
   => Serializer event serialized
-  -> EventStore serialized m
-  -> EventStore event m
-serializedEventStore Serializer{..} store =
-  EventStore
-  getEvents'
-  storeEvents'
-  where
-    getEvents' range = mapMaybe (traverse deserialize) <$> getEvents store range
-    storeEvents' expectedVersion uuid events = storeEvents store expectedVersion uuid (serialize <$> events)
+  -> EventStoreReader key position m serialized
+  -> EventStoreReader key position m event
+serializedEventStoreReader Serializer{..} (EventStoreReader reader) =
+  EventStoreReader $ fmap (mapMaybe deserialize) . reader
 
--- | Like 'serializedEventStore' except for 'GlobalStreamEventStore'.
-serializedGlobalStreamEventStore
+-- | Like 'serializedEventStoreReader' but for an 'EventStoreWriter'
+serializedEventStoreWriter
   :: (Monad m)
   => Serializer event serialized
-  -> GlobalStreamEventStore serialized m
-  -> GlobalStreamEventStore event m
-serializedGlobalStreamEventStore Serializer{..} store =
-  GlobalStreamEventStore getGlobalEvents'
-  where
-    getGlobalEvents' sequenceNumber =
-      mapMaybe (traverse (traverse deserialize)) <$> getGlobalEvents store sequenceNumber
+  -> EventStoreWriter m serialized
+  -> EventStoreWriter m event
+serializedEventStoreWriter Serializer{..} store =
+  EventStoreWriter $ \expectedVersion uuid events -> storeEvents store expectedVersion uuid (serialize <$> events)
 
 -- | Event versions are a strictly increasing series of integers for each
 -- projection. They allow us to order the events when they are replayed, and

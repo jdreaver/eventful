@@ -1,6 +1,4 @@
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Eventful.Store.Queries
@@ -12,7 +10,6 @@ module Eventful.Store.Queries
   , eventsStartingAt
   , eventsStartingAtUntil
   , eventsStartingAtTakeLimit
-  , StreamEvent (..)
   ) where
 
 -- | This type defines how to query an event stream. It defines the stream key
@@ -51,12 +48,3 @@ eventsStartingAtUntil key start end = QueryRange key (StartQueryAt start) (StopQ
 
 eventsStartingAtTakeLimit :: key -> position -> Int -> QueryRange key position
 eventsStartingAtTakeLimit key start maxNum = QueryRange key (StartQueryAt start) (MaxNumberOfEvents maxNum)
-
--- | An event along with the @key@ for the event stream it is from and its
--- @position@ in that event stream.
-data StreamEvent key position event
-  = StreamEvent
-  { streamEventKey :: !key
-  , streamEventPosition :: !position
-  , streamEventEvent :: !event
-  } deriving (Show, Eq, Functor, Foldable, Traversable)

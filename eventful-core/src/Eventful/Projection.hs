@@ -10,8 +10,7 @@ module Eventful.Projection
   , streamProjection
   , versionedStreamProjection
   , globalStreamProjection
-  , getLatestVersionedProjection
-  , getLatestGlobalProjection
+  , getLatestStreamProjection
   , serializedProjection
   , projectionMapMaybe
   ) where
@@ -111,31 +110,12 @@ streamProjectionEventHandler StreamProjection{..} event =
 -- order key and then applying the events using the Projection's event handler.
 getLatestStreamProjection
   :: (Monad m, Num position)
-  => (QueryRange key position -> m [StreamEvent key position event])
+  => EventStoreReader key position m (StreamEvent key position event)
   -> StreamProjection key position state event
   -> m (StreamProjection key position state event)
-getLatestStreamProjection getEvents' projection@StreamProjection{..} = do
+getLatestStreamProjection (EventStoreReader getEvents') projection@StreamProjection{..} = do
   events <- getEvents' (eventsStartingAt streamProjectionKey $ streamProjectionPosition + 1)
   return $ foldl' streamProjectionEventHandler projection events
-
--- | Gets the latest projection from a store by using 'getEvents' and then
--- applying the events using the Projection's event handler.
-getLatestVersionedProjection
-  :: (Monad m)
-  => EventStore event m
-  -> VersionedStreamProjection state event
-  -> m (VersionedStreamProjection state event)
-getLatestVersionedProjection store = getLatestStreamProjection (getEvents store)
-
--- | Gets globally ordered events from the event store and builds a
--- 'Projection' based on 'ProjectionEvent'. Optionally accepts the current
--- projection state as an argument.
-getLatestGlobalProjection
-  :: (Monad m)
-  => GlobalStreamEventStore serialized m
-  -> GlobalStreamProjection state serialized
-  -> m (GlobalStreamProjection state serialized)
-getLatestGlobalProjection store = getLatestStreamProjection (getGlobalEvents store)
 
 -- | Use a 'Serializer' to wrap a 'Projection' with event type @event@ so it
 -- uses the @serialized@ type.

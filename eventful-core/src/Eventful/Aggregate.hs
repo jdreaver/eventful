@@ -44,15 +44,16 @@ allAggregateStates (Aggregate commandHandler (Projection seed eventHandler)) eve
 -- saves the events back to the store as well.
 commandStoredAggregate
   :: (Monad m)
-  => EventStore serialized m
-  -> Aggregate state serialized command
+  => EventStoreWriter m event
+  -> VersionedEventStoreReader m event
+  -> Aggregate state event command
   -> UUID
   -> command
-  -> m [serialized]
-commandStoredAggregate store (Aggregate handler proj) uuid command = do
-  StreamProjection{..} <- getLatestVersionedProjection store (versionedStreamProjection uuid proj)
+  -> m [event]
+commandStoredAggregate writer reader (Aggregate handler proj) uuid command = do
+  StreamProjection{..} <- getLatestStreamProjection reader (versionedStreamProjection uuid proj)
   let events = handler streamProjectionState command
-  mError <- storeEvents store (ExactVersion streamProjectionPosition) uuid events
+  mError <- storeEvents writer (ExactVersion streamProjectionPosition) uuid events
   case mError of
     (Just err) -> error $ "TODO: Create aggregate restart logic. " ++ show err
     Nothing -> return events
