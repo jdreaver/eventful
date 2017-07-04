@@ -15,16 +15,19 @@ import Eventful.Store.Memory
 main :: IO ()
 main = do
   -- Create the event store and run loop forever
-  store <- tvarEventStore <$> eventMapTVar
-  forever (readAndHandleCommand store)
+  tvar <- eventMapTVar
+  let
+    writer = tvarEventStoreWriter tvar
+    reader = tvarEventStoreReader tvar
+  forever (readAndHandleCommand writer reader)
 
-readAndHandleCommand :: EventStore CounterEvent STM -> IO ()
-readAndHandleCommand store = do
+readAndHandleCommand :: EventStoreWriter STM CounterEvent -> VersionedEventStoreReader STM CounterEvent -> IO ()
+readAndHandleCommand writer reader = do
   -- Just use the nil uuid for everything
   let uuid = nil
 
   -- Get current state and print it out
-  latestStreamProjection <- atomically $ getLatestVersionedProjection store (versionedStreamProjection uuid counterProjection)
+  latestStreamProjection <- atomically $ getLatestStreamProjection reader (versionedStreamProjection uuid counterProjection)
   let
     currentState = streamProjectionState latestStreamProjection
   putStrLn $ "Current state: " ++ show currentState
@@ -39,7 +42,7 @@ readAndHandleCommand store = do
     (Just command) -> do
       let events = aggregateCommandHandler counterAggregate currentState command
       putStrLn $ "Events generated: " ++ show events
-      void . atomically $ storeEvents store AnyVersion uuid events
+      void . atomically $ storeEvents writer AnyVersion uuid events
 
   putStrLn ""
 
