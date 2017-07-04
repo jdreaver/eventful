@@ -2,8 +2,9 @@
 
 module Bank.CLI.Store
   ( runDB
-  , cliEventStore
-  , cliGlobalStreamEventStore
+  , cliEventStoreReader
+  , cliEventStoreWriter
+  , cliGlobalEventStoreReader
   , printJSONPretty
   ) where
 
@@ -22,33 +23,35 @@ import Bank.ProcessManagers.TransferManager
 runDB :: ConnectionPool -> SqlPersistT IO a -> IO a
 runDB = flip runSqlPool
 
-cliEventStore :: (MonadIO m) => EventStore BankEvent (SqlPersistT m)
-cliEventStore = synchronousEventBusWrapper store handlers
+cliEventStoreReader :: (MonadIO m) => VersionedEventStoreReader (SqlPersistT m) BankEvent
+cliEventStoreReader = serializedVersionedEventStoreReader jsonStringSerializer $ sqlEventStoreReader defaultSqlEventStoreConfig
+
+cliEventStoreWriter :: (MonadIO m) => EventStoreWriter (SqlPersistT m) BankEvent
+cliEventStoreWriter = synchronousEventBusWrapper writer handlers
   where
-    sqlStore = sqliteEventStore defaultSqlEventStoreConfig
-    store = serializedEventStore jsonStringSerializer sqlStore
+    sqlStore = sqliteEventStoreWriter defaultSqlEventStoreConfig
+    writer = serializedEventStoreWriter jsonStringSerializer sqlStore
     handlers =
       [ eventPrinter
       , transferManagerHandler
       ]
 
-cliGlobalStreamEventStore :: (MonadIO m) => GlobalStreamEventStore BankEvent (SqlPersistT m)
-cliGlobalStreamEventStore =
-  serializedGlobalStreamEventStore jsonStringSerializer
-    (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
+cliGlobalEventStoreReader :: (MonadIO m) => GlobalEventStoreReader (SqlPersistT m) BankEvent
+cliGlobalEventStoreReader =
+  serializedGlobalEventStoreReader jsonStringSerializer (sqlGlobalEventStoreReader defaultSqlEventStoreConfig)
 
-type BankEventHandler m = EventStore BankEvent (SqlPersistT m) -> UUID -> BankEvent -> SqlPersistT m ()
+type BankEventHandler m = EventStoreWriter (SqlPersistT m) BankEvent -> UUID -> BankEvent -> SqlPersistT m ()
 
 eventPrinter :: (MonadIO m) => BankEventHandler m
 eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)
 
 transferManagerHandler :: (MonadIO m) => BankEventHandler m
-transferManagerHandler store _ _ = do
+transferManagerHandler writer _ _ = do
   let
     projection = processManagerProjection transferProcessManager
     globalProjection = globalStreamProjection projection
-  StreamProjection{..} <- getLatestGlobalProjection cliGlobalStreamEventStore globalProjection
-  applyProcessManagerCommandsAndEvents transferProcessManager store streamProjectionState
+  StreamProjection{..} <- getLatestStreamProjection cliGlobalEventStoreReader globalProjection
+  applyProcessManagerCommandsAndEvents transferProcessManager writer cliEventStoreReader streamProjectionState
 
 printJSONPretty :: (ToJSON a) => a -> IO ()
 printJSONPretty = BSL.putStrLn . encodePretty' (defConfig { confIndent = Spaces 2 })
