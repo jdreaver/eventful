@@ -32,6 +32,7 @@ module Eventful.Store.Class
   ) where
 
 import Data.Aeson
+import Data.Functor.Contravariant
 import Data.Maybe (mapMaybe)
 import Web.HttpApiData
 import Web.PathPieces
@@ -54,6 +55,9 @@ type GlobalEventStoreReader m event = EventStoreReader () SequenceNumber m (Glob
 -- | An 'EventStoreWriter' is a function to write some events of type @event@
 -- to an event store in some monad @m@.
 newtype EventStoreWriter m event = EventStoreWriter { storeEvents :: ExpectedVersion -> UUID -> [event] -> m (Maybe EventWriteError) }
+
+instance Contravariant (EventStoreWriter m) where
+  contramap f (EventStoreWriter writer) = EventStoreWriter $ \vers uuid -> writer vers uuid . fmap f
 
 -- | An event along with the @key@ for the event stream it is from and its
 -- @position@ in that event stream.
@@ -151,8 +155,7 @@ serializedVersionedEventStoreReader
   => Serializer event serialized
   -> VersionedEventStoreReader m serialized
   -> VersionedEventStoreReader m event
-serializedVersionedEventStoreReader serializer reader =
-  serializedEventStoreReader (traverseSerializer serializer) reader
+serializedVersionedEventStoreReader serializer = serializedEventStoreReader (traverseSerializer serializer)
 
 -- | Convenience wrapper around 'serializedEventStoreReader' for
 -- 'GlobalEventStoreReader'.
@@ -161,17 +164,17 @@ serializedGlobalEventStoreReader
   => Serializer event serialized
   -> GlobalEventStoreReader m serialized
   -> GlobalEventStoreReader m event
-serializedGlobalEventStoreReader serializer reader =
-  serializedEventStoreReader (traverseSerializer (traverseSerializer serializer)) reader
+serializedGlobalEventStoreReader serializer = serializedEventStoreReader (traverseSerializer (traverseSerializer serializer))
 
--- | Like 'serializedEventStoreReader' but for an 'EventStoreWriter'
+-- | Like 'serializedEventStoreReader' but for an 'EventStoreWriter'. Note that
+-- 'EventStoreWriter' is an instance of 'Contravariant', so you can just use
+-- @contramap serialize@ instead of this function.
 serializedEventStoreWriter
   :: (Monad m)
   => Serializer event serialized
   -> EventStoreWriter m serialized
   -> EventStoreWriter m event
-serializedEventStoreWriter Serializer{..} store =
-  EventStoreWriter $ \expectedVersion uuid events -> storeEvents store expectedVersion uuid (serialize <$> events)
+serializedEventStoreWriter Serializer{..} = contramap serialize
 
 -- | Event versions are a strictly increasing series of integers for each
 -- projection. They allow us to order the events when they are replayed, and
