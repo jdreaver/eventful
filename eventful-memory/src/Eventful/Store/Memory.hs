@@ -1,13 +1,15 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Eventful.Store.Memory
-  ( tvarEventStore
-  , tvarGlobalStreamEventStore
-  , stateEventStore
-  , stateGlobalStreamEventStore
-  , embeddedStateEventStore
-  , embeddedStateGlobalStreamEventStore
+  ( tvarEventStoreReader
+  , tvarEventStoreWriter
+  , tvarGlobalEventStoreReader
+  , stateEventStoreReader
+  , stateEventStoreWriter
+  , stateGlobalEventStoreReader
+  , embeddedStateEventStoreReader
+  , embeddedStateEventStoreWriter
+  , embeddedStateGlobalEventStoreReader
   , EventMap
   , emptyEventMap
   , eventMapTVar
@@ -27,89 +29,91 @@ import Eventful.Store.Class
 import Eventful.UUID
 
 -- | Internal data structure used for the in-memory event stores.
-data EventMap serialized
+data EventMap event
   = EventMap
-  { _eventMapUuidMap :: Map UUID (Seq (VersionedStreamEvent serialized))
-  , _eventMapGlobalEvents :: Seq (VersionedStreamEvent serialized)
+  { _eventMapUuidMap :: Map UUID (Seq (VersionedStreamEvent event))
+  , _eventMapGlobalEvents :: Seq (VersionedStreamEvent event)
   }
   deriving (Show)
 
 -- | What it says on the tin, an initialized empty 'EventMap'
-emptyEventMap :: EventMap serialized
+emptyEventMap :: EventMap event
 emptyEventMap = EventMap Map.empty Seq.empty
 
 -- | Initialize an 'EventMap' in a 'TVar'
-eventMapTVar :: IO (TVar (EventMap serialized))
+eventMapTVar :: IO (TVar (EventMap event))
 eventMapTVar = newTVarIO emptyEventMap
 
--- | An 'EventStore' that stores events in a 'TVar' and runs in 'STM'. This
--- functions initializes the store by creating the 'TVar' and hooking up the
--- event store API to that 'TVar'.
-tvarEventStore :: TVar (EventMap serialized) -> EventStore serialized STM
-tvarEventStore tvar =
-  let
+-- | An 'EventStoreReader' that stores events in a 'TVar' and runs in 'STM'.
+-- This functions initializes the store by creating the 'TVar' and hooking up
+-- the event store API to that 'TVar'.
+tvarEventStoreReader :: TVar (EventMap event) -> VersionedEventStoreReader STM event
+tvarEventStoreReader tvar = EventStoreReader $ \range -> lookupEventsInRange range <$> readTVar tvar
+
+tvarEventStoreWriter :: TVar (EventMap event) -> EventStoreWriter STM event
+tvarEventStoreWriter tvar = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  where
     getLatestVersion uuid = flip latestEventVersion uuid <$> readTVar tvar
-    getEvents range = lookupEventsInRange range <$> readTVar tvar
     storeEvents' uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
-    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
-  in EventStore{..}
 
--- | Analog of 'tvarEventStore' for a 'GlobalStreamEventStore'
-tvarGlobalStreamEventStore :: TVar (EventMap serialized) -> GlobalStreamEventStore serialized STM
-tvarGlobalStreamEventStore tvar =
-  let
-    getGlobalEvents range = lookupGlobalEvents range <$> readTVar tvar
-  in GlobalStreamEventStore{..}
+-- | Analog of 'tvarEventStoreReader' for a 'GlobalEventStoreReader'
+tvarGlobalEventStoreReader :: TVar (EventMap event) ->  GlobalEventStoreReader STM event
+tvarGlobalEventStoreReader tvar = EventStoreReader $ \range -> lookupGlobalEvents range <$> readTVar tvar
 
--- | Specialized version of 'embeddedStateEventStore' that only contains an
+-- | Specialized version of 'embeddedStateEventStoreReader' that only contains an
 -- 'EventMap' in the state.
-stateEventStore
-  :: (MonadState (EventMap serialized) m)
-  => EventStore serialized m
-stateEventStore = embeddedStateEventStore id (flip const)
+stateEventStoreReader
+  :: (MonadState (EventMap event) m)
+  => VersionedEventStoreReader m event
+stateEventStoreReader = embeddedStateEventStoreReader id
+
+stateGlobalEventStoreReader
+  :: (MonadState (EventMap event) m)
+  => GlobalEventStoreReader m event
+stateGlobalEventStoreReader = embeddedStateGlobalEventStoreReader id
+
+-- | Specialized version of 'embeddedStateEventStoreWriter' that only contains an
+-- 'EventMap' in the state.
+stateEventStoreWriter
+  :: (MonadState (EventMap event) m)
+  => EventStoreWriter m event
+stateEventStoreWriter = embeddedStateEventStoreWriter id (flip const)
 
 -- | An 'EventStore' that runs on some 'MonadState' that contains an
 -- 'EventMap'. This is useful if you want to include other state in your
 -- 'MonadState'.
-embeddedStateEventStore
+embeddedStateEventStoreReader
   :: (MonadState s m)
-  => (s -> EventMap serialized)
-  -> (s -> EventMap serialized -> s)
-  -> EventStore serialized m
-embeddedStateEventStore getMap setMap =
-  let
-    getLatestVersion uuid = flip latestEventVersion uuid <$> gets getMap
-    getEvents range = lookupEventsInRange range <$> gets getMap
-    storeEvents' uuid events = modify' (modifyStore uuid events)
-    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
-  in EventStore{..}
+  => (s -> EventMap event)
+  -> VersionedEventStoreReader m event
+embeddedStateEventStoreReader getMap = EventStoreReader $ \range -> lookupEventsInRange range <$> gets getMap
+
+embeddedStateEventStoreWriter
+  :: (MonadState s m)
+  => (s -> EventMap event)
+  -> (s -> EventMap event -> s)
+  -> EventStoreWriter m event
+embeddedStateEventStoreWriter getMap setMap = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
+    getLatestVersion uuid = flip latestEventVersion uuid <$> gets getMap
+    storeEvents' uuid events = modify' (modifyStore uuid events)
     modifyStore uuid events state' =
       let
         store = getMap state'
         store' = storeEventMap store uuid events
       in setMap state' store'
 
--- | Analogous to 'stateEventStore' for a 'GlobalStreamEventStore'.
-stateGlobalStreamEventStore
-  :: (MonadState (EventMap serialized) m)
-  => GlobalStreamEventStore serialized m
-stateGlobalStreamEventStore = embeddedStateGlobalStreamEventStore id
-
 -- | Analogous to 'embeddedStateEventStore' for a 'GlobalStreamEventStore'.
-embeddedStateGlobalStreamEventStore
+embeddedStateGlobalEventStoreReader
   :: (MonadState s m)
-  => (s -> EventMap serialized)
-  -> GlobalStreamEventStore serialized m
-embeddedStateGlobalStreamEventStore getMap =
-  let
-    getGlobalEvents range = lookupGlobalEvents range <$> gets getMap
-  in GlobalStreamEventStore{..}
+  => (s -> EventMap event)
+  -> GlobalEventStoreReader m event
+embeddedStateGlobalEventStoreReader getMap = EventStoreReader $ \range -> lookupGlobalEvents range <$> gets getMap
 
-lookupEventMapRaw :: EventMap serialized -> UUID -> Seq (VersionedStreamEvent serialized)
+lookupEventMapRaw :: EventMap event -> UUID -> Seq (VersionedStreamEvent event)
 lookupEventMapRaw (EventMap uuidMap _) uuid = fromMaybe Seq.empty $ Map.lookup uuid uuidMap
 
-lookupEventsInRange :: QueryRange UUID EventVersion -> EventMap serialized -> [VersionedStreamEvent serialized]
+lookupEventsInRange :: QueryRange UUID EventVersion -> EventMap event -> [VersionedStreamEvent event]
 lookupEventsInRange (QueryRange uuid start limit) store = toList $ filterEventsByRange start' limit' 0 rawEvents
   where
     start' = unEventVersion <$> start
@@ -130,10 +134,10 @@ filterEventsByRange queryStart queryLimit defaultStart events =
         StopQueryAt stop -> Seq.take (stop - start' + 1) events'
   in events''
 
-latestEventVersion :: EventMap serialized -> UUID -> EventVersion
+latestEventVersion :: EventMap event -> UUID -> EventVersion
 latestEventVersion store uuid = EventVersion $ Seq.length (lookupEventMapRaw store uuid) - 1
 
-lookupGlobalEvents :: QueryRange () SequenceNumber -> EventMap serialized -> [GlobalStreamEvent serialized]
+lookupGlobalEvents :: QueryRange () SequenceNumber -> EventMap event -> [GlobalStreamEvent event]
 lookupGlobalEvents (QueryRange () start limit) (EventMap _ globalEvents) = events'
   where
     start' = unSequenceNumber <$> start
@@ -146,7 +150,7 @@ lookupGlobalEvents (QueryRange () start limit) (EventMap _ globalEvents) = event
         (StartQueryAt startSeq) -> startSeq
 
 storeEventMap
-  :: EventMap serialized -> UUID -> [serialized] -> EventMap serialized
+  :: EventMap event -> UUID -> [event] -> EventMap event
 storeEventMap store@(EventMap uuidMap globalEvents) uuid events =
   let
     versStart = latestEventVersion store uuid + 1

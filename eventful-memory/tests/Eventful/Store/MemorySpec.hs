@@ -4,6 +4,7 @@ import Control.Concurrent.STM
 import Control.Monad.State.Strict
 import Test.Hspec
 
+import Eventful.Serializer
 import Eventful.Store.Memory
 import Eventful.TestHelpers
 
@@ -28,37 +29,53 @@ spec = do
     globalStreamEventStoreSpec embeddedStateStoreGlobalRunner
 
 tvarRunner :: EventStoreRunner STM
-tvarRunner = EventStoreRunner $ \action -> (tvarEventStore <$> eventMapTVar) >>= atomically . action
+tvarRunner = EventStoreRunner $ \action -> do
+  eventTVar <- eventMapTVar
+  let
+    writer = tvarEventStoreWriter eventTVar
+    reader = tvarEventStoreReader eventTVar
+  atomically $ action writer reader
 
 tvarGlobalRunner :: GlobalStreamEventStoreRunner STM
 tvarGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
-  tvar <- eventMapTVar
+  eventTVar <- eventMapTVar
   let
-    store = tvarEventStore tvar
-    globalStore = tvarGlobalStreamEventStore tvar
-  atomically $ action store globalStore
+    writer = tvarEventStoreWriter eventTVar
+    globalReader = tvarGlobalEventStoreReader eventTVar
+  atomically $ action writer globalReader
 
 tvarDynamicRunner :: EventStoreRunner STM
-tvarDynamicRunner = EventStoreRunner $ \action -> (fst <$> makeDynamicTVarStore) >>= atomically . action
+tvarDynamicRunner = EventStoreRunner $ \action -> do
+  eventTVar <- eventMapTVar
+  let
+    writer = serializedEventStoreWriter dynamicSerializer $ tvarEventStoreWriter eventTVar
+    reader = serializedVersionedEventStoreReader dynamicSerializer $ tvarEventStoreReader eventTVar
+  atomically $ action writer reader
 
 tvarDynamicGlobalRunner :: GlobalStreamEventStoreRunner STM
-tvarDynamicGlobalRunner = GlobalStreamEventStoreRunner $ \action -> makeDynamicTVarStore >>= atomically . uncurry action
+tvarDynamicGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
+  eventTVar <- eventMapTVar
+  let
+    writer = serializedEventStoreWriter dynamicSerializer $ tvarEventStoreWriter eventTVar
+    globalReader = serializedGlobalEventStoreReader dynamicSerializer $ tvarGlobalEventStoreReader eventTVar
+  atomically $ action writer globalReader
 
 stateStoreRunner :: EventStoreRunner (StateT (EventMap CounterEvent) IO)
-stateStoreRunner = EventStoreRunner $ \action -> evalStateT (action stateEventStore) emptyEventMap
+stateStoreRunner = EventStoreRunner $ \action -> evalStateT (action stateEventStoreWriter stateEventStoreReader) emptyEventMap
 
 stateStoreGlobalRunner :: GlobalStreamEventStoreRunner (StateT (EventMap CounterEvent) IO)
 stateStoreGlobalRunner = GlobalStreamEventStoreRunner $
-  \action -> evalStateT (action stateEventStore stateGlobalStreamEventStore) emptyEventMap
+  \action -> evalStateT (action stateEventStoreWriter stateGlobalEventStoreReader) emptyEventMap
 
 embeddedStateStoreRunner :: EventStoreRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
-embeddedStateStoreRunner = EventStoreRunner $ \action -> evalStateT (action store) emptyEmbeddedState
+embeddedStateStoreRunner = EventStoreRunner $ \action -> evalStateT (action writer reader) emptyEmbeddedState
   where
-    store = embeddedStateEventStore embeddedEventMap setEventMap
+    writer = embeddedStateEventStoreWriter embeddedEventMap setEventMap
+    reader = embeddedStateEventStoreReader embeddedEventMap
 
 embeddedStateStoreGlobalRunner :: GlobalStreamEventStoreRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
 embeddedStateStoreGlobalRunner = GlobalStreamEventStoreRunner $
-  \action -> evalStateT (action store globalStore) emptyEmbeddedState
+  \action -> evalStateT (action writer globalReader) emptyEmbeddedState
   where
-    store = embeddedStateEventStore embeddedEventMap setEventMap
-    globalStore = embeddedStateGlobalStreamEventStore embeddedEventMap
+    writer = embeddedStateEventStoreWriter embeddedEventMap setEventMap
+    globalReader = embeddedStateGlobalEventStoreReader embeddedEventMap

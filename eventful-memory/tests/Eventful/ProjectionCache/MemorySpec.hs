@@ -25,30 +25,32 @@ tvarVersionedProjectionCacheRunner = VersionedProjectionCacheRunner $ \action ->
   eventTVar <- eventMapTVar
   projTVar <- projectionMapTVar
   let
-    store = tvarEventStore eventTVar
+    writer = tvarEventStoreWriter eventTVar
+    reader = tvarEventStoreReader eventTVar
     cache = tvarProjectionCache projTVar
-  atomically $ action store cache
+  atomically $ action writer reader cache
 
 tvarGlobalStreamProjectionCacheRunner :: GlobalStreamProjectionCacheRunner STM
 tvarGlobalStreamProjectionCacheRunner = GlobalStreamProjectionCacheRunner $ \action -> do
   eventTVar <- eventMapTVar
   projTVar <- projectionMapTVar
   let
-    store = tvarEventStore eventTVar
-    globalStore = tvarGlobalStreamEventStore eventTVar
+    writer = tvarEventStoreWriter eventTVar
+    globalReader = tvarGlobalEventStoreReader eventTVar
     cache = tvarProjectionCache projTVar
-  atomically $ action store globalStore cache
+  atomically $ action writer globalReader cache
 
 stateVersionedProjectionCacheRunner :: VersionedProjectionCacheRunner (StateT (StreamEmbeddedState Counter CounterEvent) IO)
-stateVersionedProjectionCacheRunner = VersionedProjectionCacheRunner $ \action -> evalStateT (action store cache) emptyEmbeddedState
+stateVersionedProjectionCacheRunner = VersionedProjectionCacheRunner $ \action -> evalStateT (action writer reader cache) emptyEmbeddedState
   where
-    store = embeddedStateEventStore embeddedEventMap setEventMap
+    writer = embeddedStateEventStoreWriter embeddedEventMap setEventMap
+    reader = embeddedStateEventStoreReader embeddedEventMap
     cache = embeddedStateProjectionCache embeddedProjectionMap setProjectionMap
 
 stateGlobalStreamProjectionCacheRunner :: GlobalStreamProjectionCacheRunner (StateT (GlobalStreamEmbeddedState Counter CounterEvent Text) IO)
 stateGlobalStreamProjectionCacheRunner =
-  GlobalStreamProjectionCacheRunner $ \action -> evalStateT (action store globalStore cache) emptyEmbeddedState
+  GlobalStreamProjectionCacheRunner $ \action -> evalStateT (action writer globalReader cache) emptyEmbeddedState
   where
-    store = embeddedStateEventStore embeddedEventMap setEventMap
-    globalStore = embeddedStateGlobalStreamEventStore embeddedEventMap
+    writer = embeddedStateEventStoreWriter embeddedEventMap setEventMap
+    globalReader = embeddedStateGlobalEventStoreReader embeddedEventMap
     cache = embeddedStateProjectionCache embeddedProjectionMap setProjectionMap

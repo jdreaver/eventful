@@ -21,6 +21,8 @@ module Eventful.Store.Class
   , module Eventful.Store.Queries
     -- * Serialization
   , serializedEventStoreReader
+  , serializedVersionedEventStoreReader
+  , serializedGlobalEventStoreReader
   , serializedEventStoreWriter
     -- * Utility types
   , EventVersion (..)
@@ -141,6 +143,26 @@ serializedEventStoreReader
   -> EventStoreReader key position m event
 serializedEventStoreReader Serializer{..} (EventStoreReader reader) =
   EventStoreReader $ fmap (mapMaybe deserialize) . reader
+
+-- | Convenience wrapper around 'serializedEventStoreReader' for
+-- 'VersionedEventStoreReader'.
+serializedVersionedEventStoreReader
+  :: (Monad m)
+  => Serializer event serialized
+  -> VersionedEventStoreReader m serialized
+  -> VersionedEventStoreReader m event
+serializedVersionedEventStoreReader serializer reader =
+  serializedEventStoreReader (traverseSerializer serializer) reader
+
+-- | Convenience wrapper around 'serializedEventStoreReader' for
+-- 'GlobalEventStoreReader'.
+serializedGlobalEventStoreReader
+  :: (Monad m)
+  => Serializer event serialized
+  -> GlobalEventStoreReader m serialized
+  -> GlobalEventStoreReader m event
+serializedGlobalEventStoreReader serializer reader =
+  serializedEventStoreReader (traverseSerializer (traverseSerializer serializer)) reader
 
 -- | Like 'serializedEventStoreReader' but for an 'EventStoreWriter'
 serializedEventStoreWriter
