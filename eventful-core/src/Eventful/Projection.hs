@@ -59,10 +59,10 @@ allProjections (Projection seed handler) = scanl' handler seed
 -- events from a particular event stream. This is useful when we want to cache
 -- the resulting state and also keep track of what part of the stream the state
 -- is caught up to.
-data StreamProjection key orderKey state event
+data StreamProjection key position state event
   = StreamProjection
   { streamProjectionKey :: !key
-  , streamProjectionOrderKey :: !orderKey
+  , streamProjectionPosition :: !position
   , streamProjectionProjection :: !(Projection state event)
   , streamProjectionState :: !state
   }
@@ -73,11 +73,11 @@ type GlobalStreamProjection state event = StreamProjection () SequenceNumber sta
 -- | Initialize a 'StreamProjection' with a 'Projection', key, and order key.
 streamProjection
   :: key
-  -> orderKey
+  -> position
   -> Projection state event
-  -> StreamProjection key orderKey state event
-streamProjection key orderKey projection@Projection{..} =
-  StreamProjection key orderKey projection projectionSeed
+  -> StreamProjection key position state event
+streamProjection key position projection@Projection{..} =
+  StreamProjection key position projection projectionSeed
 
 -- | Initialize a 'VersionedStreamProjection'.
 versionedStreamProjection
@@ -97,25 +97,25 @@ globalStreamProjection = streamProjection () 0
 -- 'StreamProjection'. This function simple will update the 'StreamProjection'
 -- to use the order key of the event.
 streamProjectionEventHandler
-  :: StreamProjection key orderKey state event
-  -> StreamEvent eventKey orderKey event
-  -> StreamProjection key orderKey state event
+  :: StreamProjection key position state event
+  -> StreamEvent eventKey position event
+  -> StreamProjection key position state event
 streamProjectionEventHandler StreamProjection{..} event =
   let
     Projection{..} = streamProjectionProjection
-    orderKey' = streamEventOrderKey event
+    position' = streamEventPosition event
     state' = projectionEventHandler streamProjectionState (streamEventEvent event)
-  in StreamProjection streamProjectionKey orderKey' streamProjectionProjection state'
+  in StreamProjection streamProjectionKey position' streamProjectionProjection state'
 
 -- | Gets the latest projection from a store by querying events from the latest
 -- order key and then applying the events using the Projection's event handler.
 getLatestStreamProjection
-  :: (Monad m, Num orderKey)
-  => (QueryRange key orderKey -> m [StreamEvent key orderKey event])
-  -> StreamProjection key orderKey state event
-  -> m (StreamProjection key orderKey state event)
+  :: (Monad m, Num position)
+  => (QueryRange key position -> m [StreamEvent key position event])
+  -> StreamProjection key position state event
+  -> m (StreamProjection key position state event)
 getLatestStreamProjection getEvents' projection@StreamProjection{..} = do
-  events <- getEvents' (eventsStartingAt streamProjectionKey $ streamProjectionOrderKey + 1)
+  events <- getEvents' (eventsStartingAt streamProjectionKey $ streamProjectionPosition + 1)
   return $ foldl' streamProjectionEventHandler projection events
 
 -- | Gets the latest projection from a store by using 'getEvents' and then

@@ -29,6 +29,6 @@ memoryReadModel initialValue handleEvents = do
     getLatestSequence tvar' = liftIO $ memoryReadModelDataLatestSequenceNumber <$> readTVarIO tvar'
     handleTVarEvents tvar' events = do
       (MemoryReadModelData latestSeq modelData) <- liftIO $ readTVarIO tvar'
-      let latestSeq' = maximumDef latestSeq (streamEventOrderKey <$> events)
+      let latestSeq' = maximumDef latestSeq (streamEventPosition <$> events)
       modelData' <- handleEvents modelData events
       liftIO . atomically . writeTVar tvar' $ MemoryReadModelData latestSeq' modelData'

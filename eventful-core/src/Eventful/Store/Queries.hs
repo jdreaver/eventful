@@ -17,46 +17,46 @@ module Eventful.Store.Queries
 
 -- | This type defines how to query an event stream. It defines the stream key
 -- and the start/stop points for the query.
-data QueryRange key orderKey
+data QueryRange key position
   = QueryRange
   { queryRangeKey :: key
-  , queryRangeStart :: QueryStart orderKey
-  , queryRangeLimit :: QueryLimit orderKey
+  , queryRangeStart :: QueryStart position
+  , queryRangeLimit :: QueryLimit position
   } deriving (Show, Eq)
 
 -- | This type defines where an event store query starts.
-data QueryStart orderKey
+data QueryStart position
   = StartFromBeginning
-  | StartQueryAt orderKey
+  | StartQueryAt position
   deriving (Show, Eq, Functor)
 
 -- | This type is used to limit the results of a query from an event store.
-data QueryLimit orderKey
+data QueryLimit position
   = NoQueryLimit
   | MaxNumberOfEvents Int
-  | StopQueryAt orderKey
+  | StopQueryAt position
   deriving (Show, Eq, Functor)
 
-allEvents :: key -> QueryRange key orderKey
+allEvents :: key -> QueryRange key position
 allEvents key = QueryRange key StartFromBeginning NoQueryLimit
 
-eventsUntil :: key -> orderKey -> QueryRange key orderKey
+eventsUntil :: key -> position -> QueryRange key position
 eventsUntil key end = QueryRange key StartFromBeginning (StopQueryAt end)
 
-eventsStartingAt :: key -> orderKey -> QueryRange key orderKey
+eventsStartingAt :: key -> position -> QueryRange key position
 eventsStartingAt key start = QueryRange key (StartQueryAt start) NoQueryLimit
 
-eventsStartingAtUntil :: key -> orderKey -> orderKey -> QueryRange key orderKey
+eventsStartingAtUntil :: key -> position -> position -> QueryRange key position
 eventsStartingAtUntil key start end = QueryRange key (StartQueryAt start) (StopQueryAt end)
 
-eventsStartingAtTakeLimit :: key -> orderKey -> Int -> QueryRange key orderKey
+eventsStartingAtTakeLimit :: key -> position -> Int -> QueryRange key position
 eventsStartingAtTakeLimit key start maxNum = QueryRange key (StartQueryAt start) (MaxNumberOfEvents maxNum)
 
--- | An event along with the keys from the particular event stream it was
--- queried from.
-data StreamEvent key orderKey event
+-- | An event along with the @key@ for the event stream it is from and its
+-- @position@ in that event stream.
+data StreamEvent key position event
   = StreamEvent
   { streamEventKey :: !key
-  , streamEventOrderKey :: !orderKey
+  , streamEventPosition :: !position
   , streamEventEvent :: !event
   } deriving (Show, Eq, Functor, Foldable, Traversable)

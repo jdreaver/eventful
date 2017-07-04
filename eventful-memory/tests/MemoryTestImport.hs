@@ -26,24 +26,24 @@ makeDynamicTVarStore = do
     globalStore' = serializedGlobalStreamEventStore dynamicSerializer globalStore
   return (store', globalStore')
 
-data EmbeddedState state event key orderKey
+data EmbeddedState state event key position
   = EmbeddedState
   { _embeddedDummyArgument :: Int
   , embeddedEventMap :: EventMap event
-  , embeddedProjectionMap :: ProjectionMap key orderKey state
+  , embeddedProjectionMap :: ProjectionMap key position state
   }
 
 type StreamEmbeddedState state event = EmbeddedState state event UUID EventVersion
 type GlobalStreamEmbeddedState state event key = EmbeddedState state event key SequenceNumber
 
-emptyEmbeddedState :: EmbeddedState state event key orderKey
+emptyEmbeddedState :: EmbeddedState state event key position
 emptyEmbeddedState = EmbeddedState 100 emptyEventMap emptyProjectionMap
 
-setEventMap :: EmbeddedState state event key orderKey -> EventMap event -> EmbeddedState state event key orderKey
+setEventMap :: EmbeddedState state event key position -> EventMap event -> EmbeddedState state event key position
 setEventMap state' eventMap = state' { embeddedEventMap = eventMap }
 
 setProjectionMap
-  :: EmbeddedState state event key orderKey
-  -> ProjectionMap key orderKey state
-  -> EmbeddedState state event key orderKey
+  :: EmbeddedState state event key position
+  -> ProjectionMap key position state
+  -> EmbeddedState state event key position
 setProjectionMap state' projectionMap = state' { embeddedProjectionMap = projectionMap }

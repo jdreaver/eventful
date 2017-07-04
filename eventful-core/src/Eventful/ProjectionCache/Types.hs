@@ -27,17 +27,17 @@ import Eventful.UUID
 -- helper functions in this module to interpret the stored values using a
 -- 'Projection'.
 --
--- The @key@ and @orderKey@ type parameters are polymorphic so we can abstract
+-- The @key@ and @position@ type parameters are polymorphic so we can abstract
 -- over a cache for individual event streams, and a cache for globally ordered
 -- streams.
-data ProjectionCache key orderKey serialized m
+data ProjectionCache key position serialized m
   = ProjectionCache
-  { storeProjectionSnapshot :: key -> orderKey -> serialized -> m ()
-    -- ^ Stores the state for a projection at a given @key@ and @orderKey@.
+  { storeProjectionSnapshot :: key -> position -> serialized -> m ()
+    -- ^ Stores the state for a projection at a given @key@ and @position@.
     -- This is pretty unsafe, because there is no guarantee what is stored is
     -- actually derived from the events in the stream. Consider using
     -- 'updateProjectionCache'.
-  , loadProjectionSnapshot :: key -> m (Maybe (orderKey, serialized))
+  , loadProjectionSnapshot :: key -> m (Maybe (position, serialized))
     -- ^ Loads the latest projection state from the cache.
   }
 
@@ -53,8 +53,8 @@ type GlobalStreamProjectionCache key serialized m = ProjectionCache key Sequence
 runProjectionCacheUsing
   :: (Monad m, Monad mstore)
   => (forall a. mstore a -> m a)
-  -> ProjectionCache key orderKey serialized mstore
-  -> ProjectionCache key orderKey serialized m
+  -> ProjectionCache key position serialized mstore
+  -> ProjectionCache key position serialized m
 runProjectionCacheUsing runCache ProjectionCache{..} =
   ProjectionCache
   { storeProjectionSnapshot = \uuid version state -> runCache $ storeProjectionSnapshot uuid version state
@@ -67,8 +67,8 @@ runProjectionCacheUsing runCache ProjectionCache{..} =
 serializedProjectionCache
   :: (Monad m)
   => Serializer state serialized
-  -> ProjectionCache key orderKey serialized m
-  -> ProjectionCache key orderKey state m
+  -> ProjectionCache key position serialized m
+  -> ProjectionCache key position state m
 serializedProjectionCache Serializer{..} ProjectionCache{..} =
   ProjectionCache storeProjectionSnapshot' loadProjectionSnapshot'
   where
@@ -101,19 +101,19 @@ getLatestGlobalProjectionWithCache store cache projection key =
   getLatestProjectionWithCache' cache projection key >>= getLatestGlobalProjection store
 
 getLatestProjectionWithCache'
-  :: (Monad m, Ord orderKey)
-  => ProjectionCache key orderKey state m
-  -> StreamProjection projKey orderKey state event
+  :: (Monad m, Ord position)
+  => ProjectionCache key position state m
+  -> StreamProjection projKey position state event
   -> key
-  -> m (StreamProjection projKey orderKey state event)
+  -> m (StreamProjection projKey position state event)
 getLatestProjectionWithCache' cache projection key = do
   mLatestState <- loadProjectionSnapshot cache key
   let
-    mkProjection' (orderKey, state) =
-      if orderKey > streamProjectionOrderKey projection
+    mkProjection' (position, state) =
+      if position > streamProjectionPosition projection
       then
         projection
-        { streamProjectionOrderKey = orderKey
+        { streamProjectionPosition = position
         , streamProjectionState = state
         }
       else projection
@@ -129,7 +129,7 @@ updateProjectionCache
   -> m ()
 updateProjectionCache store cache projection = do
   StreamProjection{..} <- getLatestVersionedProjectionWithCache store cache projection
-  storeProjectionSnapshot cache streamProjectionKey streamProjectionOrderKey streamProjectionState
+  storeProjectionSnapshot cache streamProjectionKey streamProjectionPosition streamProjectionState
 
 -- | Analog of 'updateProjectionCache' for a 'GlobalStreamProjectionCache'.
 updateGlobalProjectionCache
@@ -141,4 +141,4 @@ updateGlobalProjectionCache
   -> m ()
 updateGlobalProjectionCache store cache projection key = do
   StreamProjection{..} <- getLatestGlobalProjectionWithCache store cache projection key
-  storeProjectionSnapshot cache key streamProjectionOrderKey streamProjectionState
+  storeProjectionSnapshot cache key streamProjectionPosition streamProjectionState
