@@ -17,18 +17,18 @@ spec = do
     eventStoreSpec postgresStoreRunner
     globalStreamEventStoreSpec postgresStoreGlobalRunner
 
-makeStore :: (MonadIO m) => m (EventStore CounterEvent (SqlPersistT m), ConnectionPool)
+makeStore :: (MonadIO m) => m (EventStoreWriter (SqlPersistT m) CounterEvent, VersionedEventStoreReader (SqlPersistT m) CounterEvent, ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.
   let
     connString = "host=localhost port=5432 user=postgres dbname=eventful_test password=password"
-    store = postgresqlEventStore defaultSqlEventStoreConfig
-    store' = serializedEventStore jsonStringSerializer store
+    writer = serializedEventStoreWriter jsonStringSerializer $ postgresqlEventStoreWriter defaultSqlEventStoreConfig
+    reader = serializedVersionedEventStoreReader jsonStringSerializer $ sqlEventStoreReader defaultSqlEventStoreConfig
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
   liftIO $ runSqlPool truncateTables pool
-  return (store', pool)
+  return (writer, reader, pool)
 
 getTables :: MonadIO m => SqlPersistT m [Text]
 getTables = do
@@ -49,11 +49,12 @@ truncateTables = do
 
 postgresStoreRunner :: EventStoreRunner (SqlPersistT IO)
 postgresStoreRunner = EventStoreRunner $ \action -> do
-  (store, pool) <- makeStore
-  runSqlPool (action store) pool
+  (writer, reader, pool) <- makeStore
+  runSqlPool (action writer reader) pool
 
 postgresStoreGlobalRunner :: GlobalStreamEventStoreRunner (SqlPersistT IO)
 postgresStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
-  (store, pool) <- makeStore
-  let globalStore = serializedGlobalStreamEventStore jsonStringSerializer (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
-  runSqlPool (action store globalStore) pool
+  (writer, _, pool) <- makeStore
+  let
+    globalReader = serializedGlobalEventStoreReader jsonStringSerializer (sqlGlobalEventStoreReader defaultSqlEventStoreConfig)
+  runSqlPool (action writer globalReader) pool

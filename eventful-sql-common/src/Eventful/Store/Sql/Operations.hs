@@ -5,7 +5,8 @@
 
 module Eventful.Store.Sql.Operations
   ( SqlEventStoreConfig (..)
-  , sqlGlobalStreamEventStore
+  , sqlEventStoreReader
+  , sqlGlobalEventStoreReader
   , sqlGetProjectionIds
   , sqlGetAggregateEvents
   , sqlMaxEventVersion
@@ -42,12 +43,18 @@ data SqlEventStoreConfig entity serialized =
   , sqlEventStoreConfigDataField :: EntityField entity serialized
   }
 
-sqlGlobalStreamEventStore
+sqlEventStoreReader
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> GlobalStreamEventStore serialized (SqlPersistT m)
-sqlGlobalStreamEventStore config =
-  GlobalStreamEventStore $ sqlGetAllEventsInRange config
+  -> VersionedEventStoreReader (SqlPersistT m) serialized
+sqlEventStoreReader config = EventStoreReader $ sqlGetAggregateEvents config
+
+sqlGlobalEventStoreReader
+  :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
+  => SqlEventStoreConfig entity serialized
+  -> GlobalEventStoreReader (SqlPersistT m) serialized
+sqlGlobalEventStoreReader config =
+  EventStoreReader $ sqlGetAllEventsInRange config
 
 sqlEventToGlobalStream
   :: SqlEventStoreConfig entity serialized

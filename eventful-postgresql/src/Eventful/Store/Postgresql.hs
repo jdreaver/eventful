@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- | Defines an Postgresql event store.
 
 module Eventful.Store.Postgresql
-  ( postgresqlEventStore
+  ( postgresqlEventStoreWriter
   , initializePostgresqlEventStore
   , module Eventful.Store.Class
   , module Eventful.Store.Sql
@@ -22,17 +21,14 @@ import Eventful.Store.Sql
 
 -- | An 'EventStore' that uses a PostgreSQL database as a backend. Use
 -- 'SqlEventStoreConfig' to configure this event store.
-postgresqlEventStore
+postgresqlEventStoreWriter
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> EventStore serialized (SqlPersistT m)
-postgresqlEventStore config =
-  let
+  -> EventStoreWriter (SqlPersistT m) serialized
+postgresqlEventStoreWriter config = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  where
     getLatestVersion = sqlMaxEventVersion config maxPostgresVersionSql
-    getEvents = sqlGetAggregateEvents config
     storeEvents' = sqlStoreEvents config (Just tableLockFunc) maxPostgresVersionSql
-    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
-  in EventStore{..}
 
 maxPostgresVersionSql :: DBName -> DBName -> DBName -> Text
 maxPostgresVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
