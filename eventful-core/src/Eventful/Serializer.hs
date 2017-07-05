@@ -11,6 +11,7 @@ module Eventful.Serializer
   , composeSerializers
     -- * Common serializers
   , idSerializer
+  , traverseSerializer
   , jsonSerializer
   , jsonTextSerializer
   , dynamicSerializer
@@ -66,6 +67,18 @@ composeSerializers serializer1 serializer2 = Serializer serialize' deserialize' 
 -- serializer but you don't need to actually change types.
 idSerializer :: Serializer a a
 idSerializer = simpleSerializer id Just
+
+-- | Uses 'Traversable' to wrap a 'Serializer'.
+traverseSerializer
+  :: (Traversable t)
+  => Serializer a b
+  -> Serializer (t a) (t b)
+traverseSerializer Serializer{..} =
+  Serializer serialize' deserialize' deserializeEither'
+  where
+    serialize' = fmap serialize
+    deserialize' = traverse deserialize
+    deserializeEither' = traverse deserializeEither
 
 -- | A 'Serializer' for aeson 'Value's.
 jsonSerializer :: (ToJSON a, FromJSON a) => Serializer a Value

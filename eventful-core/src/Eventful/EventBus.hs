@@ -12,30 +12,25 @@ import Eventful.UUID
 -- is also useful for integration testing along with an in-memory event store.
 synchronousEventBusWrapper
   :: (Monad m)
-  => EventStore serialized m
-  -> [EventStore serialized m -> UUID -> serialized -> m ()]
-  -> EventStore serialized m
-synchronousEventBusWrapper store handlers =
-  let
+  => EventStoreWriter m event
+  -> [EventStoreWriter m event -> UUID -> event -> m ()]
+  -> EventStoreWriter m event
+synchronousEventBusWrapper writer handlers = wrappedStore
+  where
     -- NB: We need to use recursive let bindings so we can put wrappedStore
     -- inside the event handlers
     handlers' = map ($ wrappedStore) handlers
-    wrappedStore =
-      EventStore
-      { getEvents = getEvents store
-      , storeEvents = storeAndPublishEvents store handlers'
-      }
-  in wrappedStore
+    wrappedStore = EventStoreWriter $ storeAndPublishEvents writer handlers'
 
 -- | Stores events in the store and them publishes them to the event handlers.
 -- This is used in the 'synchronousEventBusWrapper'.
 storeAndPublishEvents
   :: (Monad m)
-  => EventStore serialized m
-  -> [UUID -> serialized -> m ()]
+  => EventStoreWriter m event
+  -> [UUID -> event -> m ()]
   -> ExpectedVersion
   -> UUID
-  -> [serialized]
+  -> [event]
   -> m (Maybe EventWriteError)
 storeAndPublishEvents store handlers expectedVersion uuid events = do
   result <- storeEvents store expectedVersion uuid events

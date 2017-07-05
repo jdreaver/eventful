@@ -46,11 +46,12 @@ instance (Show command, Show event) => Show (ProcessManagerCommand event command
 applyProcessManagerCommandsAndEvents
   :: (Monad m)
   => ProcessManager state event command
-  -> EventStore event m
+  -> EventStoreWriter m event
+  -> VersionedEventStoreReader m event
   -> state
   -> m ()
-applyProcessManagerCommandsAndEvents ProcessManager{..} store state = do
+applyProcessManagerCommandsAndEvents ProcessManager{..} writer reader state = do
   forM_ (processManagerPendingCommands state) $ \(ProcessManagerCommand aggregateId aggregate command) ->
-    void $ commandStoredAggregate store aggregate aggregateId command
+    void $ commandStoredAggregate writer reader aggregate aggregateId command
   forM_ (processManagerPendingEvents state) $ \(StreamEvent projectionId () event) ->
-    storeEvents store AnyVersion projectionId [event]
+    storeEvents writer AnyVersion projectionId [event]

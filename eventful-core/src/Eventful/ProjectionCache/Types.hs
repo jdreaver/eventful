@@ -81,24 +81,24 @@ serializedProjectionCache Serializer{..} ProjectionCache{..} =
 -- more recent state.
 getLatestVersionedProjectionWithCache
   :: (Monad m)
-  => EventStore event m
+  => VersionedEventStoreReader m event
   -> VersionedProjectionCache state m
   -> VersionedStreamProjection state event
   -> m (VersionedStreamProjection state event)
 getLatestVersionedProjectionWithCache store cache projection =
-  getLatestProjectionWithCache' cache projection (streamProjectionKey projection) >>= getLatestVersionedProjection store
+  getLatestProjectionWithCache' cache projection (streamProjectionKey projection) >>= getLatestStreamProjection store
 
 -- | Like 'getLatestGlobalProjection', but uses a 'ProjectionCache' if it
 -- contains more recent state.
 getLatestGlobalProjectionWithCache
   :: (Monad m)
-  => GlobalStreamEventStore event m
+  => GlobalEventStoreReader m event
   -> GlobalStreamProjectionCache key state m
   -> GlobalStreamProjection state event
   -> key
   -> m (GlobalStreamProjection state event)
 getLatestGlobalProjectionWithCache store cache projection key =
-  getLatestProjectionWithCache' cache projection key >>= getLatestGlobalProjection store
+  getLatestProjectionWithCache' cache projection key >>= getLatestStreamProjection store
 
 getLatestProjectionWithCache'
   :: (Monad m, Ord position)
@@ -123,22 +123,22 @@ getLatestProjectionWithCache' cache projection key = do
 -- value back into the projection cache.
 updateProjectionCache
   :: (Monad m)
-  => EventStore event m
+  => VersionedEventStoreReader m event
   -> VersionedProjectionCache state m
   -> VersionedStreamProjection state event
   -> m ()
-updateProjectionCache store cache projection = do
-  StreamProjection{..} <- getLatestVersionedProjectionWithCache store cache projection
+updateProjectionCache reader cache projection = do
+  StreamProjection{..} <- getLatestVersionedProjectionWithCache reader cache projection
   storeProjectionSnapshot cache streamProjectionKey streamProjectionPosition streamProjectionState
 
 -- | Analog of 'updateProjectionCache' for a 'GlobalStreamProjectionCache'.
 updateGlobalProjectionCache
   :: (Monad m)
-  => GlobalStreamEventStore event m
+  => GlobalEventStoreReader m event
   -> GlobalStreamProjectionCache key state m
   -> GlobalStreamProjection state event
   -> key
   -> m ()
-updateGlobalProjectionCache store cache projection key = do
-  StreamProjection{..} <- getLatestGlobalProjectionWithCache store cache projection key
+updateGlobalProjectionCache reader cache projection key = do
+  StreamProjection{..} <- getLatestGlobalProjectionWithCache reader cache projection key
   storeProjectionSnapshot cache key streamProjectionPosition streamProjectionState

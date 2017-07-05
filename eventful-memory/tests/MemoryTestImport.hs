@@ -1,6 +1,5 @@
 module MemoryTestImport
-  ( makeDynamicTVarStore
-  , EmbeddedState (..)
+  ( EmbeddedState (..)
   , StreamEmbeddedState
   , GlobalStreamEmbeddedState
   , emptyEmbeddedState
@@ -8,23 +7,9 @@ module MemoryTestImport
   , setProjectionMap
   ) where
 
-import Control.Concurrent.STM
-
 import Eventful.ProjectionCache.Memory
-import Eventful.Serializer
 import Eventful.Store.Memory
-import Eventful.TestHelpers
 import Eventful.UUID
-
-makeDynamicTVarStore :: IO (EventStore CounterEvent STM, GlobalStreamEventStore CounterEvent STM)
-makeDynamicTVarStore = do
-  tvar <- eventMapTVar
-  let
-    store = tvarEventStore tvar
-    globalStore = tvarGlobalStreamEventStore tvar
-    store' = serializedEventStore dynamicSerializer store
-    globalStore' = serializedGlobalStreamEventStore dynamicSerializer globalStore
-  return (store', globalStore')
 
 data EmbeddedState state event key position
   = EmbeddedState

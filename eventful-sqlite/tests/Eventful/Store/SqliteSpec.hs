@@ -20,39 +20,43 @@ spec = do
     eventStoreSpec sqliteIOStoreRunner
     globalStreamEventStoreSpec sqliteIOStoreGlobalRunner
 
-makeStore :: IO (EventStore CounterEvent (SqlPersistT IO), ConnectionPool)
+makeStore :: IO (EventStoreWriter (SqlPersistT IO) CounterEvent, VersionedEventStoreReader (SqlPersistT IO) CounterEvent, ConnectionPool)
 makeStore = do
   pool <- liftIO $ runNoLoggingT (createSqlitePool ":memory:" 1)
-  let store = serializedEventStore jsonStringSerializer $ sqliteEventStore defaultSqlEventStoreConfig
+  let
+    writer = serializedEventStoreWriter jsonStringSerializer $ sqliteEventStoreWriter defaultSqlEventStoreConfig
+    reader = serializedVersionedEventStoreReader jsonStringSerializer $ sqlEventStoreReader defaultSqlEventStoreConfig
   initializeSqliteEventStore defaultSqlEventStoreConfig pool
-  return (store, pool)
+  return (writer, reader, pool)
 
 sqliteStoreRunner :: EventStoreRunner (SqlPersistT IO)
 sqliteStoreRunner = EventStoreRunner $ \action -> do
-  (store, pool) <- makeStore
-  runSqlPool (action store) pool
+  (writer, reader, pool) <- makeStore
+  runSqlPool (action writer reader) pool
 
 sqliteStoreGlobalRunner :: GlobalStreamEventStoreRunner (SqlPersistT IO)
 sqliteStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
-  (store, pool) <- makeStore
-  let globalStore = serializedGlobalStreamEventStore jsonStringSerializer (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
-  runSqlPool (action store globalStore) pool
+  (writer, _, pool) <- makeStore
+  let globalStore = serializedGlobalEventStoreReader jsonStringSerializer (sqlGlobalEventStoreReader defaultSqlEventStoreConfig)
+  runSqlPool (action writer globalStore) pool
 
-makeIOStore :: IO (EventStore CounterEvent IO, ConnectionPool)
+makeIOStore :: IO (EventStoreWriter IO CounterEvent, VersionedEventStoreReader IO CounterEvent, ConnectionPool)
 makeIOStore = do
-  (store, pool) <- makeStore
-  let store' = runEventStoreUsing (flip runSqlPool pool) store
-  return (store', pool)
+  (writer, reader, pool) <- makeStore
+  let
+    writer' = runEventStoreWriterUsing (flip runSqlPool pool) writer
+    reader' = runEventStoreReaderUsing (flip runSqlPool pool) reader
+  return (writer', reader', pool)
 
 sqliteIOStoreRunner :: EventStoreRunner IO
 sqliteIOStoreRunner = EventStoreRunner $ \action -> do
-  (store, _) <- makeIOStore
-  action store
+  (writer, reader, _) <- makeIOStore
+  action writer reader
 
 sqliteIOStoreGlobalRunner :: GlobalStreamEventStoreRunner IO
 sqliteIOStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
-  (store, pool) <- makeIOStore
+  (writer, _, pool) <- makeIOStore
   let
-    globalStore = serializedGlobalStreamEventStore jsonStringSerializer (sqlGlobalStreamEventStore defaultSqlEventStoreConfig)
-    globalStore' = runGlobalStreamEventStoreUsing (flip runSqlPool pool) globalStore
-  action store globalStore'
+    globalStore = serializedGlobalEventStoreReader jsonStringSerializer (sqlGlobalEventStoreReader defaultSqlEventStoreConfig)
+    globalStore' = runEventStoreReaderUsing (flip runSqlPool pool) globalStore
+  action writer globalStore'

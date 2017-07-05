@@ -5,7 +5,7 @@
 -- | Defines an Sqlite event store.
 
 module Eventful.Store.Sqlite
-  ( sqliteEventStore
+  ( sqliteEventStoreWriter
   , initializeSqliteEventStore
   , module Eventful.Store.Class
   , module Eventful.Store.Sql
@@ -20,19 +20,16 @@ import Database.Persist.Sql
 import Eventful.Store.Class
 import Eventful.Store.Sql
 
--- | An 'EventStore' that uses an SQLite database as a backend. Use
+-- | An 'EventStoreWriter' that uses an SQLite database as a backend. Use
 -- 'SqlEventStoreConfig' to configure this event store.
-sqliteEventStore
+sqliteEventStoreWriter
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> EventStore serialized (SqlPersistT m)
-sqliteEventStore config =
-  let
+  -> EventStoreWriter (SqlPersistT m) serialized
+sqliteEventStoreWriter config = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
+  where
     getLatestVersion = sqlMaxEventVersion config maxSqliteVersionSql
-    getEvents = sqlGetAggregateEvents config
     storeEvents' = sqlStoreEvents config Nothing maxSqliteVersionSql
-    storeEvents = transactionalExpectedWriteHelper getLatestVersion storeEvents'
-  in EventStore{..}
 
 maxSqliteVersionSql :: DBName -> DBName -> DBName -> Text
 maxSqliteVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
