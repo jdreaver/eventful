@@ -45,7 +45,7 @@ There are a couple notable properties from this stream of events:
 
 In event sourcing, it's natural to think of the events for a particular piece
 of state (a `Projection`) as a stream. Following the lead of the example above,
-we can store give the stream an identity and also a natural ordering:
+we can give the stream an identity and also a natural ordering:
 * It is common to use
   a [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) to
   identify event sourced state streams.
