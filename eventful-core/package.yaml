@@ -44,10 +44,3 @@ tests:
     dependencies:
       - hspec
       - HUnit
-  style:
-    main: HLint.hs
-    ghc-options: -Wall
-    source-dirs:
-      - tests
-    dependencies:
-      - hlint

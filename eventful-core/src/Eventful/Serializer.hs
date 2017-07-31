@@ -26,6 +26,7 @@ import Data.Dynamic
 import Data.Maybe (fromMaybe)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
+import Data.Typeable (typeOf)
 import GHC.Generics
 
 -- | A 'Serializer' describes the injective conversion between types @a@ and

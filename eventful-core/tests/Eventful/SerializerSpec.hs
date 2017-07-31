@@ -4,6 +4,7 @@
 module Eventful.SerializerSpec (spec) where
 
 import Data.Dynamic
+import Data.Typeable (typeOf)
 import GHC.Generics
 import Test.Hspec
 
