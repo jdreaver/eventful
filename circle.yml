@@ -1,11 +1,13 @@
 machine:
   environment:
     PATH: "$HOME/.local/bin:$PATH"
-    STACK_VERSION: 1.4.0
+    STACK_VERSION: 1.5.0
     _JAVA_OPTIONS: "-Xms512m -Xmx1024m"
     AWS_ACCESS_KEY_ID: dummy
     AWS_SECRET_ACCESS_KEY: dummy
     AWS_DEFAULT_REGION: us-west-2
+
+    GHC_8_0_RESOLVER: nightly-2017-07-25
   java:
     version: openjdk7
   post:
@@ -22,6 +24,9 @@ dependencies:
     - "~/.stack"
     - "~/eventful/.stack-work"
   override:
+    - stack setup --resolver $GHC_8_0_RESOLVER
+    - stack build --resolver $GHC_8_0_RESOLVER --test --only-dependencies --no-run-tests --jobs=1
+
     - stack setup
     - stack build --test --only-dependencies --no-run-tests --jobs=1
 
@@ -31,5 +36,8 @@ database:
 
 test:
   override:
-    - "stack test --pedantic --jobs=1"
-    - "stack haddock --fast --no-haddock-deps --jobs=1"
+    - stack --resolver $GHC_8_0_RESOLVER test --pedantic --jobs=1
+    - stack --resolver $GHC_8_0_RESOLVER haddock --fast --no-haddock-deps --jobs=1
+
+    - stack test --pedantic --jobs=1
+    - stack haddock --fast --no-haddock-deps --jobs=1
