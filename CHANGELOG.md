@@ -7,6 +7,7 @@
   individual streams and reading from the global stream. This also simplified a
   lot of the event and projection types (now just variations on `StreamEvent`
   and `StreamProjection`).
+* GHC 8.2.1 compatibility
 
 ## 0.1.3
 
