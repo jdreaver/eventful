@@ -11,6 +11,7 @@ module Eventful.Store.Sql.Operations
   , sqlGetAggregateEvents
   , sqlMaxEventVersion
   , sqlStoreEvents
+  , unsafeSqlStoreGlobalStreamEvents
   ) where
 
 import Control.Monad.Reader
@@ -156,3 +157,20 @@ sqlStoreEvents config@SqlEventStoreConfig{..} mLockCommand maxVersionSql uuid ev
   insertMany_ entities
   where
     (DBName tableName) = tableDBName (sqlEventStoreConfigSequenceMakeEntity nil 0 undefined)
+
+-- | Useful if you have some 'GlobalStreamEvent's and you want to shove them in
+-- a SQL event store. This can happen when you are moving events between event
+-- stores, or you somehow generate the events outside of the current SQL event
+-- store.
+unsafeSqlStoreGlobalStreamEvents
+  :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
+  => SqlEventStoreConfig entity serialized
+  -> [GlobalStreamEvent serialized]
+  -> SqlPersistT m ()
+unsafeSqlStoreGlobalStreamEvents SqlEventStoreConfig{..} events =
+  insertEntityMany $ fmap mkEventEntity events
+  where
+    mkEventEntity (StreamEvent () seqNum (StreamEvent uuid vers event)) =
+      Entity
+      (sqlEventStoreConfigMakeKey seqNum)
+      (sqlEventStoreConfigSequenceMakeEntity uuid vers event)

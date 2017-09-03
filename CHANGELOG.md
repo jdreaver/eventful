@@ -1,5 +1,9 @@
 # eventful Changelog
 
+## 0.2.1
+
+* Added useful `unsafeSqlStoreGlobalStreamEvents` function.
+
 ## 0.2.0
 
 * Breaking change: Split up `EventStore` into `EventStoreWriter` and
