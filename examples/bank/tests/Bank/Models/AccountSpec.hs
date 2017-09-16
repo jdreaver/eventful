@@ -43,7 +43,7 @@ spec = do
         stateAfterStarted = latestProjection accountProjection events
 
       accountAvailableBalance stateAfterStarted `shouldBe` 4
-      aggregateCommandHandler accountAggregate stateAfterStarted (DebitAccountAccountCommand (DebitAccount 9 "blah"))
+      commandHandlerHandler accountCommandHandler stateAfterStarted (DebitAccountAccountCommand (DebitAccount 9 "blah"))
         `shouldBe` [AccountDebitRejectedAccountEvent $ AccountDebitRejected 4]
 
       let
@@ -52,7 +52,7 @@ spec = do
 
       completedState `shouldBe` Account 4 (Just nil) []
 
-  describe "Account aggregate" $ do
+  describe "Account commandHandler" $ do
     it "should handle a series of commands" $ do
       let
         commands =
@@ -68,4 +68,4 @@ spec = do
           , Account 300 (Just nil) []
           , Account 300 (Just nil) []
           ]
-      allAggregateStates accountAggregate commands `shouldBe` results
+      allCommandHandlerStates accountCommandHandler commands `shouldBe` results

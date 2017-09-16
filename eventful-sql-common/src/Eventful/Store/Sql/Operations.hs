@@ -8,7 +8,7 @@ module Eventful.Store.Sql.Operations
   , sqlEventStoreReader
   , sqlGlobalEventStoreReader
   , sqlGetProjectionIds
-  , sqlGetAggregateEvents
+  , sqlGetStreamEvents
   , sqlMaxEventVersion
   , sqlStoreEvents
   , unsafeSqlStoreGlobalStreamEvents
@@ -48,7 +48,7 @@ sqlEventStoreReader
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
   -> VersionedEventStoreReader (SqlPersistT m) serialized
-sqlEventStoreReader config = EventStoreReader $ sqlGetAggregateEvents config
+sqlEventStoreReader config = EventStoreReader $ sqlGetStreamEvents config
 
 sqlGlobalEventStoreReader
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
@@ -84,12 +84,12 @@ sqlGetProjectionIds SqlEventStoreConfig{..} =
     (DBName tableName) = tableDBName (sqlEventStoreConfigSequenceMakeEntity nil 0 undefined)
     (DBName uuidFieldName) = fieldDBName sqlEventStoreConfigSequenceNumberField
 
-sqlGetAggregateEvents
+sqlGetStreamEvents
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
   -> QueryRange UUID EventVersion
   -> SqlPersistT m [VersionedStreamEvent serialized]
-sqlGetAggregateEvents config@SqlEventStoreConfig{..} QueryRange{..} = do
+sqlGetStreamEvents config@SqlEventStoreConfig{..} QueryRange{..} = do
   entities <- selectList filters selectOpts
   return $ sqlEventToVersioned config . entityVal <$> entities
   where

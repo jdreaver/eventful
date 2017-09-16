@@ -13,5 +13,5 @@ event sourced application using ``eventful``.
 
 .. Module introducing EventStore
 .. Module introducing Projection
-.. Module introducing business rules Aggregate
+.. Module introducing business rules CommandHandler
 .. Maybe a module with a ProcessManager? Might be too much

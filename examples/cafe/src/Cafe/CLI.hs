@@ -50,8 +50,8 @@ runCLICommand (ViewTab tabId) = do
   liftIO $ printJSONPretty latest
 runCLICommand (TabCommand tabId command) = do
   uuid <- fromJustNote "Could not find tab with given id" <$> runDB (getTabUuid tabId)
-  result <- runDB $ commandStoredAggregate cliEventStore
-    (serializedAggregate tabAggregate jsonStringSerializer idSerializer) uuid command
+  result <- runDB $ applyCommandHandler cliEventStore
+    (serializedCommandHandler tabCommandHandler jsonStringSerializer idSerializer) uuid command
   case result of
     [] -> liftIO . putStrLn $ "Error! "
     events -> do

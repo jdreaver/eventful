@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bank.Models.Customer.Aggregate
+module Bank.Models.Customer.CommandHandler
   ( CustomerCommand (..)
-  , customerAggregate
+  , customerCommandHandler
   ) where
 
 import SumTypes.TH
@@ -21,5 +21,5 @@ handleCustomerCommand customer (CreateCustomerCustomerCommand (CreateCustomer na
     Nothing -> [CustomerCreatedCustomerEvent $ CustomerCreated name]
     Just _ -> [CustomerCreationRejectedCustomerEvent $ CustomerCreationRejected "Customer already exists"]
 
-customerAggregate :: Aggregate Customer CustomerEvent CustomerCommand
-customerAggregate = Aggregate handleCustomerCommand customerProjection
+customerCommandHandler :: CommandHandler Customer CustomerEvent CustomerCommand
+customerCommandHandler = CommandHandler handleCustomerCommand customerProjection

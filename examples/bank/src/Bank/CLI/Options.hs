@@ -67,7 +67,7 @@ parseViewAccount =
   option parseUUID (
     long "account-id" <>
     metavar "uuid" <>
-    help "UUID for account aggregate"
+    help "UUID for account stream"
   )
 
 parseViewCustomerAccounts :: Parser CLICommand

@@ -10,8 +10,8 @@ module Cafe.Models.Tab
   , allFood
   , TabProjection
   , tabProjection
-  , TabAggregate
-  , tabAggregate
+  , TabCommandHandler
+  , tabCommandHandler
   , TabCommand (..)
   , TabEvent (..)
   , TabCommandError (..)
@@ -158,13 +158,13 @@ applyTabCommand _ (MarkDrinksServed indexes) = Right [DrinksServed indexes]
 applyTabCommand _ (MarkFoodPrepared indexes) = Right [FoodPrepared indexes]
 applyTabCommand _ (MarkFoodServed indexes) = Right [FoodServed indexes]
 
-type TabAggregate = Aggregate TabState TabEvent TabCommand
+type TabCommandHandler = CommandHandler TabState TabEvent TabCommand
 
-tabAggregate :: TabAggregate
-tabAggregate = Aggregate (either (const []) id `compose` applyTabCommand) tabProjection
+tabCommandHandler :: TabCommandHandler
+tabCommandHandler = CommandHandler (either (const []) id `compose` applyTabCommand) tabProjection
   where compose = (.).(.)
 
--- | List of all drinks. The menu could be its own aggregate in the future.
+-- | List of all drinks. The menu could be its own CommandHandler in the future.
 allDrinks :: [Drink]
 allDrinks =
   map Drink
@@ -173,7 +173,7 @@ allDrinks =
   , MenuItem "Soda" 1.00
   ]
 
--- | List of all food. The menu could be its own aggregate in the future.
+-- | List of all food. The menu could be its own CommandHandler in the future.
 allFood :: [Food]
 allFood =
   map Food

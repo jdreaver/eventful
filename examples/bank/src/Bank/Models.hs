@@ -7,11 +7,11 @@ module Bank.Models
   , accountEventSerializer
   , accountCommandSerializer
   , accountBankProjection
-  , accountBankAggregate
+  , accountBankCommandHandler
   , customerEventSerializer
   , customerCommandSerializer
   , customerBankProjection
-  , customerBankAggregate
+  , customerBankCommandHandler
   , module X
   ) where
 
@@ -51,8 +51,8 @@ mkSumTypeSerializer "accountCommandSerializer" ''AccountCommand ''BankCommand
 accountBankProjection :: Projection Account BankEvent
 accountBankProjection = serializedProjection accountProjection accountEventSerializer
 
-accountBankAggregate :: Aggregate Account BankEvent BankCommand
-accountBankAggregate = serializedAggregate accountAggregate accountEventSerializer accountCommandSerializer
+accountBankCommandHandler :: CommandHandler Account BankEvent BankCommand
+accountBankCommandHandler = serializedCommandHandler accountCommandHandler accountEventSerializer accountCommandSerializer
 
 mkSumTypeSerializer "customerEventSerializer" ''CustomerEvent ''BankEvent
 mkSumTypeSerializer "customerCommandSerializer" ''CustomerCommand ''BankCommand
@@ -60,5 +60,5 @@ mkSumTypeSerializer "customerCommandSerializer" ''CustomerCommand ''BankCommand
 customerBankProjection :: Projection Customer BankEvent
 customerBankProjection = serializedProjection customerProjection customerEventSerializer
 
-customerBankAggregate :: Aggregate Customer BankEvent BankCommand
-customerBankAggregate = serializedAggregate customerAggregate customerEventSerializer customerCommandSerializer
+customerBankCommandHandler :: CommandHandler Customer BankEvent BankCommand
+customerBankCommandHandler = serializedCommandHandler customerCommandHandler customerEventSerializer customerCommandSerializer

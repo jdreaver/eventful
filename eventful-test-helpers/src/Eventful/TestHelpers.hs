@@ -9,8 +9,8 @@ module Eventful.TestHelpers
   ( Counter (..)
   , CounterProjection
   , counterProjection
-  , CounterAggregate
-  , counterAggregate
+  , CounterCommandHandler
+  , counterCommandHandler
   , CounterEvent (..)
   , CounterCommand (..)
   , EventStoreRunner (..)
@@ -37,7 +37,7 @@ import Test.Hspec
 
 import Eventful
 
--- | Example Projection/Aggregate
+-- | Example Projection/CommandHandler
 newtype Counter = Counter { unCounter :: Int }
   deriving (Eq, Show, FromJSON, ToJSON)
 
@@ -71,10 +71,10 @@ data CounterCommand
     }
   deriving (Eq, Show)
 
-type CounterAggregate = Aggregate Counter CounterEvent CounterCommand
+type CounterCommandHandler = CommandHandler Counter CounterEvent CounterCommand
 
-counterAggregate :: CounterAggregate
-counterAggregate = Aggregate counterCommand counterProjection
+counterCommandHandler :: CounterCommandHandler
+counterCommandHandler = CommandHandler counterCommand counterProjection
 
 counterCommand :: Counter -> CounterCommand -> [CounterEvent]
 counterCommand (Counter k) (Increment n) =
@@ -149,7 +149,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
 
   context "when events from multiple UUIDs are inserted" $ do
 
-    it "should have the correct events for each aggregate" $ do
+    it "should have the correct events for each stream" $ do
       (events1, events2) <- withStoreExampleEvents $ \_ reader ->
         (,) <$> getEvents reader (allEvents uuid1) <*> getEvents reader (allEvents uuid2)
       (streamEventEvent <$> events1) `shouldBe` Added <$> [1, 4]

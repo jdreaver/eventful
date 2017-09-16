@@ -46,7 +46,7 @@ choose specific features to construct your application. Some features include:
 * Simple ``EventStore`` API so you can easily construct new event store
   backends.
 * Convenience layer with common ES/CQRS abstractions, including ``Projection``,
-  ``Aggregate``, and ``ProcessManager``. All of these integrate with
+  ``CommandHandler``, and ``ProcessManager``. All of these integrate with
   ``EventStore`` so you get transparent integration with your underlying event
   storage.
 * Extremely flexible serialization system. All ``eventful`` components that do

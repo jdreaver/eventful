@@ -18,7 +18,7 @@ runCLICommand pool (CreateCustomerCLI createCommand) = do
   putStr "Attempting to create customer with UUID: "
   print uuid
   let command = CreateCustomerCommand createCommand
-  void $ runDB pool $ commandStoredAggregate cliEventStoreWriter cliEventStoreReader customerBankAggregate uuid command
+  void $ runDB pool $ applyCommandHandler cliEventStoreWriter cliEventStoreReader customerBankCommandHandler uuid command
 runCLICommand pool (ViewAccountCLI uuid) = do
   latestStreamProjection <- runDB pool $
     getLatestStreamProjection cliEventStoreReader (versionedStreamProjection uuid accountBankProjection)
@@ -36,12 +36,12 @@ runCLICommand pool (OpenAccountCLI openCommand) = do
   putStr "Attempting to open account with UUID: "
   print uuid
   let command = OpenAccountCommand openCommand
-  void $ runDB pool $ commandStoredAggregate cliEventStoreWriter cliEventStoreReader accountBankAggregate uuid command
+  void $ runDB pool $ applyCommandHandler cliEventStoreWriter cliEventStoreReader accountBankCommandHandler uuid command
 runCLICommand pool (TransferToAccountCLI sourceId amount targetId) = do
   putStrLn $ "Starting transfer from acccount " ++ show sourceId ++ " to " ++ show targetId
 
   transferId <- uuidNextRandom
   let startCommand = TransferToAccountCommand $ TransferToAccount transferId amount targetId
-  void $ runDB pool $ commandStoredAggregate cliEventStoreWriter cliEventStoreReader accountBankAggregate sourceId startCommand
+  void $ runDB pool $ applyCommandHandler cliEventStoreWriter cliEventStoreReader accountBankCommandHandler sourceId startCommand
   runCLICommand pool (ViewAccountCLI sourceId)
   runCLICommand pool (ViewAccountCLI targetId)

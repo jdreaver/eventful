@@ -28,7 +28,7 @@ SqlEvent sql=events
     uuid UUID
     version EventVersion
     event JSONString
-    UniqueAggregateVersion uuid version
+    UniqueUuidVersion uuid version
     deriving Show
 |]
 

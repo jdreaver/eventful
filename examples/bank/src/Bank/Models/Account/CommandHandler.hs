@@ -1,8 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bank.Models.Account.Aggregate
-  ( accountAggregate
+module Bank.Models.Account.CommandHandler
+  ( accountCommandHandler
   , AccountCommand (..)
   ) where
 
@@ -72,5 +72,5 @@ handleAccountCommand _ (AcceptTransferAccountCommand AcceptTransfer{..}) =
     }
   ]
 
-accountAggregate :: Aggregate Account AccountEvent AccountCommand
-accountAggregate = Aggregate handleAccountCommand accountProjection
+accountCommandHandler :: CommandHandler Account AccountEvent AccountCommand
+accountCommandHandler = CommandHandler handleAccountCommand accountProjection

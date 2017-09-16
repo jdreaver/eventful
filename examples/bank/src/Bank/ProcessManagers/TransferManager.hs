@@ -52,7 +52,7 @@ handleAccountEvent manager (StreamEvent sourceAccount _ (AccountTransferStartedE
     }
   & transferManagerPendingCommands .~ (
       if isNothing (manager ^. transferManagerData . at accountTransferStartedTransferId)
-      then [ProcessManagerCommand accountTransferStartedTargetAccount accountBankAggregate command]
+      then [ProcessManagerCommand accountTransferStartedTargetAccount accountBankCommandHandler command]
       else []
     )
   & transferManagerPendingEvents .~ []

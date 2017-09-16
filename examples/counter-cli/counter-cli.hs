@@ -1,5 +1,5 @@
 -- | This program shows very basic usage of an event store. We create a very
--- simple Counter Projection/Aggregate that holds an integer between 0 and 100.
+-- simple Counter Projection/CommandHandler that holds an integer between 0 and 100.
 -- The CLI asks the user for commands and applies them to an in-memory event
 -- store.
 
@@ -40,7 +40,7 @@ readAndHandleCommand writer reader = do
   case readMay input of
     Nothing -> putStrLn "Unknown command"
     (Just command) -> do
-      let events = aggregateCommandHandler counterAggregate currentState command
+      let events = commandHandlerHandler counterCommandHandler currentState command
       putStrLn $ "Events generated: " ++ show events
       void . atomically $ storeEvents writer AnyVersion uuid events
 
@@ -92,8 +92,8 @@ handlerCounterCommand (CounterState k) (DecrementCounter n) =
   else [CounterOutOfBounds (k - n)]
 handlerCounterCommand (CounterState k) ResetCounter = [CounterAmountAdded (-k)]
 
--- | This ties all of the counter types into an aggregate.
-type CounterAggregate = Aggregate CounterState CounterEvent CounterCommand
+-- | This ties all of the counter types into a CommandHandler.
+type CounterCommandHandler = CommandHandler CounterState CounterEvent CounterCommand
 
-counterAggregate :: CounterAggregate
-counterAggregate = Aggregate handlerCounterCommand counterProjection
+counterCommandHandler :: CounterCommandHandler
+counterCommandHandler = CommandHandler handlerCounterCommand counterProjection

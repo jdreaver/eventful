@@ -3,6 +3,9 @@
 ## 0.2.1
 
 * Added useful `unsafeSqlStoreGlobalStreamEvents` function.
+* Got rid of the word `Aggregate` throughout the codebase since that term is
+  too overloaded from DDD. It was replaced either by `CommandHandler` or just
+  stream.
 
 ## 0.2.0
 
