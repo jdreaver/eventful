@@ -93,7 +93,7 @@ globalStreamProjection = streamProjection () 0
 
 -- | Apply an event to the 'StreamProjection'. NOTE: There is no guarantee that
 -- the order key for the event is greater than the current order key in the
--- 'StreamProjection'. This function simple will update the 'StreamProjection'
+-- 'StreamProjection'. This function will simply update the 'StreamProjection'
 -- to use the order key of the event.
 streamProjectionEventHandler
   :: StreamProjection key position state event
