@@ -50,7 +50,7 @@ eventMapTVar = newTVarIO emptyEventMap
 tvarEventStoreReader :: TVar (EventMap event) -> VersionedEventStoreReader STM event
 tvarEventStoreReader tvar = EventStoreReader $ \range -> lookupEventsInRange range <$> readTVar tvar
 
-tvarEventStoreWriter :: TVar (EventMap event) -> EventStoreWriter STM event
+tvarEventStoreWriter :: TVar (EventMap event) -> VersionedEventStoreWriter STM event
 tvarEventStoreWriter tvar = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion uuid = flip latestEventVersion uuid <$> readTVar tvar
@@ -76,7 +76,7 @@ stateGlobalEventStoreReader = embeddedStateGlobalEventStoreReader id
 -- 'EventMap' in the state.
 stateEventStoreWriter
   :: (MonadState (EventMap event) m)
-  => EventStoreWriter m event
+  => VersionedEventStoreWriter m event
 stateEventStoreWriter = embeddedStateEventStoreWriter id (flip const)
 
 -- | An 'EventStore' that runs on some 'MonadState' that contains an
@@ -92,7 +92,7 @@ embeddedStateEventStoreWriter
   :: (MonadState s m)
   => (s -> EventMap event)
   -> (s -> EventMap event -> s)
-  -> EventStoreWriter m event
+  -> VersionedEventStoreWriter m event
 embeddedStateEventStoreWriter getMap setMap = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion uuid = flip latestEventVersion uuid <$> gets getMap

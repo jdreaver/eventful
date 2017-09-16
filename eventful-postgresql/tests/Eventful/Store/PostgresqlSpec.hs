@@ -17,7 +17,7 @@ spec = do
     eventStoreSpec postgresStoreRunner
     globalStreamEventStoreSpec postgresStoreGlobalRunner
 
-makeStore :: (MonadIO m) => m (EventStoreWriter (SqlPersistT m) CounterEvent, VersionedEventStoreReader (SqlPersistT m) CounterEvent, ConnectionPool)
+makeStore :: (MonadIO m) => m (VersionedEventStoreWriter (SqlPersistT m) CounterEvent, VersionedEventStoreReader (SqlPersistT m) CounterEvent, ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.

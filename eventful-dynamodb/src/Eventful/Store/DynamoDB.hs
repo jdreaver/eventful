@@ -63,7 +63,7 @@ dynamoDBEventStoreReader config = EventStoreReader $ getDynamoEvents config
 
 dynamoDBEventStoreWriter
   :: DynamoDBEventStoreConfig serialized
-  -> EventStoreWriter AWS serialized
+  -> VersionedEventStoreWriter AWS serialized
 dynamoDBEventStoreWriter config = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion = latestEventVersion config

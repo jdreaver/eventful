@@ -92,7 +92,7 @@ deriveJSON (aesonPrefix camelCase) ''CounterCommand
 -- Test harness for stores
 
 newtype EventStoreRunner m =
-  EventStoreRunner (forall a. (EventStoreWriter m CounterEvent -> VersionedEventStoreReader m CounterEvent -> m a) -> IO a)
+  EventStoreRunner (forall a. (VersionedEventStoreWriter m CounterEvent -> VersionedEventStoreReader m CounterEvent -> m a) -> IO a)
 
 eventStoreSpec
   :: (Monad m)
@@ -108,7 +108,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
     let
       sampleEvents = [Added 1, Added 4, Added (-3), Added 5]
       withStore' action = withStore $ \writer reader -> do
-        _ <- storeEvents writer NoStream nil sampleEvents
+        _ <- storeEvents writer nil NoStream sampleEvents
         action writer reader
 
     it "should return events" $ do
@@ -192,20 +192,20 @@ eventStoreSpec (EventStoreRunner withStore) = do
     it "rejects some writes when event store isn't created" $ do
       (err1, err2) <- withStore $ \writer _ ->
         (,) <$>
-          storeEvents writer StreamExists nil [Added 1] <*>
-          storeEvents writer (ExactVersion 0) nil [Added 1]
+          storeEvents writer nil StreamExists [Added 1] <*>
+          storeEvents writer nil (ExactPosition 0) [Added 1]
       err1 `shouldBe` Just (EventStreamNotAtExpectedVersion (-1))
       err2 `shouldBe` Just (EventStreamNotAtExpectedVersion (-1))
 
     it "should be able to store events starting with an empty stream" $ do
-      withStore (\writer _ -> storeEvents writer NoStream nil [Added 1]) `shouldReturn` Nothing
+      withStore (\writer _ -> storeEvents writer nil NoStream [Added 1]) `shouldReturn` Nothing
 
     it "should reject storing events sometimes with a stream" $ do
       (err1, err2, err3) <- withStore $ \writer _ ->
         (,,) <$>
-          storeEvents writer NoStream nil [Added 1] <*>
-          storeEvents writer NoStream nil [Added 1] <*>
-          storeEvents writer (ExactVersion 1) nil [Added 1]
+          storeEvents writer nil NoStream [Added 1] <*>
+          storeEvents writer nil NoStream [Added 1] <*>
+          storeEvents writer nil (ExactPosition 1) [Added 1]
       err1 `shouldBe` Nothing
       err2 `shouldBe` Just (EventStreamNotAtExpectedVersion 0)
       err3 `shouldBe` Just (EventStreamNotAtExpectedVersion 0)
@@ -213,16 +213,16 @@ eventStoreSpec (EventStoreRunner withStore) = do
     it "should accepts storing events sometimes with a stream" $ do
       errors <- withStore $ \writer _ ->
         sequence
-          [ storeEvents writer NoStream nil [Added 1]
-          , storeEvents writer AnyVersion nil [Added 1]
-          , storeEvents writer (ExactVersion 1) nil [Added 1]
-          , storeEvents writer StreamExists nil [Added 1]
+          [ storeEvents writer nil NoStream [Added 1]
+          , storeEvents writer nil AnyPosition [Added 1]
+          , storeEvents writer nil (ExactPosition 1) [Added 1]
+          , storeEvents writer nil StreamExists [Added 1]
           ]
       errors `shouldBe` [Nothing, Nothing, Nothing, Nothing]
 
 newtype GlobalStreamEventStoreRunner m =
   GlobalStreamEventStoreRunner
-  (forall a. (EventStoreWriter m CounterEvent -> GlobalEventStoreReader m CounterEvent -> m a) -> IO a)
+  (forall a. (VersionedEventStoreWriter m CounterEvent -> GlobalEventStoreReader m CounterEvent -> m a) -> IO a)
 
 globalStreamEventStoreSpec
   :: (Monad m)
@@ -250,7 +250,7 @@ globalStreamEventStoreSpec (GlobalStreamEventStoreRunner withStore) = do
       (proj1, proj2) <- withStore $ \writer globalReader -> do
         insertExampleEvents writer
         p1 <- getLatestStreamProjection globalReader (globalStreamProjection counterGlobalProjection)
-        _ <- storeEvents writer AnyVersion uuid1 [Added 10, Added 20]
+        _ <- storeEvents writer uuid1 AnyPosition [Added 10, Added 20]
         p2 <- getLatestStreamProjection globalReader p1
         return (p1, p2)
 
@@ -277,13 +277,13 @@ globalStreamEventStoreSpec (GlobalStreamEventStoreRunner withStore) = do
 
 insertExampleEvents
   :: (Monad m)
-  => EventStoreWriter m CounterEvent
+  => VersionedEventStoreWriter m CounterEvent
   -> m ()
 insertExampleEvents store = do
-  void $ storeEvents store NoStream uuid1 [Added 1]
-  void $ storeEvents store NoStream uuid2 [Added 2, Added 3]
-  void $ storeEvents store (ExactVersion 0) uuid1 [Added 4]
-  void $ storeEvents store (ExactVersion 1) uuid2 [Added 5]
+  void $ storeEvents store uuid1 NoStream [Added 1]
+  void $ storeEvents store uuid2 NoStream [Added 2, Added 3]
+  void $ storeEvents store uuid1 (ExactPosition 0) [Added 4]
+  void $ storeEvents store uuid2 (ExactPosition 1) [Added 5]
 
 uuid1 :: UUID
 uuid1 = uuidFromInteger 1
@@ -294,7 +294,7 @@ uuid2 = uuidFromInteger 2
 newtype VersionedProjectionCacheRunner m =
   VersionedProjectionCacheRunner
   (forall a.
-   (  EventStoreWriter m CounterEvent
+   (  VersionedEventStoreWriter m CounterEvent
    -> VersionedEventStoreReader m CounterEvent
    -> VersionedProjectionCache Counter m -> m a)
    -> IO a
@@ -317,14 +317,14 @@ versionedProjectionCacheSpec (VersionedProjectionCacheRunner withStoreAndCache) 
 
     it "should load from a stream of events" $ do
       snapshot <- withStoreAndCache $ \writer reader cache -> do
-        _ <- storeEvents writer AnyVersion nil [Added 1, Added 2]
+        _ <- storeEvents writer nil AnyPosition [Added 1, Added 2]
         getLatestVersionedProjectionWithCache reader cache (versionedStreamProjection nil counterProjection)
       streamProjectionPosition snapshot `shouldBe` 1
       streamProjectionState snapshot `shouldBe` Counter 3
 
     it "should work with updateProjectionCache" $ do
       snapshot <- withStoreAndCache $ \writer reader cache -> do
-        _ <- storeEvents writer AnyVersion nil [Added 1, Added 2, Added 3]
+        _ <- storeEvents writer nil AnyPosition [Added 1, Added 2, Added 3]
         updateProjectionCache reader cache (versionedStreamProjection nil counterProjection)
         getLatestVersionedProjectionWithCache reader cache (versionedStreamProjection nil counterProjection)
       streamProjectionKey snapshot `shouldBe` nil
@@ -334,7 +334,7 @@ versionedProjectionCacheSpec (VersionedProjectionCacheRunner withStoreAndCache) 
 newtype GlobalStreamProjectionCacheRunner m =
   GlobalStreamProjectionCacheRunner
   (forall a.
-    (  EventStoreWriter m CounterEvent
+    (  VersionedEventStoreWriter m CounterEvent
     -> GlobalEventStoreReader m CounterEvent
     -> GlobalStreamProjectionCache Text Counter m -> m a
     ) -> IO a)
@@ -356,14 +356,14 @@ globalStreamProjectionCacheSpec (GlobalStreamProjectionCacheRunner withStoreAndC
 
     it "should load from a global stream of events" $ do
       snapshot <- withStoreAndCache $ \writer globalReader cache -> do
-        _ <- storeEvents writer AnyVersion nil [Added 1, Added 2]
+        _ <- storeEvents writer nil AnyPosition [Added 1, Added 2]
         getLatestGlobalProjectionWithCache globalReader cache (globalStreamProjection counterGlobalProjection) "key"
       streamProjectionPosition snapshot `shouldBe` 2
       streamProjectionState snapshot `shouldBe` Counter 3
 
     it "should work with updateGlobalProjectionCache" $ do
       snapshot <- withStoreAndCache $ \writer globalReader cache -> do
-        _ <- storeEvents writer AnyVersion nil [Added 1, Added 2, Added 3]
+        _ <- storeEvents writer nil AnyPosition [Added 1, Added 2, Added 3]
         updateGlobalProjectionCache globalReader cache (globalStreamProjection counterGlobalProjection) "key"
         getLatestGlobalProjectionWithCache globalReader cache (globalStreamProjection counterGlobalProjection) "key"
       streamProjectionPosition snapshot `shouldBe` 3

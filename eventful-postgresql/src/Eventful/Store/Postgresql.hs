@@ -24,7 +24,7 @@ import Eventful.Store.Sql
 postgresqlEventStoreWriter
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> EventStoreWriter (SqlPersistT m) serialized
+  -> VersionedEventStoreWriter (SqlPersistT m) serialized
 postgresqlEventStoreWriter config = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion = sqlMaxEventVersion config maxPostgresVersionSql

@@ -44,7 +44,7 @@ allCommandHandlerStates (CommandHandler commandHandler (Projection seed eventHan
 -- saves the events back to the store as well.
 applyCommandHandler
   :: (Monad m)
-  => EventStoreWriter m event
+  => VersionedEventStoreWriter m event
   -> VersionedEventStoreReader m event
   -> CommandHandler state event command
   -> UUID
@@ -53,7 +53,7 @@ applyCommandHandler
 applyCommandHandler writer reader (CommandHandler handler proj) uuid command = do
   StreamProjection{..} <- getLatestStreamProjection reader (versionedStreamProjection uuid proj)
   let events = handler streamProjectionState command
-  mError <- storeEvents writer (ExactVersion streamProjectionPosition) uuid events
+  mError <- storeEvents writer uuid (ExactPosition streamProjectionPosition) events
   case mError of
     (Just err) -> error $ "TODO: Create CommandHandler restart logic. " ++ show err
     Nothing -> return events

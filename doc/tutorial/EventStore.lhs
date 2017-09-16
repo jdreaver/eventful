@@ -121,7 +121,7 @@ counterStoreExample = do
       , CounterDecremented 1
       , CounterReset
       ]
-  _ <- atomically $ storeEvents writer AnyVersion uuid events
+  _ <- atomically $ storeEvents writer uuid AnyPosition events
 
   -- Now read the events back and print
   events' <- atomically $ getEvents reader (allEvents uuid)

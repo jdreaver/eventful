@@ -11,10 +11,11 @@ module Eventful.Store.Class
   , EventStoreWriter (..)
   , VersionedEventStoreReader
   , GlobalEventStoreReader
+  , VersionedEventStoreWriter
   , StreamEvent (..)
   , VersionedStreamEvent
   , GlobalStreamEvent
-  , ExpectedVersion (..)
+  , ExpectedPosition (..)
   , EventWriteError (..)
   , runEventStoreReaderUsing
   , runEventStoreWriterUsing
@@ -54,10 +55,13 @@ type GlobalEventStoreReader m event = EventStoreReader () SequenceNumber m (Glob
 
 -- | An 'EventStoreWriter' is a function to write some events of type @event@
 -- to an event store in some monad @m@.
-newtype EventStoreWriter m event = EventStoreWriter { storeEvents :: ExpectedVersion -> UUID -> [event] -> m (Maybe EventWriteError) }
+newtype EventStoreWriter key position m event
+  = EventStoreWriter { storeEvents :: key -> ExpectedPosition position -> [event] -> m (Maybe (EventWriteError position)) }
 
-instance Contravariant (EventStoreWriter m) where
+instance Contravariant (EventStoreWriter key position m) where
   contramap f (EventStoreWriter writer) = EventStoreWriter $ \vers uuid -> writer vers uuid . fmap f
+
+type VersionedEventStoreWriter = EventStoreWriter UUID EventVersion
 
 -- | An event along with the @key@ for the event stream it is from and its
 -- @position@ in that event stream.
@@ -71,46 +75,46 @@ data StreamEvent key position event
 type VersionedStreamEvent event = StreamEvent UUID EventVersion event
 type GlobalStreamEvent event = StreamEvent () SequenceNumber (VersionedStreamEvent event)
 
--- | ExpectedVersion is used to assert the event stream is at a certain version
--- number. This is used when multiple writers are concurrently writing to the
--- event store. If the expected version is incorrect, then storing fails.
-data ExpectedVersion
-  = AnyVersion
-    -- ^ Used when the writer doesn't care what version the stream is at.
+-- | ExpectedPosition is used to assert the event stream is at a certain
+-- position. This is used when multiple writers are concurrently writing to the
+-- event store. If the expected position is incorrect, then storing fails.
+data ExpectedPosition position
+  = AnyPosition
+    -- ^ Used when the writer doesn't care what position the stream is at.
   | NoStream
     -- ^ The stream shouldn't exist yet.
   | StreamExists
     -- ^ The stream should already exist.
-  | ExactVersion EventVersion
-    -- ^ Used to assert the stream is at a particular version.
+  | ExactPosition position
+    -- ^ Used to assert the stream is at a particular position.
   deriving (Show, Eq)
 
-data EventWriteError
-  = EventStreamNotAtExpectedVersion EventVersion
+data EventWriteError position
+  = EventStreamNotAtExpectedVersion position
   deriving (Show, Eq)
 
 -- | Helper to create 'storeEventsRaw' given a function to get the latest
 -- stream version and a function to write to the event store. **NOTE**: This
 -- only works if the monad @m@ is transactional.
 transactionalExpectedWriteHelper
-  :: (Monad m)
-  => (UUID -> m EventVersion)
-  -> (UUID -> [event] -> m ())
-  -> ExpectedVersion -> UUID -> [event] -> m (Maybe EventWriteError)
-transactionalExpectedWriteHelper getLatestVersion' storeEvents' expected =
-  go expected getLatestVersion' storeEvents'
+  :: (Monad m, Ord position, Num position)
+  => (key -> m position)
+  -> (key -> [event] -> m ())
+  -> key -> ExpectedPosition position -> [event] -> m (Maybe (EventWriteError position))
+transactionalExpectedWriteHelper getLatestVersion' storeEvents' key expected =
+  go expected getLatestVersion' storeEvents' key
   where
-    go AnyVersion = transactionalExpectedWriteHelper' Nothing
+    go AnyPosition = transactionalExpectedWriteHelper' Nothing
     go NoStream = transactionalExpectedWriteHelper' (Just $ (==) (-1))
     go StreamExists = transactionalExpectedWriteHelper' (Just (> (-1)))
-    go (ExactVersion vers) = transactionalExpectedWriteHelper' (Just $ (==) vers)
+    go (ExactPosition pos) = transactionalExpectedWriteHelper' (Just $ (==) pos)
 
 transactionalExpectedWriteHelper'
   :: (Monad m)
-  => Maybe (EventVersion -> Bool)
-  -> (UUID -> m EventVersion)
-  -> (UUID -> [event] -> m ())
-  -> UUID -> [event] -> m (Maybe EventWriteError)
+  => Maybe (position -> Bool)
+  -> (key -> m position)
+  -> (key -> [event] -> m ())
+  -> key -> [event] -> m (Maybe (EventWriteError position))
 transactionalExpectedWriteHelper' Nothing _ storeEvents' uuid events =
   storeEvents' uuid events >> return Nothing
 transactionalExpectedWriteHelper' (Just f) getLatestVersion' storeEvents' uuid events = do
@@ -132,8 +136,8 @@ runEventStoreReaderUsing runStore (EventStoreReader f) = EventStoreReader (runSt
 runEventStoreWriterUsing
   :: (Monad m, Monad mstore)
   => (forall a. mstore a -> m a)
-  -> EventStoreWriter mstore event
-  -> EventStoreWriter m event
+  -> EventStoreWriter key posirion mstore event
+  -> EventStoreWriter key posirion m event
 runEventStoreWriterUsing runStore (EventStoreWriter f) =
   EventStoreWriter $ \vers uuid events -> runStore $ f vers uuid events
 
@@ -172,8 +176,8 @@ serializedGlobalEventStoreReader serializer = serializedEventStoreReader (traver
 serializedEventStoreWriter
   :: (Monad m)
   => Serializer event serialized
-  -> EventStoreWriter m serialized
-  -> EventStoreWriter m event
+  -> EventStoreWriter key position m serialized
+  -> EventStoreWriter key position m event
 serializedEventStoreWriter Serializer{..} = contramap serialize
 
 -- | Event versions are a strictly increasing series of integers for each

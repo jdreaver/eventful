@@ -26,7 +26,7 @@ runDB = flip runSqlPool
 cliEventStoreReader :: (MonadIO m) => VersionedEventStoreReader (SqlPersistT m) BankEvent
 cliEventStoreReader = serializedVersionedEventStoreReader jsonStringSerializer $ sqlEventStoreReader defaultSqlEventStoreConfig
 
-cliEventStoreWriter :: (MonadIO m) => EventStoreWriter (SqlPersistT m) BankEvent
+cliEventStoreWriter :: (MonadIO m) => VersionedEventStoreWriter (SqlPersistT m) BankEvent
 cliEventStoreWriter = synchronousEventBusWrapper writer handlers
   where
     sqlStore = sqliteEventStoreWriter defaultSqlEventStoreConfig
@@ -40,7 +40,7 @@ cliGlobalEventStoreReader :: (MonadIO m) => GlobalEventStoreReader (SqlPersistT 
 cliGlobalEventStoreReader =
   serializedGlobalEventStoreReader jsonStringSerializer (sqlGlobalEventStoreReader defaultSqlEventStoreConfig)
 
-type BankEventHandler m = EventStoreWriter (SqlPersistT m) BankEvent -> UUID -> BankEvent -> SqlPersistT m ()
+type BankEventHandler m = VersionedEventStoreWriter (SqlPersistT m) BankEvent -> UUID -> BankEvent -> SqlPersistT m ()
 
 eventPrinter :: (MonadIO m) => BankEventHandler m
 eventPrinter _ uuid event = liftIO $ printJSONPretty (uuid, event)

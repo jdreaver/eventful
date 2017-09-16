@@ -1,7 +1,10 @@
 # eventful Changelog
 
-## 0.2.1
+## 0.3.0
 
+* Made `EventStoreWriter` more general, allowing any `key` and `position`
+  types. We also provide a `VersionedEventStoreWriter` type alias that uses
+  `UUID` and `EventVersion`.
 * Added useful `unsafeSqlStoreGlobalStreamEvents` function.
 * Got rid of the word `Aggregate` throughout the codebase since that term is
   too overloaded from DDD. It was replaced either by `CommandHandler` or just

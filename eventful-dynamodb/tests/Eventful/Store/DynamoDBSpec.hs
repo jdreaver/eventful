@@ -16,7 +16,7 @@ spec = do
   describe "DynamoDB event store" $ do
     eventStoreSpec dynamoRunner
 
-makeStore :: IO (EventStoreWriter AWS CounterEvent, VersionedEventStoreReader AWS CounterEvent, Env)
+makeStore :: IO (VersionedEventStoreWriter AWS CounterEvent, VersionedEventStoreReader AWS CounterEvent, Env)
 makeStore = do
   let
     dynamo = setEndpoint False "localhost" 8000 dynamoDB

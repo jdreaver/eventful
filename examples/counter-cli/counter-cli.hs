@@ -21,7 +21,7 @@ main = do
     reader = tvarEventStoreReader tvar
   forever (readAndHandleCommand writer reader)
 
-readAndHandleCommand :: EventStoreWriter STM CounterEvent -> VersionedEventStoreReader STM CounterEvent -> IO ()
+readAndHandleCommand :: VersionedEventStoreWriter STM CounterEvent -> VersionedEventStoreReader STM CounterEvent -> IO ()
 readAndHandleCommand writer reader = do
   -- Just use the nil uuid for everything
   let uuid = nil
@@ -42,7 +42,7 @@ readAndHandleCommand writer reader = do
     (Just command) -> do
       let events = commandHandlerHandler counterCommandHandler currentState command
       putStrLn $ "Events generated: " ++ show events
-      void . atomically $ storeEvents writer AnyVersion uuid events
+      void . atomically $ storeEvents writer uuid AnyPosition events
 
   putStrLn ""
 

@@ -25,7 +25,7 @@ import Eventful.Store.Sql
 sqliteEventStoreWriter
   :: (MonadIO m, PersistEntity entity, PersistEntityBackend entity ~ SqlBackend)
   => SqlEventStoreConfig entity serialized
-  -> EventStoreWriter (SqlPersistT m) serialized
+  -> VersionedEventStoreWriter (SqlPersistT m) serialized
 sqliteEventStoreWriter config = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion = sqlMaxEventVersion config maxSqliteVersionSql

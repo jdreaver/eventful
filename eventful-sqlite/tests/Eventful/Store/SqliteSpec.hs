@@ -20,7 +20,7 @@ spec = do
     eventStoreSpec sqliteIOStoreRunner
     globalStreamEventStoreSpec sqliteIOStoreGlobalRunner
 
-makeStore :: IO (EventStoreWriter (SqlPersistT IO) CounterEvent, VersionedEventStoreReader (SqlPersistT IO) CounterEvent, ConnectionPool)
+makeStore :: IO (VersionedEventStoreWriter (SqlPersistT IO) CounterEvent, VersionedEventStoreReader (SqlPersistT IO) CounterEvent, ConnectionPool)
 makeStore = do
   pool <- liftIO $ runNoLoggingT (createSqlitePool ":memory:" 1)
   let
@@ -40,7 +40,7 @@ sqliteStoreGlobalRunner = GlobalStreamEventStoreRunner $ \action -> do
   let globalStore = serializedGlobalEventStoreReader jsonStringSerializer (sqlGlobalEventStoreReader defaultSqlEventStoreConfig)
   runSqlPool (action writer globalStore) pool
 
-makeIOStore :: IO (EventStoreWriter IO CounterEvent, VersionedEventStoreReader IO CounterEvent, ConnectionPool)
+makeIOStore :: IO (VersionedEventStoreWriter IO CounterEvent, VersionedEventStoreReader IO CounterEvent, ConnectionPool)
 makeIOStore = do
   (writer, reader, pool) <- makeStore
   let
