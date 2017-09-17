@@ -10,6 +10,7 @@ module Eventful.Projection
   , streamProjection
   , versionedStreamProjection
   , globalStreamProjection
+  , streamProjectionEventHandler
   , getLatestStreamProjection
   , serializedProjection
   , projectionMapMaybe
