@@ -22,7 +22,7 @@ synchronousEventBusWrapper writer handlers = wrappedStore
     handlers' = map ($ wrappedStore) handlers
     wrappedStore = EventStoreWriter $ storeAndPublishEvents writer handlers'
 
--- | Stores events in the store and them publishes them to the event handlers.
+-- | Stores events in the store and then publishes them to the event handlers.
 -- This is used in the 'synchronousEventBusWrapper'.
 storeAndPublishEvents
   :: (Monad m)
