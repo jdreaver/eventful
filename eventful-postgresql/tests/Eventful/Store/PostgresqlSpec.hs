@@ -17,14 +17,20 @@ spec = do
     eventStoreSpec postgresStoreRunner
     globalStreamEventStoreSpec postgresStoreGlobalRunner
 
-makeStore :: (MonadIO m) => m (VersionedEventStoreWriter (SqlPersistT m) CounterEvent, VersionedEventStoreReader (SqlPersistT m) CounterEvent, ConnectionPool)
+makeStore
+  :: (MonadIO m)
+  => m ( VersionedEventStoreWriter (SqlPersistT m) CounterEvent
+       , VersionedEventStoreReader (SqlPersistT m) CounterEvent
+       , ConnectionPool)
 makeStore = do
   -- TODO: Obviously this is hard-coded, make this use environment variables or
   -- something in the future.
   let
     connString = "host=localhost port=5432 user=postgres dbname=eventful_test password=password"
-    writer = serializedEventStoreWriter jsonStringSerializer $ postgresqlEventStoreWriter defaultSqlEventStoreConfig
-    reader = serializedVersionedEventStoreReader jsonStringSerializer $ sqlEventStoreReader defaultSqlEventStoreConfig
+    writer = serializedEventStoreWriter jsonStringSerializer $
+        postgresqlEventStoreWriter defaultSqlEventStoreConfig
+    reader = serializedVersionedEventStoreReader jsonStringSerializer $
+        sqlEventStoreReader defaultSqlEventStoreConfig
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
   liftIO $ runSqlPool truncateTables pool
