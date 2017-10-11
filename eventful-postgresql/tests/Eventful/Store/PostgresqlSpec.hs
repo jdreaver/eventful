@@ -3,9 +3,13 @@
 module Eventful.Store.PostgresqlSpec (spec) where
 
 import Control.Monad.Reader (ask)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.UTF8 as UTF8
+import Data.Maybe (maybe)
 import Data.Monoid ((<>))
 import Data.Text (Text, intercalate)
 import Database.Persist.Postgresql
+import System.Environment (lookupEnv)
 import Test.Hspec
 
 import Eventful.Store.Postgresql
@@ -23,18 +27,30 @@ makeStore
        , VersionedEventStoreReader (SqlPersistT m) CounterEvent
        , ConnectionPool)
 makeStore = do
-  -- TODO: Obviously this is hard-coded, make this use environment variables or
-  -- something in the future.
   let
-    connString = "host=localhost port=5432 user=postgres dbname=eventful_test password=password"
+    makeConnString host port user pass db = (
+          "host=" <> host
+      <> " port=" <> port
+      <> " user=" <> user
+      <> " dbname=" <> db
+      <> " password=" <> pass)
     writer = serializedEventStoreWriter jsonStringSerializer $
         postgresqlEventStoreWriter defaultSqlEventStoreConfig
     reader = serializedVersionedEventStoreReader jsonStringSerializer $
         sqlEventStoreReader defaultSqlEventStoreConfig
+  connString <- makeConnString
+    <$> getEnvDef "POSTGRES_HOST" "localhost"
+    <*> getEnvDef "POSTGRES_PORT" "5432"
+    <*> getEnvDef "POSTGRES_USER" "postgres"
+    <*> getEnvDef "POSTGRES_PASSWORD" "password"
+    <*> getEnvDef "POSTGRES_DBNAME" "eventful_test"
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
   initializePostgresqlEventStore pool
   liftIO $ runSqlPool truncateTables pool
   return (writer, reader, pool)
+
+getEnvDef :: (MonadIO m) => String -> ByteString -> m ByteString
+getEnvDef name def = liftIO $ maybe def UTF8.fromString <$> lookupEnv name
 
 getTables :: MonadIO m => SqlPersistT m [Text]
 getTables = do

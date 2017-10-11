@@ -43,3 +43,4 @@ tests:
       - HUnit
       - eventful-test-helpers
       - persistent-postgresql
+      - utf8-string
