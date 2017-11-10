@@ -5,7 +5,6 @@
 
 module Eventful.Store.Postgresql
   ( postgresqlEventStoreWriter
-  , initializePostgresqlEventStore
   , module Eventful.Store.Class
   , module Eventful.Store.Sql
   ) where
@@ -33,15 +32,6 @@ postgresqlEventStoreWriter config = EventStoreWriter $ transactionalExpectedWrit
 maxPostgresVersionSql :: DBName -> DBName -> DBName -> Text
 maxPostgresVersionSql (DBName tableName) (DBName uuidFieldName) (DBName versionFieldName) =
   "SELECT COALESCE(MAX(" <> versionFieldName <> "), -1) FROM " <> tableName <> " WHERE " <> uuidFieldName <> " = ?"
-
--- | This function runs migrations to create the events table if it isn't
--- present.
-initializePostgresqlEventStore :: (MonadIO m) => ConnectionPool -> m ()
-initializePostgresqlEventStore pool = do
-  -- Run migrations
-  _ <- liftIO $ runSqlPool (runMigrationSilent migrateSqlEvent) pool
-
-  return ()
 
 -- | We need to lock the events table or else our global sequence number might
 -- not be monotonically increasing over time from the point of view of a

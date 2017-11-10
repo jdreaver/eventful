@@ -45,8 +45,9 @@ makeStore = do
     <*> getEnvDef "POSTGRES_PASSWORD" "password"
     <*> getEnvDef "POSTGRES_DBNAME" "eventful_test"
   pool <- liftIO $ runNoLoggingT (createPostgresqlPool connString 1)
-  initializePostgresqlEventStore pool
-  liftIO $ runSqlPool truncateTables pool
+  liftIO $ flip runSqlPool pool $ do
+    void $ runMigrationSilent migrateSqlEvent
+    truncateTables
   return (writer, reader, pool)
 
 getEnvDef :: (MonadIO m) => String -> ByteString -> m ByteString
