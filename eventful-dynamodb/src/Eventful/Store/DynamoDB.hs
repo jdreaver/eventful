@@ -155,7 +155,7 @@ storeDynamoEvents
   => DynamoDBEventStoreConfig serialized
   -> UUID
   -> [serialized]
-  -> m ()
+  -> m EventVersion
 storeDynamoEvents config@DynamoDBEventStoreConfig{..} uuid events = do
   latestVersion <- latestEventVersion config uuid
 
@@ -170,6 +170,7 @@ storeDynamoEvents config@DynamoDBEventStoreConfig{..} uuid events = do
         , (dynamoDBEventStoreConfigVersionAttributeName, attributeValue & avN ?~ T.pack (show version))
         , (dynamoDBEventStoreConfigEventAttributeName, dynamoDBEventStoreConfigSerializedToValue event)
         ]
+  return $ latestVersion + (EventVersion $ length events)
 
 -- | Helpful function to create the events table. If a table already exists
 -- with the same name, then this function just uses that one. Note, there are
