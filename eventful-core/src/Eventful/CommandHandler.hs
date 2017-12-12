@@ -55,8 +55,8 @@ applyCommandHandler writer reader (CommandHandler handler proj) uuid command = d
   let events = handler streamProjectionState command
   mError <- storeEvents writer uuid (ExactPosition streamProjectionPosition) events
   case mError of
-    (Just err) -> error $ "TODO: Create CommandHandler restart logic. " ++ show err
-    Nothing -> return events
+    Left err -> error $ "TODO: Create CommandHandler restart logic. " ++ show err
+    Right _ -> return events
 
 -- | Use a pair of 'Serializer's to wrap a 'CommandHandler' with event type @event@
 -- and command type @command@ so it uses the @serializedEvent@ and

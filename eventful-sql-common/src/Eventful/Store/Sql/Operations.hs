@@ -147,7 +147,7 @@ sqlStoreEvents
   -> (DBName -> DBName -> DBName -> Text)
   -> UUID
   -> [serialized]
-  -> SqlPersistT m ()
+  -> SqlPersistT m EventVersion
 sqlStoreEvents config@SqlEventStoreConfig{..} mLockCommand maxVersionSql uuid events = do
   versionNum <- sqlMaxEventVersion config maxVersionSql uuid
   let entities = zipWith (sqlEventStoreConfigSequenceMakeEntity uuid) [versionNum + 1..] events
@@ -155,6 +155,7 @@ sqlStoreEvents config@SqlEventStoreConfig{..} mLockCommand maxVersionSql uuid ev
   -- numbers may not increase monotonically over time.
   for_ mLockCommand $ \lockCommand -> rawExecute (lockCommand tableName) []
   insertMany_ entities
+  return $ versionNum + (EventVersion $ length events)
   where
     (DBName tableName) = tableDBName (sqlEventStoreConfigSequenceMakeEntity nil 0 undefined)
 

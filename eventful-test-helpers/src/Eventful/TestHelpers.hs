@@ -194,11 +194,11 @@ eventStoreSpec (EventStoreRunner withStore) = do
         (,) <$>
           storeEvents writer nil StreamExists [Added 1] <*>
           storeEvents writer nil (ExactPosition 0) [Added 1]
-      err1 `shouldBe` Just (EventStreamNotAtExpectedVersion (-1))
-      err2 `shouldBe` Just (EventStreamNotAtExpectedVersion (-1))
+      err1 `shouldBe` Left (EventStreamNotAtExpectedVersion (-1))
+      err2 `shouldBe` Left (EventStreamNotAtExpectedVersion (-1))
 
     it "should be able to store events starting with an empty stream" $ do
-      withStore (\writer _ -> storeEvents writer nil NoStream [Added 1]) `shouldReturn` Nothing
+      withStore (\writer _ -> storeEvents writer nil NoStream [Added 1]) `shouldReturn` Right 0
 
     it "should reject storing events sometimes with a stream" $ do
       (err1, err2, err3) <- withStore $ \writer _ ->
@@ -206,9 +206,9 @@ eventStoreSpec (EventStoreRunner withStore) = do
           storeEvents writer nil NoStream [Added 1] <*>
           storeEvents writer nil NoStream [Added 1] <*>
           storeEvents writer nil (ExactPosition 1) [Added 1]
-      err1 `shouldBe` Nothing
-      err2 `shouldBe` Just (EventStreamNotAtExpectedVersion 0)
-      err3 `shouldBe` Just (EventStreamNotAtExpectedVersion 0)
+      err1 `shouldBe` Right 0
+      err2 `shouldBe` Left (EventStreamNotAtExpectedVersion 0)
+      err3 `shouldBe` Left (EventStreamNotAtExpectedVersion 0)
 
     it "should accepts storing events sometimes with a stream" $ do
       errors <- withStore $ \writer _ ->
@@ -218,7 +218,7 @@ eventStoreSpec (EventStoreRunner withStore) = do
           , storeEvents writer nil (ExactPosition 1) [Added 1]
           , storeEvents writer nil StreamExists [Added 1]
           ]
-      errors `shouldBe` [Nothing, Nothing, Nothing, Nothing]
+      errors `shouldBe` [Right 0, Right 1, Right 2, Right 3]
 
 newtype GlobalStreamEventStoreRunner m =
   GlobalStreamEventStoreRunner

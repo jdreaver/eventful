@@ -54,7 +54,11 @@ tvarEventStoreWriter :: TVar (EventMap event) -> VersionedEventStoreWriter STM e
 tvarEventStoreWriter tvar = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion uuid = flip latestEventVersion uuid <$> readTVar tvar
-    storeEvents' uuid events = modifyTVar' tvar (\store -> storeEventMap store uuid events)
+    storeEvents' uuid events = do
+      store <- readTVar tvar
+      let (store', vers) = storeEventMap store uuid events
+      writeTVar tvar store'
+      return vers
 
 -- | Analog of 'tvarEventStoreReader' for a 'GlobalEventStoreReader'
 tvarGlobalEventStoreReader :: TVar (EventMap event) ->  GlobalEventStoreReader STM event
@@ -96,12 +100,12 @@ embeddedStateEventStoreWriter
 embeddedStateEventStoreWriter getMap setMap = EventStoreWriter $ transactionalExpectedWriteHelper getLatestVersion storeEvents'
   where
     getLatestVersion uuid = flip latestEventVersion uuid <$> gets getMap
-    storeEvents' uuid events = modify' (modifyStore uuid events)
-    modifyStore uuid events state' =
-      let
-        store = getMap state'
-        store' = storeEventMap store uuid events
-      in setMap state' store'
+    storeEvents' uuid events = do
+      state' <- get
+      let store = getMap state'
+      let (store', vers) = storeEventMap store uuid events
+      put $ setMap state' store'
+      return vers
 
 -- | Analogous to 'embeddedStateEventStore' for a 'GlobalStreamEventStore'.
 embeddedStateGlobalEventStoreReader
@@ -150,11 +154,11 @@ lookupGlobalEvents (QueryRange () start limit) (EventMap _ globalEvents) = event
         (StartQueryAt startSeq) -> startSeq
 
 storeEventMap
-  :: EventMap event -> UUID -> [event] -> EventMap event
+  :: EventMap event -> UUID -> [event] -> (EventMap event, EventVersion)
 storeEventMap store@(EventMap uuidMap globalEvents) uuid events =
   let
-    versStart = latestEventVersion store uuid + 1
-    streamEvents = zipWith (StreamEvent uuid) [versStart..] events
+    versStart = latestEventVersion store uuid
+    streamEvents = zipWith (StreamEvent uuid) [versStart + 1..] events
     newMap = Map.insertWith (flip (><)) uuid (Seq.fromList streamEvents) uuidMap
     globalEvents' = globalEvents >< Seq.fromList streamEvents
-  in EventMap newMap globalEvents'
+  in (EventMap newMap globalEvents', versStart + (EventVersion $ length events))
