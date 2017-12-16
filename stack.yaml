@@ -1,4 +1,4 @@
-resolver: nightly-2017-10-11
+resolver: nightly-2017-12-16
 packages:
   - 'doc/tutorial'
   - 'eventful-core'
