@@ -32,6 +32,10 @@ docker run \
   -d postgres:10 \
   postgres \
   -c "synchronous_commit=$SYNCHRONOUS_COMMIT"
+  # -c shared_buffers=2000MB \
+  # -c wal_buffers=16MB \
+  # -c work_mem=20MB \
+  # -c wal_writer_delay=2s
 
 # Wait for postgres to be available
 until nc -z "$PGHOST" 5432; do
@@ -147,7 +151,10 @@ $PGBENCH
 
 # * Setting synchronous_commit=off makes all the difference in the world. It
 # increases insert throughput by like 10 times. During one test, the simple
-# full table lock version went from 400 tps to 4000 tps on my laptop.
+# full table lock version went from 400 tps to 4000 tps on my laptop. Note that
+# this means we will see data loss of up to 3 times wal_writer_delay, and if
+# this is acceptable or not is domain specific. Also, in most systems like
+# Kinesis and Kafka an ACK of the event means it is stored durably.
 
 # * I'm not sure if in the trigger version the advisory lock on the sequence is
 # necessary to achieve monotoinc reads. My gut says it is. With the advisory
