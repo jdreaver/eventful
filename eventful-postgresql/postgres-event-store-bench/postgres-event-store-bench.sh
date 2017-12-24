@@ -68,6 +68,30 @@ EOF
 echo "Full table lock"
 $PGBENCH
 
+# Schema with logical logs embedded (UUID and version)
+recreate_db
+$PSQL <<EOF
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE events (
+  sequence_number serial PRIMARY KEY,
+  log_id uuid NOT NULL,
+  version int NOT NULL,
+  event jsonb NOT NULL,
+  UNIQUE (log_id, version)
+);
+EOF
+
+cat <<EOF > pgbench-script.sql
+BEGIN;
+LOCK events IN EXCLUSIVE MODE;
+INSERT INTO events (log_id, version, event) VALUES (uuid_generate_v4(), 0, '$SMALL_EVENT');
+COMMIT;
+EOF
+
+echo "Full table lock complex schema"
+$PGBENCH
+
 # Test insertion with trigger as sequence number
 recreate_db
 $PSQL <<EOF
