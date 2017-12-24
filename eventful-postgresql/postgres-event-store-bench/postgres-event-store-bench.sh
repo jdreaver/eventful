@@ -21,15 +21,26 @@ SMALL_EVENT='{"type":"mytype","value":"hello"}'
 LARGE_EVENT='{"type":"mytype","value":"hello","a":1,"b":2,"c":3,"d":true,"e":"Mary had a little lamb her fleece was white as snow and everywhere that mary went her lamb was sure to go","f":true,"g":false}'
 
 # Spin up a docker container to run postgres tests
-if [ ! "$(docker ps -q -f name=postgres_event_store_bench)" ]; then
-  if [ "$(docker ps -aq -f name=postgres_event_store_bench)" ]; then
-    docker rm postgres_event_store_bench
-  fi
-  docker run --name postgres_event_store_bench -e "POSTGRES_DB=$PGDATABASE" -p 5432:5432/tcp -d postgres:10 postgres
-
-  # Give time for postgres to start
-  sleep 10
+if [ "$(docker ps -aq -f name=postgres_event_store_bench)" ]; then
+  docker stop postgres_event_store_bench
+  docker rm postgres_event_store_bench
 fi
+docker run \
+  --name postgres_event_store_bench \
+  -e "POSTGRES_DB=$PGDATABASE" \
+  -p 5432:5432/tcp \
+  -d postgres:10 \
+  postgres \
+  -c "synchronous_commit=$SYNCHRONOUS_COMMIT"
+
+# Wait for postgres to be available
+until nc -z "$PGHOST" 5432; do
+  echo "waiting for postgres..."
+  sleep 1
+done
+
+# Give time for postgres to start
+sleep 10
 
 recreate_db() {
   local real_pgdatabase="$PGDATABASE"
@@ -49,7 +60,6 @@ EOF
 
 cat <<EOF > pgbench-script.sql
 BEGIN;
-SET LOCAL synchronous_commit TO $SYNCHRONOUS_COMMIT;
 LOCK events IN EXCLUSIVE MODE;
 INSERT INTO events (event) VALUES ('$SMALL_EVENT');
 COMMIT;
@@ -97,7 +107,6 @@ EOF
 
 cat <<EOF > pgbench-script.sql
 BEGIN;
-SET LOCAL synchronous_commit TO $SYNCHRONOUS_COMMIT;
 INSERT INTO events (event) VALUES ('$SMALL_EVENT');
 COMMIT;
 EOF
