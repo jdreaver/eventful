@@ -15,6 +15,8 @@ NUM_CLIENTS=${NUM_CLIENTS:-4}
 BENCH_TIME_SECONDS=${BENCH_TIME_SECONDS:-10}
 PGBENCH="pgbench --no-vacuum $PGDATABASE --client $NUM_CLIENTS --jobs $NUM_CLIENTS -f pgbench-script.sql --time $BENCH_TIME_SECONDS --report-latencies"
 
+SYNCHRONOUS_COMMIT=${SYNCHRONOUS_COMMIT:-OFF}
+
 # Spin up a docker container to run postgres tests
 if [ ! "$(docker ps -q -f name=postgres_event_store_bench)" ]; then
   if [ "$(docker ps -aq -f name=postgres_event_store_bench)" ]; then
@@ -38,11 +40,13 @@ $PSQL <<EOF
 CREATE TABLE events (
   sequence_number serial PRIMARY KEY,
   event jsonb NOT NULL
+  -- created_at timestamp with time zone default now() NOT NULL
 );
 EOF
 
 cat <<EOF > pgbench-script.sql
 BEGIN;
+SET LOCAL synchronous_commit TO $SYNCHRONOUS_COMMIT;
 LOCK events IN EXCLUSIVE MODE;
 INSERT INTO events (event) VALUES ('{"type":"mytype","value":"hello"}');
 COMMIT;
@@ -90,6 +94,7 @@ EOF
 
 cat <<EOF > pgbench-script.sql
 BEGIN;
+SET LOCAL synchronous_commit TO $SYNCHRONOUS_COMMIT;
 INSERT INTO events (event) VALUES ('{"type":"mytype","value":"hello"}');
 COMMIT;
 EOF
@@ -100,3 +105,13 @@ $PGBENCH
 # TODO: Test with millions of rows already inserted
 # TODO: Insert multiple rows per transaction
 # TODO: BRIN indexes
+
+# Notes of stuff I've discovered so far:
+
+# * Setting synchronous_commit=off makes all the difference in the world. It
+# increases insert throughput by like 10 times. During one test, the simple
+# full table lock version went from 400 tps to 4000 tps on my laptop.
+
+# * I'm not sure if in the trigger version the advisory lock on the sequence is
+# necessary to achieve monotoinc reads. My gut says it is. With the advisory
+# lock it is definitely slower than just a full table lock.
