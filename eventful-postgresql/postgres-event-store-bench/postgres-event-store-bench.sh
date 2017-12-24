@@ -17,6 +17,9 @@ PGBENCH="pgbench --no-vacuum $PGDATABASE --client $NUM_CLIENTS --jobs $NUM_CLIEN
 
 SYNCHRONOUS_COMMIT=${SYNCHRONOUS_COMMIT:-OFF}
 
+SMALL_EVENT='{"type":"mytype","value":"hello"}'
+LARGE_EVENT='{"type":"mytype","value":"hello","a":1,"b":2,"c":3,"d":true,"e":"Mary had a little lamb her fleece was white as snow and everywhere that mary went her lamb was sure to go","f":true,"g":false}'
+
 # Spin up a docker container to run postgres tests
 if [ ! "$(docker ps -q -f name=postgres_event_store_bench)" ]; then
   if [ "$(docker ps -aq -f name=postgres_event_store_bench)" ]; then
@@ -48,7 +51,7 @@ cat <<EOF > pgbench-script.sql
 BEGIN;
 SET LOCAL synchronous_commit TO $SYNCHRONOUS_COMMIT;
 LOCK events IN EXCLUSIVE MODE;
-INSERT INTO events (event) VALUES ('{"type":"mytype","value":"hello"}');
+INSERT INTO events (event) VALUES ('$SMALL_EVENT');
 COMMIT;
 EOF
 
@@ -95,16 +98,17 @@ EOF
 cat <<EOF > pgbench-script.sql
 BEGIN;
 SET LOCAL synchronous_commit TO $SYNCHRONOUS_COMMIT;
-INSERT INTO events (event) VALUES ('{"type":"mytype","value":"hello"}');
+INSERT INTO events (event) VALUES ('$SMALL_EVENT');
 COMMIT;
 EOF
 
 echo "Trigger with advisory lock"
 $PGBENCH
 
-# TODO: Test with millions of rows already inserted
+# TODO: Test with millions (billions?) of rows already inserted
 # TODO: Insert multiple rows per transaction
 # TODO: BRIN indexes
+# TODO: Query and streaming throughput
 
 # Notes of stuff I've discovered so far:
 
@@ -115,3 +119,9 @@ $PGBENCH
 # * I'm not sure if in the trigger version the advisory lock on the sequence is
 # necessary to achieve monotoinc reads. My gut says it is. With the advisory
 # lock it is definitely slower than just a full table lock.
+
+# * (Needs more testing) Event size doesn't have too much of an effect on write
+# speed. That means if you have large events then the total bytes per second
+# when using postgres could be fairly large. Also, if you batch event writes
+# (like you probably would anyway with something like Kafka or Kinesis), then
+# the total events per second and bytes per second is potentially event larger.
