@@ -15,7 +15,8 @@ NUM_CLIENTS=${NUM_CLIENTS:-4}
 BENCH_TIME_SECONDS=${BENCH_TIME_SECONDS:-10}
 PGBENCH="pgbench --no-vacuum $PGDATABASE --client $NUM_CLIENTS --jobs $NUM_CLIENTS -f pgbench-script.sql --time $BENCH_TIME_SECONDS --report-latencies"
 
-SYNCHRONOUS_COMMIT=${SYNCHRONOUS_COMMIT:-OFF}
+SYNCHRONOUS_COMMIT=${SYNCHRONOUS_COMMIT:-off}
+TRACK_COMMIT_TIMESTAMP=${TRACK_COMMIT_TIMESTAMP:-false}
 
 SMALL_EVENT='{"type":"mytype","value":"hello"}'
 LARGE_EVENT='{"type":"mytype","value":"hello","a":1,"b":2,"c":3,"d":true,"e":"Mary had a little lamb her fleece was white as snow and everywhere that mary went her lamb was sure to go","f":true,"g":false}'
@@ -31,7 +32,8 @@ docker run \
   -p 5432:5432/tcp \
   -d postgres:10 \
   postgres \
-  -c "synchronous_commit=$SYNCHRONOUS_COMMIT"
+  -c "synchronous_commit=$SYNCHRONOUS_COMMIT" \
+  -c "track_commit_timestamp=$TRACK_COMMIT_TIMESTAMP"
   # -c shared_buffers=2000MB \
   # -c wal_buffers=16MB \
   # -c work_mem=20MB \
