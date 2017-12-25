@@ -88,6 +88,10 @@ CREATE TABLE events (
 );
 EOF
 
+# TODO: I think the main bottleneck here is running uuid_generate_v4(). We
+# wouldn't have to do this in a real system because we would already know the
+# UUID.
+
 cat <<EOF > pgbench-script.sql
 BEGIN;
 LOCK events IN EXCLUSIVE MODE;
@@ -95,7 +99,31 @@ INSERT INTO events (log_id, version, event) VALUES (uuid_generate_v4(), 0, '$SMA
 COMMIT;
 EOF
 
-echo "Full table lock complex schema"
+echo "Full table lock, complex schema, random insertion"
+$PGBENCH
+
+# Schema with UUID but no versions
+recreate_db
+$PSQL <<EOF
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE events (
+  sequence_number serial PRIMARY KEY,
+  log_id uuid NOT NULL,
+  event jsonb NOT NULL
+);
+
+CREATE INDEX events_log_id ON events (log_id);
+EOF
+
+cat <<EOF > pgbench-script.sql
+BEGIN;
+LOCK events IN EXCLUSIVE MODE;
+INSERT INTO events (log_id, event) VALUES ('00000000-0000-0000-0000-000000000000', '$SMALL_EVENT');
+COMMIT;
+EOF
+
+echo "Full table lock, UUID but no version"
 $PGBENCH
 
 # Test insertion with trigger as sequence number
