@@ -1,0 +1,281 @@
+
+./tests/Bank/Models/AccountSpec.hs,90
+module Bank.Models.AccountSpec Bank.Models.AccountSpec0,1
+spec spec7,8
+spec spec8,9
+
+./tests/Spec.hs,0
+
+./executables/bank-main.hs,52
+module Main Main0,1
+main main4,5
+main main5,6
+
+./src/Bank/Models/Account/Commands.hs,1223
+module Bank.Models.Account.CommandsBank.Models.Account.Commands2,3
+accountCommands accountCommands17,18
+accountCommands accountCommands18,19
+data OpenAccount OpenAccount26,27
+  OpenAccountOpenAccount27,28
+  { openAccountOwner openAccountOwner28,29
+  , openAccountInitialFunding openAccountInitialFunding29,30
+data CreditAccount CreditAccount32,33
+  CreditAccountCreditAccount33,34
+  { creditAccountAmount creditAccountAmount34,35
+  , creditAccountReason creditAccountReason35,36
+data DebitAccount DebitAccount38,39
+  DebitAccountDebitAccount39,40
+  { debitAccountAmount debitAccountAmount40,41
+  , debitAccountReason debitAccountReason41,42
+data TransferToAccount TransferToAccount44,45
+  TransferToAccountTransferToAccount45,46
+  { transferToAccountTransferId transferToAccountTransferId46,47
+  , transferToAccountAmount transferToAccountAmount47,48
+  , transferToAccountTargetAccount transferToAccountTargetAccount48,49
+data AcceptTransfer AcceptTransfer51,52
+  AcceptTransferAcceptTransfer52,53
+  { acceptTransferTransferId acceptTransferTransferId53,54
+  , acceptTransferSourceAccount acceptTransferSourceAccount54,55
+  , acceptTransferAmount acceptTransferAmount55,56
+
+./src/Bank/Models/Account/CommandHandler.hs,322
+module Bank.Models.Account.CommandHandlerBank.Models.Account.CommandHandler3,4
+constructSumType constructSumType19,20
+handleAccountCommand handleAccountCommand21,22
+handleAccountCommand handleAccountCommand22,23
+accountCommandHandler accountCommandHandler74,75
+accountCommandHandler accountCommandHandler75,76
+
+./src/Bank/Models/Account/Events.hs,2260
+module Bank.Models.Account.EventsBank.Models.Account.Events2,3
+accountEvents accountEvents21,22
+accountEvents accountEvents22,23
+data AccountOpened AccountOpened34,35
+  AccountOpenedAccountOpened35,36
+  { accountOpenedOwner accountOpenedOwner36,37
+  , accountOpenedInitialFunding accountOpenedInitialFunding37,38
+data AccountOpenRejectedAccountOpenRejected40,41
+  = AccountOpenRejectedAccountOpenRejected41,42
+  { accountOpenRejectedReason accountOpenRejectedReason42,43
+data AccountCredited AccountCredited45,46
+  AccountCreditedAccountCredited46,47
+  { accountCreditedAmount accountCreditedAmount47,48
+  , accountCreditedReason accountCreditedReason48,49
+data AccountDebited AccountDebited51,52
+  AccountDebitedAccountDebited52,53
+  { accountDebitedAmount accountDebitedAmount53,54
+  , accountDebitedReason accountDebitedReason54,55
+data AccountDebitRejectedAccountDebitRejected57,58
+  = AccountDebitRejectedAccountDebitRejected58,59
+  { accountDebitRejectedRemainingBalance accountDebitRejectedRemainingBalance59,60
+data AccountTransferStarted AccountTransferStarted62,63
+  AccountTransferStartedAccountTransferStarted63,64
+  { accountTransferStartedTransferId accountTransferStartedTransferId64,65
+  , accountTransferStartedAmount accountTransferStartedAmount65,66
+  , accountTransferStartedTargetAccount accountTransferStartedTargetAccount66,67
+data AccountTransferCompleted AccountTransferCompleted69,70
+  AccountTransferCompletedAccountTransferCompleted70,71
+  { accountTransferCompletedTransferId accountTransferCompletedTransferId71,72
+data AccountTransferRejected AccountTransferRejected74,75
+  AccountTransferRejectedAccountTransferRejected75,76
+  { accountTransferRejectedTransferId accountTransferRejectedTransferId76,77
+  , accountTransferRejectedReason accountTransferRejectedReason77,78
+data AccountCreditedFromTransfer AccountCreditedFromTransfer80,81
+  AccountCreditedFromTransferAccountCreditedFromTransfer81,82
+  { accountCreditedFromTransferTransferId accountCreditedFromTransferTransferId82,83
+  , accountCreditedFromTransferSourceAccount accountCreditedFromTransferSourceAccount83,84
+  , accountCreditedFromTransferAmount accountCreditedFromTransferAmount84,85
+
+./src/Bank/Models/Account/Projection.hs,1110
+module Bank.Models.Account.ProjectionBank.Models.Account.Projection4,5
+data AccountAccount25,26
+  = AccountAccount26,27
+  { _accountBalance _accountBalance27,28
+  , _accountOwner _accountOwner28,29
+  , _accountPendingTransfers _accountPendingTransfers29,30
+accountDefault accountDefault32,33
+accountDefault accountDefault33,34
+data PendingAccountTransferPendingAccountTransfer35,36
+  = PendingAccountTransferPendingAccountTransfer36,37
+  { pendingAccountTransferId pendingAccountTransferId37,38
+  , pendingAccountTransferAmount pendingAccountTransferAmount38,39
+  , pendingAccountTransferTargetAccount pendingAccountTransferTargetAccount39,40
+accountAvailableBalance accountAvailableBalance47,48
+accountAvailableBalance accountAvailableBalance48,49
+findAccountTransferById findAccountTransferById53,54
+findAccountTransferById findAccountTransferById54,55
+constructSumType constructSumType56,57
+handleAccountEvent handleAccountEvent61,62
+handleAccountEvent handleAccountEvent62,63
+accountProjection accountProjection104,105
+accountProjection accountProjection105,106
+
+./src/Bank/Models/Customer.hs,53
+module Bank.Models.CustomerBank.Models.Customer0,1
+
+./src/Bank/Models/Customer/Commands.hs,282
+module Bank.Models.Customer.CommandsBank.Models.Customer.Commands2,3
+customerCommands customerCommands11,12
+customerCommands customerCommands12,13
+data CreateCustomer CreateCustomer16,17
+  CreateCustomerCreateCustomer17,18
+  { createCustomerData createCustomerData18,19
+
+./src/Bank/Models/Customer/CommandHandler.hs,332
+module Bank.Models.Customer.CommandHandlerBank.Models.Customer.CommandHandler2,3
+constructSumType constructSumType15,16
+handleCustomerCommand handleCustomerCommand17,18
+handleCustomerCommand handleCustomerCommand18,19
+customerCommandHandler customerCommandHandler23,24
+customerCommandHandler customerCommandHandler24,25
+
+./src/Bank/Models/Customer/Events.hs,470
+module Bank.Models.Customer.EventsBank.Models.Customer.Events2,3
+customerEvents customerEvents12,13
+customerEvents customerEvents13,14
+data CustomerCreated CustomerCreated18,19
+  CustomerCreatedCustomerCreated19,20
+  { customerCreatedName customerCreatedName20,21
+data CustomerCreationRejectedCustomerCreationRejected23,24
+  = CustomerCreationRejectedCustomerCreationRejected24,25
+  { customerCreationRejectedReason customerCreationRejectedReason25,26
+
+./src/Bank/Models/Customer/Projection.hs,393
+module Bank.Models.Customer.ProjectionBank.Models.Customer.Projection3,4
+data Customer Customer17,18
+  CustomerCustomer18,19
+  { customerName customerName19,20
+constructSumType constructSumType24,25
+handleCustomerEvent handleCustomerEvent29,30
+handleCustomerEvent handleCustomerEvent30,31
+customerProjection customerProjection33,34
+customerProjection customerProjection34,35
+
+./src/Bank/Models/Account.hs,51
+module Bank.Models.AccountBank.Models.Account0,1
+
+./src/Bank/CLI.hs,91
+module Bank.CLIBank.CLI3,4
+bankCLIMain bankCLIMain17,18
+bankCLIMain bankCLIMain18,19
+
+./src/Bank/CLI/Options.hs,1226
+module Bank.CLI.OptionsBank.CLI.Options0,1
+runOptionsParser runOptionsParser15,16
+runOptionsParser runOptionsParser16,17
+data OptionsOptions18,19
+  = OptionsOptions19,20
+  { optionsDatabaseFile optionsDatabaseFile20,21
+  , optionsCommand optionsCommand21,22
+data CLICommandCLICommand24,25
+  = CreateCustomerCLI CreateCustomerCLI25,26
+  | ViewAccountCLI ViewAccountCLI26,27
+  | ViewCustomerAccountsCLI ViewCustomerAccountsCLI27,28
+  | OpenAccountCLI OpenAccountCLI28,29
+  | TransferToAccountCLI TransferToAccountCLI29,30
+parseOptions parseOptions32,33
+parseOptions parseOptions33,34
+parseDatabaseFileOption parseDatabaseFileOption44,45
+parseDatabaseFileOption parseDatabaseFileOption45,46
+parseCreateCustomer parseCreateCustomer54,55
+parseCreateCustomer parseCreateCustomer55,56
+parseViewAccount parseViewAccount63,64
+parseViewAccount parseViewAccount64,65
+parseViewCustomerAccounts parseViewCustomerAccounts72,73
+parseViewCustomerAccounts parseViewCustomerAccounts73,74
+parseOpenAccount parseOpenAccount81,82
+parseOpenAccount parseOpenAccount82,83
+parseTransfer parseTransfer96,97
+parseTransfer parseTransfer97,98
+parseUUID parseUUID115,116
+parseUUID parseUUID116,117
+
+./src/Bank/CLI/Store.hs,715
+module Bank.CLI.Store Bank.CLI.Store1,2
+runDB runDB15,16
+runDB runDB16,17
+cliEventStoreReader cliEventStoreReader18,19
+cliEventStoreReader cliEventStoreReader19,20
+cliEventStoreWriter cliEventStoreWriter23,24
+cliEventStoreWriter cliEventStoreWriter24,25
+cliGlobalEventStoreReader cliGlobalEventStoreReader30,31
+cliGlobalEventStoreReader cliGlobalEventStoreReader31,32
+type BankEventHandler BankEventHandler34,35
+type BankEventHandler m m34,35
+eventPrinter eventPrinter36,37
+eventPrinter eventPrinter37,38
+transferManagerHandler transferManagerHandler39,40
+transferManagerHandler transferManagerHandler40,41
+printJSONPretty printJSONPretty47,48
+printJSONPretty printJSONPretty48,49
+
+./src/Bank/CLI/RunCommand.hs,121
+module Bank.CLI.RunCommandBank.CLI.RunCommand0,1
+runCLICommand runCLICommand14,15
+runCLICommand runCLICommand15,16
+
+./src/Bank/Models.hs,553
+module Bank.ModelsBank.Models3,4
+constructSumType constructSumType27,28
+deriveJSON deriveJSON36,37
+accountBankProjection accountBankProjection50,51
+accountBankProjection accountBankProjection51,52
+accountBankCommandHandler accountBankCommandHandler53,54
+accountBankCommandHandler accountBankCommandHandler54,55
+customerBankProjection customerBankProjection59,60
+customerBankProjection customerBankProjection60,61
+customerBankCommandHandler customerBankCommandHandler62,63
+customerBankCommandHandler customerBankCommandHandler63,64
+
+./src/Bank/Json.hs,537
+module Bank.JsonBank.Json2,3
+unPrefixLower unPrefixLower15,16
+unPrefixLower unPrefixLower16,17
+unCapitalize unCapitalize19,20
+unCapitalize unCapitalize20,21
+dropPrefix dropPrefix23,24
+dropPrefix dropPrefix24,25
+dropSuffix dropSuffix26,27
+dropSuffix dropSuffix27,28
+dropPrefix' dropPrefix'29,30
+dropPrefix' dropPrefix'30,31
+deriveJSONUnPrefixLower deriveJSONUnPrefixLower39,40
+deriveJSONUnPrefixLower deriveJSONUnPrefixLower40,41
+firstCharToLower firstCharToLower42,43
+firstCharToLower firstCharToLower43,44
+
+./src/Bank/ReadModels/CustomerAccounts.hs,771
+module Bank.ReadModels.CustomerAccountsBank.ReadModels.CustomerAccounts4,5
+data CustomerAccountsCustomerAccounts24,25
+  = CustomerAccountsCustomerAccounts25,26
+  { _customerAccountsAccountsById _customerAccountsAccountsById26,27
+  , _customerAccountsCustomerAccounts _customerAccountsCustomerAccounts27,28
+  , _customerAccountsCustomerIdsByName _customerAccountsCustomerIdsByName28,29
+getCustomerAccountsFromName getCustomerAccountsFromName35,36
+getCustomerAccountsFromName getCustomerAccountsFromName36,37
+handleCustomerAccountsEvent handleCustomerAccountsEvent42,43
+handleCustomerAccountsEvent handleCustomerAccountsEvent43,44
+customerAccountsProjection customerAccountsProjection60,61
+customerAccountsProjection customerAccountsProjection61,62
+
+./src/Bank/ProcessManagers/TransferManager.hs,1151
+module Bank.ProcessManagers.TransferManagerBank.ProcessManagers.TransferManager3,4
+data TransferManagerTransferManager19,20
+  = TransferManagerTransferManager20,21
+  { _transferManagerData _transferManagerData21,22
+  , _transferManagerCanceled _transferManagerCanceled22,23
+  , _transferManagerPendingCommands _transferManagerPendingCommands23,24
+  , _transferManagerPendingEvents _transferManagerPendingEvents24,25
+data TransferManagerTransferDataTransferManagerTransferData27,28
+  = TransferManagerTransferDataTransferManagerTransferData28,29
+  { transferSourceAccount transferSourceAccount29,30
+  , transferTargetAccount transferTargetAccount30,31
+transferManagerDefault transferManagerDefault35,36
+transferManagerDefault transferManagerDefault36,37
+transferManagerProjection transferManagerProjection38,39
+transferManagerProjection transferManagerProjection39,40
+handleAccountEvent handleAccountEvent44,45
+handleAccountEvent handleAccountEvent45,46
+type TransferProcessManager TransferProcessManager91,92
+transferProcessManager transferProcessManager93,94
+transferProcessManager transferProcessManager94,95
