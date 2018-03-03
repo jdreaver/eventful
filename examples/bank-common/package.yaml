@@ -1,0 +1,43 @@
+name: examples-bank-common
+version: "0.1.0"
+maintainer: David Reaver
+synopsis: Example bank application for eventful
+description: Example bank application for eventful
+maintainer: David Reaver
+stability: experimental
+license: MIT
+
+dependencies:
+  - base >= 4.9 && < 5
+  - eventful-core
+
+  - aeson
+  - aeson-pretty
+  - bytestring
+  - containers
+  - contravariant
+  - lens
+  - monad-logger
+  - mtl
+  - optparse-applicative
+  - safe
+  - stm
+  - sum-type-boilerplate
+  - template-haskell
+  - text
+
+library:
+  source-dirs:
+    - src
+  ghc-options: -Wall
+
+tests:
+  spec:
+    main: Spec.hs
+    ghc-options: -Wall
+    source-dirs:
+      - tests
+      - src
+    dependencies:
+      - hspec
+      - HUnit
