@@ -1,4 +1,4 @@
-name: examples-bank-postgres
+name: examples-bank-common
 version: "0.1.0"
 maintainer: David Reaver
 synopsis: Example bank application for eventful
@@ -10,7 +10,6 @@ license: MIT
 dependencies:
   - base >= 4.9 && < 5
   - eventful-core
-  - eventful-postgresql
 
   - aeson
   - aeson-pretty
@@ -21,9 +20,6 @@ dependencies:
   - monad-logger
   - mtl
   - optparse-applicative
-  - persistent
-  - persistent-postgresql
-  - persistent-template
   - safe
   - stm
   - sum-type-boilerplate
@@ -34,17 +30,6 @@ library:
   source-dirs:
     - src
   ghc-options: -Wall
-  dependencies:
-    - examples-bank-common
-
-executables:
-  bank-main:
-    main: bank-main.hs
-    ghc-options: -Wall
-    source-dirs:
-      - executables
-    dependencies:
-      - examples-bank-postgres
 
 tests:
   spec:

@@ -1,6 +1,6 @@
 module Main where
 
-import BankPostgres.CLI
+import BankSqlite.CLI
 
 main :: IO ()
 main = bankCLIMain

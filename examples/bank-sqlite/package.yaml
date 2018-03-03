@@ -1,4 +1,4 @@
-name: examples-bank-postgres
+name: examples-bank-sqlite
 version: "0.1.0"
 maintainer: David Reaver
 synopsis: Example bank application for eventful
@@ -10,7 +10,7 @@ license: MIT
 dependencies:
   - base >= 4.9 && < 5
   - eventful-core
-  - eventful-postgresql
+  - eventful-sqlite
 
   - aeson
   - aeson-pretty
@@ -22,7 +22,7 @@ dependencies:
   - mtl
   - optparse-applicative
   - persistent
-  - persistent-postgresql
+  - persistent-sqlite
   - persistent-template
   - safe
   - stm
@@ -38,13 +38,13 @@ library:
     - examples-bank-common
 
 executables:
-  bank-main:
-    main: bank-main.hs
+  bank-main-sqlite:
+    main: bank-main-sqlite.hs
     ghc-options: -Wall
     source-dirs:
       - executables
     dependencies:
-      - examples-bank-postgres
+      - examples-bank-sqlite
 
 tests:
   spec:
